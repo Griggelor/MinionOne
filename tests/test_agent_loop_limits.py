@@ -46,7 +46,7 @@ class Clock:
 class AgentLoopTests(unittest.TestCase):
     def setUp(self):
         self.clock=Clock()
-        self.limits=AgentLimits(max_loops=200,max_tool_calls=400,
+        self.limits=AgentLimits(max_loops=200,max_tool_calls=60,
                                 max_tokens=10000,wall_seconds=300,
                                 model_call_seconds=30,max_denials=3,max_idle_loops=8)
     def runner(self, **limits):
@@ -54,6 +54,18 @@ class AgentLoopTests(unittest.TestCase):
     def tool(self, name="read_file", count=2, args=None):
         return ModelStep("tool", name=name, arguments=args or {"path":"input/test.txt"},
                          total_tokens=count, reasoning_tokens=1)
+
+    def test_v06_worker_policy_hard_caps_override_agent_loop_preference(self):
+        # Normative v0.6 worker_policy.schema.json: max_tool_calls <= 60,
+        # max_runtime_seconds <= 1200. 200 model turns must NOT weaken either.
+        self.assertEqual(AgentLimits().max_tool_calls,60)
+        self.assertLessEqual(AgentLimits().wall_seconds,1200)
+        AgentLimits(max_loops=200,max_tool_calls=60,wall_seconds=1200,
+                    max_idle_loops=200)
+        for params in ({"max_tool_calls":61},{"max_tool_calls":400},
+                       {"wall_seconds":1201},{"wall_seconds":86400}):
+            with self.subTest(params=params),self.assertRaises(AgentConfigurationError):
+                AgentLimits(**params)
 
     def test_valid_bounded_tools_then_final_is_pending_review_not_delivered(self):
         provider=FakeProvider([self.tool("list_files"),self.tool("read_file"),
@@ -72,19 +84,17 @@ class AgentLoopTests(unittest.TestCase):
         self.assertTrue(all(x>0 and x<=30 for x in provider.timeouts))
 
     def test_can_finish_exactly_on_loop_200(self):
-        provider=FakeProvider([ModelStep("tool",name="report_progress",
-                                         arguments={},total_tokens=1)]*199+
+        provider=FakeProvider([ModelStep("continue",total_tokens=1)]*199+
                               [ModelStep("finish",text="finished",total_tokens=1)])
-        r=self.runner().run(provider,FakeBroker())
+        r=self.runner(max_loops=200,max_idle_loops=200).run(provider,FakeBroker())
         self.assertEqual((r.status,r.loops),("AWAITING_REVIEW",200))
 
     def test_does_not_execute_iteration_201(self):
-        provider=FakeProvider([ModelStep("tool",name="report_progress",
-                                         arguments={},total_tokens=1)]*201)
-        r=self.runner().run(provider,FakeBroker())
+        provider=FakeProvider([ModelStep("continue",total_tokens=1)]*201)
+        r=self.runner(max_loops=200,max_idle_loops=200).run(provider,FakeBroker())
         self.assertEqual((r.status,r.loops),("LOOP_LIMIT",200))
         self.assertEqual(len(provider.timeouts),200)
-        self.assertEqual(r.tool_calls,200)
+        self.assertEqual(r.tool_calls,0)
         self.assertFalse(r.delivered)
 
     def test_default_is_50_and_hard_max_200(self):

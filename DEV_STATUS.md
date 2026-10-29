@@ -3,6 +3,32 @@
 **Version:** 0.9.0.dev0  
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
 
+## Latest verified engineering evidence
+
+The previous 37-test snapshot and 160-test private staging figures below are
+historical; they are NOT the current GitHub code test totals.
+
+- **G2 outbox:** [PR #12](https://github.com/Griggelor/MinionOne/pull/12)
+  merged. Durable per-job intents, single-claim CAS and uncertainty quarantine;
+  no send, delivery ACK, original-chat identity or worker rights. [77/77 per OS
+  CI](https://github.com/Griggelor/MinionOne/actions/runs/40916174040).
+- **G1b Windows API feasibility:** [PR #13](https://github.com/Griggelor/MinionOne/pull/13)
+  merged. [6/6 real Win32/NTFS API tests](https://github.com/Griggelor/MinionOne/actions/runs/40916892418)
+  on Windows build 26100; no production Windows file broker exists.
+- **G1a official MCP SDK test:** [PR #14](https://github.com/Griggelor/MinionOne/pull/14)
+  merged. [4/4 official SDK v1/v2 and Windows/Linux combinations](https://github.com/Griggelor/MinionOne/actions/runs/40917985128)
+  passed. Real Unsloth Studio client, caller identity and same-chat wakeup
+  are NOT verified.
+- [GitHub Actions pilot wheel](https://github.com/Griggelor/MinionOne/actions/workflows/pilot-wheel.yml)
+  is a temporary downloadable artifact after Windows and Linux test gates.
+  It is NOT a beta or a signed production release.
+
+**Still not implemented/verified:** handle-bound NTFS worker file broker,
+complete persistent canonical state engine, provider-fenced worker attempts,
+LM Studio/Flint real job execution, immutable artifact publication, target
+resource/UMA admission, same-chat delivery and independent human review.
+**Beta: NO-GO.** G0 full normative sanitized reference import also incomplete.
+
 ## New MCP-pilot implementation
 
 - Production-path HTTP listener at src/minionone/mcp_server.py using 2025-06-18

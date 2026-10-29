@@ -59,7 +59,11 @@ class AdmissionStore:
     demonstrated upstream integration. In this slice the mapping is preapproved.
     """
 
-    def __init__(self, database_path, *, credentials):
+    def __init__(self, database_path, *, credentials, max_jobs_per_principal=256):
+        if (type(max_jobs_per_principal) is not int or
+                not 1 <= max_jobs_per_principal <= 4096):
+            raise InputRejected('invalid admission quota')
+        self.max_jobs_per_principal = max_jobs_per_principal
         if type(credentials) is not dict or not credentials:
             raise InputRejected('trusted credentials mapping required')
         clean = {}
@@ -159,6 +163,11 @@ class AdmissionStore:
                     raise IdempotencyConflict('admission key reused with different request')
                 self._owned_row(con, principal, thread_id, prior['job_id'])
                 return json.loads(prior['receipt'])
+            active_count = con.execute(
+                'SELECT COUNT(*) FROM jobs WHERE principal=?', (principal,)
+            ).fetchone()[0]
+            if active_count >= self.max_jobs_per_principal:
+                raise InputRejected('admission quota exhausted')
             job_id = 'JOB-' + secrets.token_hex(16)
             now = _utc()
             con.execute('INSERT INTO jobs(job_id,principal,thread_id,input_digest,state,version,created_utc,updated_utc) VALUES (?,?,?,?,?,?,?,?)',

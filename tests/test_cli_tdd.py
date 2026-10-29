@@ -40,6 +40,24 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(rc,2)
         self.assertNotIn('secret-token-test',repr(data))
 
+    def test_cli_classifies_provider_auth_and_connection_failures(self):
+        from minionone.lmstudio_probe import ProbeError
+        from minionone.diagnostics import diagnostic
+        secret="supersecret-user-password-DO-NOT-EXPOSE"
+        for code in ("PROVIDER_AUTH_FAILED","PROVIDER_CONNECTION_REFUSED",
+                     "PROVIDER_TIMEOUT","PROVIDER_SERVER_ERROR"):
+            class Probe:
+                def __init__(self,*a,**k):pass
+                def models(self):
+                    raise ProbeError(secret,diagnostic=diagnostic(code))
+            with self.subTest(code=code),patch.object(cli,"LMStudioProbe",Probe):
+                rc,data=self.invoke(["probe-lmstudio"])
+                self.assertEqual(rc,2)
+                self.assertEqual(data["error"]["code"],code)
+                self.assertIn("action",data["error"])
+                self.assertNotIn(secret,json.dumps(data))
+                self.assertFalse(data["ok"])
+
     def test_smoke_is_fixed_synthetic_prompt_and_redacts_text(self):
         class Completion:
             def __init__(self,*a,**k):pass

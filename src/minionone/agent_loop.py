@@ -188,8 +188,9 @@ class AgentLoop:
                     reply = BrokerReply('DENIED', 'SCOPE_DENIED')
                 except Exception:
                     return receipt('BROKER_FAILURE')
-                if type(reply) is not BrokerReply or reply.status != 'ok':
-                    return receipt('BROKER_FAILURE')
+                else:
+                    if type(reply) is not BrokerReply or reply.status != 'ok':
+                        return receipt('BROKER_FAILURE')
             try:
                 provider.observe_tool(step.name, reply)
             except Exception:

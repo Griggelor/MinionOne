@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from src.minionone.admission import AdmissionStore, PermissionDenied, InputRejected, VersionConflict
+from minionone.admission import AdmissionStore, PermissionDenied, InputRejected, VersionConflict
 
 TOKEN = 'c' * 48
 THREAD = 'verified-thread'

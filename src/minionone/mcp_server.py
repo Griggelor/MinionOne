@@ -3,6 +3,7 @@ from __future__ import annotations
 import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import threading
 from urllib.parse import urlsplit
 from . import __version__
 from .admission import AdmissionStore, InputRejected, PermissionDenied, IdempotencyConflict, VersionConflict
@@ -38,7 +39,24 @@ class LocalMCP(ThreadingHTTPServer):
         self.thread_id = thread
         self.store = AdmissionStore(database_path, credentials={token:(principal,{thread})})
         self.probe = LMStudioProbe(lmstudio_url)
+        self._slots=threading.BoundedSemaphore(8)
         super().__init__(address, MCPHandler)
+
+    def process_request(self, request, client_address):
+        if not self._slots.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request,client_address)
+        except BaseException:
+            self._slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request,client_address)
+        finally:
+            self._slots.release()
 
     def call_tool(self, name, args):
         if type(args) is not dict or name not in TOOL_MAP:

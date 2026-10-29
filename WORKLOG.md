@@ -235,3 +235,26 @@ docs/ADR_G2_EXTENDED_WORKER_TIMEOUTS.md.
 There is still NO real manager-authorized long-running worker,
 durable strike/time accounting, safe file broker, actual target soak test,
 process quiescence or Unsloth same-chat completion. Beta NO-GO.
+
+## v0.14.0.dev0 timeout and Resume request slice — 2026-10-29
+
+PR #27 merged at 0527f1158974217f88957a6b4ee6c0be30c83013.
+A synthetic RUNNING job can be recorded as INTERRUPTED with reason
+TIMEOUT only when the prior attempt fence is FENCED and trusted manager
+quiescence is asserted. Unknown worker liveness is quarantined in
+NEEDS_RECONCILIATION; the status response uses unknown/null rather than
+misleading false for worker_running. The parent can cancel a timed-out
+job or submit a durable, idempotent minionone_resume_request intent.
+That request does NOT transition to RESUMING, create epoch 2, dispatch
+Flint or publish any answer. The canonical SQLite schema migrates
+known old 3/6-state constraints, retaining the worker_started=0 check.
+Tests initially red; synthetic event-count assertion corrected and
+false-unknown liveness reviewed. Exact functional PR head run
+https://github.com/Griggelor/MinionOne/actions/runs/40970211921:
+181/181 tests per OS PASS and separate official MCP SDK/Win32
+feasibility runs PASS. Reference:
+docs/G2_TIMEOUT_RESUME_INTENT.md and
+reviews/G2_TIMEOUT_RESUME_SECURITY_REVIEW.md.
+Beta and live resume remain NO-GO, pending secure new attempt epoch,
+verified checkpoint/progress/budget recovery, provider quiescence,
+Win32 file broker and Unsloth same-chat attestation.

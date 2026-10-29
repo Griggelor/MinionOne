@@ -137,6 +137,29 @@ class WindowsHandleFeasibility(unittest.TestCase):
         self.assertEqual(getattr(cm.exception, "winerror", None), 80)
         self.assertEqual(file_path.stat().st_size, 0)
 
+    def test_runner_volume_and_windows_build_reported(self):
+        get_volume = self.kernel.GetVolumeInformationW
+        get_volume.argtypes = [
+            wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD,
+            ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(wintypes.DWORD),
+            ctypes.POINTER(wintypes.DWORD), wintypes.LPWSTR, wintypes.DWORD,
+        ]
+        get_volume.restype = wintypes.BOOL
+        filesystem = ctypes.create_unicode_buffer(64)
+        serial = wintypes.DWORD()
+        flags = wintypes.DWORD()
+        if not get_volume(str(self.root.anchor), None, 0, ctypes.byref(serial),
+                          None, ctypes.byref(flags), filesystem, len(filesystem)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        print("G1B_RUNNER_FACTS windows_build=%d fs=%s feature_flags=0x%X" %
+              (sys.getwindowsversion().build, filesystem.value, flags.value))
+        self.assertEqual(filesystem.value.upper(), "NTFS",
+                         "G1b experiment cannot assume target filesystem")
+        self.assertTrue(flags.value & 0x00400000,
+                        "Volume must support hard links for adversarial suite")
+        self.assertTrue(flags.value & 0x00000080,
+                        "Volume must support reparse points for adversarial suite")
+
     def test_file_symlink_is_recognized_without_following(self):
         outside = self.other / "outside.txt"
         outside.write_bytes(b"synthetic")

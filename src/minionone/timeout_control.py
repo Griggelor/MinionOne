@@ -60,7 +60,7 @@ class TimeoutControlStore:
                                     not record["resume_requested"]),
             "resume_requested":bool(record["resume_requested"]),
             "resume_started":False,
-            "worker_running":False,
+            "worker_running":False if record["worker_quiescent"] else None,
         }
 
     def status(self, parent_token, thread_id, job_id):
@@ -137,7 +137,7 @@ class TimeoutControlStore:
                 "error_code":"TIMEOUT","resume_available":bool(
                     worker_quiescent and checkpoint_sha256 is not None),
                 "resume_requested":False,"resume_started":False,
-                "worker_running":False
+                "worker_running":False if worker_quiescent else None
             }
             con.execute("""INSERT INTO timeout_records(
                 job_id,timeout_operation_id,timeout_request_hash,attempt_epoch,

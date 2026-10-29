@@ -203,6 +203,8 @@ class AgentLoop:
             if tools >= self.limits.max_tool_calls:
                 return receipt('TOOL_LIMIT')
             tools += 1
+            start_tool = None
+            tool_timeout = None
             if step.name not in ALLOWED_WORKER_TOOLS:
                 denials += 1
                 reply = BrokerReply('DENIED', 'FORBIDDEN_TOOL')
@@ -233,7 +235,8 @@ class AgentLoop:
             except Exception:
                 return receipt('TIMEOUT')
             if (not math.isfinite(tool_after) or tool_after >= end or
-                    tool_after - start_tool >= tool_timeout):
+                    (start_tool is not None and
+                     tool_after - start_tool >= tool_timeout)):
                 return receipt('TIMEOUT')
             try:
                 provider.observe_tool(step.name, reply)

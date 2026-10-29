@@ -14,7 +14,7 @@ and artifact publication are disabled.
 2. Select the most recent successful run on the main branch.
 3. Confirm three green jobs: Required tests (ubuntu-24.04), Required tests
    (windows-latest) and build-pilot. Build now depends on BOTH test jobs.
-4. Under Artifacts, download MinionOne-MCP-PILOT-UNVERIFIED-0.13.0.dev0.
+4. Under Artifacts, download MinionOne-MCP-PILOT-UNVERIFIED-0.14.0.dev0.
    GitHub may require signing in. Artifacts are retained for 14 days.
 5. Extract the ZIP. It contains a Python wheel and SHA256SUMS.txt.
 
@@ -50,3 +50,14 @@ interoperability and target Windows NTFS security are still unverified.
 
 If it fails, report Unsloth version, backend topology, sanitized error code
 and steps to reproduce. Do not share the token.
+
+
+## v0.14 TIMEOUT / Resume pilot note
+
+The pilot adds a durable TIMEOUT reason and an authenticated MCP
+minionone_resume_request operation. This operation ONLY records a
+restart-safe resume request. It cannot start or resume a Flint worker.
+Unknown old worker state becomes NEEDS_RECONCILIATION and Resume is
+blocked. Before upgrading a local pilot database, stop MinionOne and
+make a restorable SQLite backup; the constrained canonical jobs table
+is migrated at startup. Do not use real project files in this pre-alpha.

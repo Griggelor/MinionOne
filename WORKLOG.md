@@ -183,3 +183,21 @@ review and public license/provenance audit are still incomplete.
 
 The mandatory complete sanitized v0.6 contract/reference tree is still not
 fully imported into GitHub; G0 packaging/traceability remains PARTIAL.
+
+## Milestone checkpoint — 0.10.0.dev0 (2026-10-29)
+
+After PR #14, three additional reviewed changes are merged directly to main:
+
+- PR #15: internal one-shot AttemptFenceStore, 256-bit capability only returned once, stored SHA-256 digest, durable single-winner CAS, fail-closed reboot fencing. Current public AdmissionStore remains ACCEPTED-only and cannot reserve a worker. Scope-only security review at reviews/G2_ATTEMPT_FENCING_SECURITY_REVIEW.md.
+- PR #16: actual LocalMCP startup connects OutboxStore and AttemptFenceStore and quarantines uncertain side effects before HTTP socket bind. Unit/injection tests first went red on BOTH OSes (GitHub Actions 40924081134). After integration 95/95 Windows and Linux tests passed at 40924172291. Review: reviews/G2_MCP_STARTUP_RECOVERY_REVIEW.md.
+- PR #17: pure parent-resident memory eligibility, strict telemetry consistency/freshness, no model load or memory reservation; 103/103 feature-branch CI per OS at run 40924809700. Review: reviews/G1C_RESOURCE_POLICY_REVIEW.md.
+
+At merged functional commit 5b11c77ed82df9393141a6cba0dc22ca5a0ba82d:
+- Core Windows CI 40925220168: 109/109 PASS (24.604s).
+- Core Ubuntu CI 40925220168: 109/109 PASS (13.023s).
+- Official MCP SDK and Windows API feasibility workflows on that commit: PASS.
+- Packaging workflow on that commit started and must be checked for its own terminal conclusion.
+
+Version checkpoint will be packaged as **0.10.0.dev0, public PRE-ALPHA, NO-GO for Beta** only after version-consistency tests and dual-OS gated wheel build succeed. This is not a claim that the 123-test sanitized normative v0.6 tree is imported. It remains absent from the public repository.
+
+Critical blockers: no Win32 secure file broker, Unsloth real chat identity/wakeup, provider quiescence, worker tool broker, model residency checks on target, immutable published artifacts, completed/ACKed integration and independent external review. No real worker can run from the shipped MCP pilot.

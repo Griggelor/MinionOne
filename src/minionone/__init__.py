@@ -1,3 +1,3 @@
-"""MinionOne pre-alpha: no deployable MCP/worker service or security attestation."""
+"""MinionOne experimental MCP pilot. All worker execution remains disabled."""
 
-__version__ = "0.9.0.dev0"
+__version__ = "0.10.0.dev0"

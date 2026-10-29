@@ -81,6 +81,14 @@ class TestMCPRecoveryBeforeBind(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 self.listen()
 
+    def test_recovery_error_never_reaches_http_bind(self):
+        with patch("minionone.mcp_server.ThreadingHTTPServer.__init__") as bind:
+            with patch("minionone.mcp_server.AttemptFenceStore.fence_unreconciled",
+                       side_effect=RuntimeError("synthetic recovery refusal")):
+                with self.assertRaises(RuntimeError):
+                    self.listen()
+            bind.assert_not_called()
+
     def test_fence_recovery_failure_prevents_listener_creation(self):
         with patch("minionone.mcp_server.AttemptFenceStore.fence_unreconciled",
                    side_effect=RuntimeError("synthetic fencing write failure")):

@@ -114,3 +114,72 @@ real LM Studio/Flint worker execution with target resource admission; durable
 multi-attempt dispatcher/fencing, outbox, explicit parent ACK and recovery;
 independent human/third-party security audit, source provenance and approved
 license. All release claims remain NO-GO until explicit evidence exists.
+
+
+## Continued implementation milestone — 2026-10-29, G2/G1b/G1a
+
+This record was added after merging the following reviewed feature branches.
+All are incremental **pre-alpha components**; no multi-agent Beta released.
+
+### PR #12 — conservative durable outbox (merged bfad84e833af6048670d96223c6f18b92f5ad5a9)
+
+- [PR #12](https://github.com/Griggelor/MinionOne/pull/12) introduced
+  manager-internal SQLite delivery intents with exact job/version eligibility,
+  durable operation-key idempotency, bounded per-job quotas, single-winner
+  dispatch claims and explicit quarantine of uncertain IN_FLIGHT effects.
+- Does **not** send messages, trust provider ACKs, identify original chats,
+  retry ambiguous side effects or expose tools to worker/parent.
+- First red test commit 170db2be..., initial implementation exposed Windows
+  sqlite3 fixture-handle failures (WinError 32), fixed by explicit closing.
+- GitHub Actions [#40916174040](https://github.com/Griggelor/MinionOne/actions/runs/40916174040)
+  at c278634a...: **77/77 Windows PASS**, **77/77 Ubuntu PASS**.
+- Postmerge [package build #40916407802](https://github.com/Griggelor/MinionOne/actions/runs/40916407802):
+  PASS, required Windows + Ubuntu jobs then installable wheel.
+- [Outbox ADR and caveats](docs/G2_OUTBOX_SLICE_ADR022.md);
+  [independent-role review](reviews/G2_OUTBOX_REVIEW_2026-10-29.md)
+  (not a third-party review).
+
+### PR #13 — real Windows API feasibility (merged 0e281ef2f1800eefadb5ae690b1827026b2eaee4)
+
+- [PR #13](https://github.com/Griggelor/MinionOne/pull/13) contains six
+  actual Win32 handle experiments; zero worker file rights enabled.
+- [Windows run #40916892418](https://github.com/Griggelor/MinionOne/actions/runs/40916892418)
+  at 0485f785...: **6/6 PASS, 0 skipped**, Windows build 26100,
+  NTFS, filesystem flags 0x3E72EFF.
+- Verified FileIdInfo identity, hardlink alias/NumberOfLinks, file/directory
+  reparse flags, and CREATE_NEW refusing overwrite.
+- **Does NOT** prove trusted root handle, handle-relative traversal, rename
+  races, junction/mount attacks, hardlink containment, other Windows-user ACL
+  isolation or target hardware. G1b remains **BLOCKED**.
+- [G1b API threat analysis](docs/G1B_WINDOWS_API_FEASIBILITY.md);
+  [review](reviews/G1B_WIN32_FEASIBILITY_REVIEW.md).
+
+### PR #14 — official MCP SDK compatibility (merged 1b3173974cbd4752dd860d5e54b9d9de30753c1d)
+
+- [PR #14](https://github.com/Griggelor/MinionOne/pull/14) uses the actual
+  Python MCP SDK 1.30.0 and 2.3.0, both on Windows and Ubuntu, against a
+  real localhost authenticated MinionOne server.
+- [GitHub Actions #40917985128](https://github.com/Griggelor/MinionOne/actions/runs/40917985128)
+  at 26937a1f...: **4/4 SDK/OS combinations PASS**.
+- Real MCP initialize, tools/list and tools/call all succeed; unknown worker
+  rights remain disabled. Earlier red run found v1/v2 CamelCase vs snake_case
+  Python attribute differences in the test; corrected to canonical wire
+  aliases via model_dump(by_alias=True).
+- **Actual Unsloth Studio runtime, original-chat identity and same-chat
+  callback/wakeup are STILL UNVERIFIED.** This proves standardized MCP
+  transport interoperability, not parent authorization. G1a still BLOCKED.
+- [SDK interoperability method and limits](docs/G1A_OFFICIAL_MCP_SDK_INTEROP.md).
+
+### Ongoing release decision and critical blockers
+
+The production Win32 handle-bound worker broker, complete durable 17-state
+job engine, LM Studio/Flint resource-safe worker execution, actual Unsloth
+parent/chat ownership and same-chat wakeup, manager-only immutable publication,
+independently verified integration ACK/delivery, independent human security
+review and public license/provenance audit are still incomplete.
+
+**Beta verdict remains NO-GO.** The CI-built artifact is an installable
+**local MCP-transport PILOT** for synthetic tests only, not a worker beta.
+
+The mandatory complete sanitized v0.6 contract/reference tree is still not
+fully imported into GitHub; G0 packaging/traceability remains PARTIAL.

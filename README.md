@@ -26,6 +26,7 @@ of an actual Unsloth chat identity.
 - [G2 recovery before MCP socket startup](docs/G2_STARTUP_RECOVERY.md)
 - [G2 canonical pre-dispatch state and v0.10 DB migration](docs/G2_CANONICAL_PREFLIGHT_MIGRATION.md)
 - [G2 bounded agent loops, security strikes, Thinking-token accounting](docs/G2_AGENT_LOOP_BUDGETS.md)
+- [G2 ADR: optional one-to-four-hour job duration with per-tool deadlines](docs/ADR_G2_EXTENDED_WORKER_TIMEOUTS.md)
 - [G2 local LM Studio tool-call planner — no file broker](docs/G2_LMSTUDIO_TOOL_PLANNER.md)
 - [G1c parent-pinned UMA eligibility — no model loading](docs/G1C_RESOURCE_ELIGIBILITY.md)
 
@@ -33,7 +34,7 @@ The pilot now persists manager-only VALIDATING, QUEUED and RESOURCE_CHECK transi
 **Community beta remains NO-GO.**
 
 
-**New internal v0.12 agent planner:** A finite agent-loop coordinator supports 50 default/model-turns up to a hard cap of 200, a three-strike policy for repeated broker-denied tool requests, and distinct token/model/tool/wall-clock/no-progress limits. Normative v0.6 ceilings **60 tool calls and 1,200 seconds total runtime** are enforced independently. The LM Studio tool-call adapter parses approved tool requests and sanitized tool results on localhost; it is not wired to a real worker/file broker. Candidate results are **AWAITING_REVIEW**, never automatically sent to the parent. Real file/worker tools remain disabled.
+**New internal v0.12 agent planner:** A finite agent-loop coordinator supports 50 default/model-turns up to a hard cap of 200, a three-strike policy for repeated broker-denied tool requests, and distinct token/model/tool/wall-clock/no-progress limits. The default **standard** profile preserves the normative v0.6 ceilings of **60 tool calls and 1,200 seconds total runtime**. An explicitly trusted-manager-selected **extended** policy is now modeled with a **one-hour default and four-hour hard ceiling**, retaining the 60-call/200-turn limits and adding stricter per-tool timeouts (e.g. file reads at most 30 seconds). This policy is not yet exposed through MCP, is not a running worker, and cannot be requested by model text. The LM Studio tool-call adapter parses approved tool requests and sanitized tool results on localhost; it is not wired to a real worker/file broker. Candidate results are **AWAITING_REVIEW**, never automatically sent to the parent. Real file/worker tools remain disabled.
 
 ## What is implemented
 

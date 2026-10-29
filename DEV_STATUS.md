@@ -1,7 +1,13 @@
 # Development status — 2026-10-29
 
-**Version:** 0.14.0.dev0  
+**Version:** 0.15.0.dev0  
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
+
+## v0.15.0.dev0 – first structured safe error diagnostics (NOT full error handling)
+
+- [PR #30](https://github.com/Griggelor/MinionOne/pull/30) merged: typed provider auth, API status, connectivity, timeout and invalid-response failure codes with fixed `code/message/action/retryable` on the MCP tool, local probe CLI and LM Studio adapters. The real MCP 401 auth failure includes `MCP_AUTH_FAILED` without echoing credentials.
+- Source exact-head [CI #40973935402](https://github.com/Griggelor/MinionOne/actions/runs/40973935402): **193/193 Windows and 193/193 Ubuntu PASS**, plus official MCP SDK and Win32 feasibility checks. Versioned wheel needs its own dual-OS clean-install workflow.
+- Strict scope: no durable per-job fault journal, no real Unsloth error UI, no Win32 broker/worker fault translation, no external target fault injection. Full matrix tracked in [Issue #29](https://github.com/Griggelor/MinionOne/issues/29). **Beta NO-GO.**
 
 ## Ongoing error-handling review (mandatory before Beta)
 

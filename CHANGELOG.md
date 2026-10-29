@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.0.dev0 — 2026-10-30 (PUBLIC PRE-ALPHA, NOT BETA)
+
+- [PR #30](https://github.com/Griggelor/MinionOne/pull/30): safe, operator-actionable error codes for wrong MCP password/token, provider 401/403 authentication, connection refused, timeout, 400/404/429/5xx API responses, malformed provider response, unauthorized job, stale version, input and resume denial. MCP and local CLI return fixed `code/message/action/retryable` without raw credentials or URLs.
+- [Issue #29](https://github.com/Griggelor/MinionOne/issues/29): comprehensive worker, Windows files, SQLite, original Unsloth chat, provider and delivery error UX is still required before beta.
+- Test-first synthetic source CI: 193/193 Windows and Ubuntu passed at PR #30; official MCP SDK 4/4 matrix and Win32 feasibility also passed. New version requires its own clean-wheel package CI.
+- No automatic retries of ambiguous side effects. No actual autonomous worker, secure file broker or same-chat delivery. **Beta NO-GO.**
+
 ## 0.14.0.dev0 — 2026-10-29 (PUBLIC PRE-ALPHA; NOT BETA)
 
 - PR #27: durable canonical INTERRUPTED + TIMEOUT reason, or NEEDS_RECONCILIATION when old worker liveness is unknown. No invented new lifecycle state.

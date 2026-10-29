@@ -258,3 +258,25 @@ reviews/G2_TIMEOUT_RESUME_SECURITY_REVIEW.md.
 Beta and live resume remain NO-GO, pending secure new attempt epoch,
 verified checkpoint/progress/budget recovery, provider quiescence,
 Win32 file broker and Unsloth same-chat attestation.
+
+## v0.15.0.dev0 actionable diagnostics checkpoint (2026-10-30)
+
+Issue #29 is the mandatory comprehensive error-handling release gate:
+API/auth/password, connections, SQLite/disk/ACL, provider model and
+resource failures, worker file strikes, timeout/resume, parent wakeup,
+delivery and ACK, with understandable and safely redacted guidance.
+PR #30 merged the first isolated diagnostics slice. The real MCP
+server, local CLI, LMStudioProbe, Completion and agent planner now
+classify provider HTTP and transport failures plus job permission,
+input/conflict and unsafe resume errors using fixed codes/actions
+and retryability hints (never blind external-effect replay).
+Synthetic secrets/HTTP error-body canaries and live localhost MCP wire
+test prove no raw value leaks to the public output. First red run
+found a test that over-restricted the generic word "password"; it was
+corrected to reject concrete secret values instead.
+Exact functional head 228a743...: [193/193 Windows and Ubuntu PASS](https://github.com/Griggelor/MinionOne/actions/runs/40973935402),
+[official MCP SDK PASS](https://github.com/Griggelor/MinionOne/actions/runs/40973935484)
+and [Win32 feasibility PASS](https://github.com/Griggelor/MinionOne/actions/runs/40973935438).
+All worker/file/parent-delivery operations remain disabled. Full Issue #29,
+real Windows/Unsloth fault injection, durable error journal and independent
+human review are still open. Beta NO-GO.

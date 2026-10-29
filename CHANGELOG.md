@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.0.dev0 — 2026-10-29 (PRE-ALPHA; NOT BETA)
+
+- PR #25: internal extended-duration profile, one hour default/minimum, four hours hard ceiling. Legacy standard 900s default/1200s maximum unchanged.
+- Per-model 300s ceiling still applies. Tool-specific caps: list_files 10s, read_file 30s, create_work 60s, publish_artifact 120s, progress/question 5s.
+- Tool-call 60, model-turn 200, token budget and three security denials unchanged. Late individual calls are rejected.
+- Synthetic fake-clock and full CI: 168/168 per OS at PR #25. No real Flint worker, NTFS file broker, persistent time or process termination. Beta NO-GO.
+
 ## 0.12.0.dev0 — 2026-10-29 (PUBLIC PRE-ALPHA, NOT BETA)
 
 - [PR #21](https://github.com/Griggelor/MinionOne/pull/21): internal bounded model loop, maximum 200 turns, three forbidden tool/file-scope denial strikes, deadline/token/no-progress limits and untrusted candidate review gate.

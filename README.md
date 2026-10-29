@@ -19,6 +19,9 @@ of an actual Unsloth chat identity.
 - [Windows install and Unsloth UI connection test](docs/WINDOWS_UNSLOTH_MCP_PILOT.md)
 - [GitHub Actions: MCP transport tests on Windows and Linux](https://github.com/Griggelor/MinionOne/actions/workflows/admission-ci.yml)
 - [GitHub Actions: installable wheel build](https://github.com/Griggelor/MinionOne/actions/workflows/pilot-wheel.yml)
+- [Official MCP SDK interop (v1.30.0 / v2.3.0, Windows + Ubuntu)](docs/G1A_OFFICIAL_MCP_SDK_INTEROP.md)
+- [Windows NTFS handle API feasibility — not a secure sandbox](docs/G1B_WINDOWS_API_FEASIBILITY.md)
+- [G2 conservative delivery outbox — no network sending](docs/G2_OUTBOX_SLICE_ADR022.md)
 
 The pilot does not expose workers, file tools, a verified input seal, publication or wakeup.
 **Community beta remains NO-GO.**
@@ -31,7 +34,7 @@ The pilot does not expose workers, file tools, a verified input seal, publicatio
 - `LMStudioProbe`: strict literal-loopback read-only model discovery using documented `GET /v1/models`.
 - `LMStudioCompletion`: tool-free, bounded local text inference using documented `POST /v1/chat/completions`; worker output is untrusted and is never executed or automatically integrated.
 - Operator diagnostic CLI (`minionone` or `python -m minionone`) with explicit NO-GO status, read-only model probe and fixed synthetic smoke prompt; it never launches a worker, reads user projects or exposes model responses by default.
-- GitHub Actions runs Python 3.13 on Windows and Linux. Verified at [commit 1388eb5 / CI #40906687884](https://github.com/Griggelor/MinionOne/actions/runs/40906687884): **64/64 tests per OS PASS**. [Package run #40906687907](https://github.com/Griggelor/MinionOne/actions/runs/40906687907) requires both platforms to pass before uploading the installable wheel.
+- GitHub Actions Python 3.13 core suite: [run #40916174040](https://github.com/Griggelor/MinionOne/actions/runs/40916174040) confirmed **77/77 tests on Windows and 77/77 on Ubuntu**. The [package workflow](https://github.com/Griggelor/MinionOne/actions/workflows/pilot-wheel.yml) requires both OS suites before publishing the pilot wheel. [Win32 feasibility run #40916892418](https://github.com/Griggelor/MinionOne/actions/runs/40916892418): **6/6 API experiments**, not a security pass. [Official MCP SDK run #40917985128](https://github.com/Griggelor/MinionOne/actions/runs/40917985128): **4/4 OS/SDK combinations passed**, not an Unsloth-live test.
 
 **Not implemented:** real Unsloth UI integration evidence or parent/thread attestation or same-chat notification, LM Studio worker invocation, secure Windows filesystem broker, six executable worker tools, artifact publisher, full durable state machine/outbox, resource accounting and full end-to-end job execution. This repository is not a working multi-agent automation system yet.
 

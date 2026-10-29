@@ -21,6 +21,8 @@ class Provider:
         self.timeouts.append(timeout_seconds)
         self.clock.now+=self.elapsed
         return self.step
+    def observe_tool(self, name, reply):
+        self.last_tool_reply=(name,reply)
 
 class Broker:
     def __init__(self):

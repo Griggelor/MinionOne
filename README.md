@@ -13,6 +13,7 @@ MinionOne aims to delegate bounded tasks from a primary local assistant to speci
 - Positive, negative, adversarial, concurrency and restart tests.
 - `LMStudioProbe`: strict literal-loopback read-only model discovery using documented `GET /v1/models`.
 - `LMStudioCompletion`: tool-free, bounded local text inference using documented `POST /v1/chat/completions`; worker output is untrusted and is never executed or automatically integrated.
+- Operator diagnostic CLI (`minionone` or `python -m minionone`) with explicit NO-GO status, read-only model probe and fixed synthetic smoke prompt; it never launches a worker, reads user projects or exposes model responses by default.
 - GitHub Actions on Windows and Linux using Python 3.13. The current remote CI suite has **32 tests per OS**, with an independently reviewed [PASS run](https://github.com/Griggelor/MinionOne/actions/runs/40899172333) before the later provider timeout and documentation changes.
 
 **Not implemented:** MCP server registration, real Unsloth parent/thread attestation or same-chat notification, LM Studio worker invocation, secure Windows filesystem broker, six executable worker tools, artifact publisher, full durable state machine/outbox, resource accounting and full end-to-end job execution. This repository is not a working multi-agent automation system yet.
@@ -24,6 +25,10 @@ Prerequisites: Python 3.11+; 3.13 is the CI target.
 ```bash
 python -m pip install -e .
 python -m unittest discover -s tests -v
+python -m minionone status
+python -m minionone probe-lmstudio
+# Optional future target test with a known local model only:
+# python -m minionone smoke --model YOUR_LOADED_MODEL_ID
 ```
 
 The repository's current GitHub Actions coverage is for **admission only**. A larger sanitized v0.8 reference/design source exists outside this repository: its legacy 123 tests are **not** represented as remote GitHub CI unless actually imported and rerun.

@@ -201,3 +201,10 @@ At merged functional commit 5b11c77ed82df9393141a6cba0dc22ca5a0ba82d:
 Version checkpoint will be packaged as **0.10.0.dev0, public PRE-ALPHA, NO-GO for Beta** only after version-consistency tests and dual-OS gated wheel build succeed. This is not a claim that the 123-test sanitized normative v0.6 tree is imported. It remains absent from the public repository.
 
 Critical blockers: no Win32 secure file broker, Unsloth real chat identity/wakeup, provider quiescence, worker tool broker, model residency checks on target, immutable published artifacts, completed/ACKed integration and independent external review. No real worker can run from the shipped MCP pilot.
+
+## 0.11.0.dev0 migration/release checkpoint — 2026-10-29
+
+[PR #19](https://github.com/Griggelor/MinionOne/pull/19) merged on main at d135987c107ee989daf185e7cc5c36504e410355.
+Canonical SQLite owner now persists validated non-executing pre-dispatch stages; legacy schema migration is checked transactionally and preserves populated foreign-key children. Idempotent CAS state and audit events are atomic. An authenticated public MCP status/abort path is checked against a manager-staged QUEUED job; no new MCP or worker tool is exposed.
+Red test commit 5acab5e... established missing methods; the first implementation CI #40945791768 caught an incorrect *test* assumption (version zero was treated as invalid). Fixed contract and repeated CI. Final feature commit 5db5ecf: [124/124 Windows + Ubuntu PASS](https://github.com/Griggelor/MinionOne/actions/runs/40946389035), [official SDK matrix 4/4](https://github.com/Griggelor/MinionOne/actions/runs/40946389029), and [Win32 API feasibility PASS](https://github.com/Griggelor/MinionOne/actions/runs/40946389055). [Architecture/release review](reviews/G2_CANONICAL_PREFLIGHT_REVIEW.md) is same-assistant second pass, not third-party audit.
+**Worker_started CHECK remains 0, G1a/G1b/G1c live tests blocked, beta NO-GO.** A 0.11 wheel must be built from the exact version-tagged main commit after Windows/Linux CI and clean-install checks.

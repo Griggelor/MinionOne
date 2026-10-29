@@ -1,5 +1,6 @@
 """Independent positive, negative, adversarial and recovery tests for AdmissionStore."""
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -108,7 +109,7 @@ class TestAdmission(unittest.TestCase):
         job = self.admit()
         receipt = self.store.request_abort(TOKEN_A,'chat-1',job['job_id'],0,'abort-unique-0001')
         self.assertEqual(len(self.store.events(TOKEN_A,'chat-1',job['job_id'])),2)
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con:
             self.assertEqual(con.execute('select count(*) from jobs').fetchone()[0],1)
             self.assertEqual(con.execute('select count(*) from admissions').fetchone()[0],1)
         self.assertEqual(self.store.status(TOKEN_A,'chat-1',job['job_id']),receipt)

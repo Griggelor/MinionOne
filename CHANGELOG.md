@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.0.dev0 — 2026-10-29 (PUBLIC PRE-ALPHA; NOT BETA)
+
+- PR #27: durable canonical INTERRUPTED + TIMEOUT reason, or NEEDS_RECONCILIATION when old worker liveness is unknown. No invented new lifecycle state.
+- Restart-safe idempotent authenticated minionone_resume_request records **request only**. Old attempt must be fenced; trusted checkpoint and quiescence required for availability. It does NOT launch a second worker or claim completion.
+- Synthetic Windows/Linux 181/181 tests each OS passed at functional source head, including historical SQLite schema migration, concurrency, stale CAS, cancel/resume, strict tool scope and official MCP SDK interop.
+- Older project DBs require backup and offline stop before v0.14 schema migration. No real Flint work, OS file sandbox, verified Unsloth original chat or multi-attempt restart exists. Beta NO-GO.
+
 ## 0.13.0.dev0 — 2026-10-29 (PRE-ALPHA; NOT BETA)
 
 - PR #25: internal extended-duration profile, one hour default/minimum, four hours hard ceiling. Legacy standard 900s default/1200s maximum unchanged.

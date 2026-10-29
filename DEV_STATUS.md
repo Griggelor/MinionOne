@@ -1,7 +1,15 @@
 # Development status — 2026-10-29
 
-**Version:** 0.13.0.dev0  
+**Version:** 0.14.0.dev0  
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
+
+## 0.14.0.dev0 – durable timeout and parent Resume request (non-executing)
+
+- [PR #27](https://github.com/Griggelor/MinionOne/pull/27) merged: a canonical synthetic RUNNING job can be recorded as INTERRUPTED with reason TIMEOUT only after a matching old attempt is fenced and the manager attests provider quiescence. Otherwise NEEDS_RECONCILIATION reports unknown worker liveness and forbids Resume.
+- Timeout reason/metadata, version and events survive SQLite restarts. Checkpoint digests stay manager-only. New MCP minionone_resume_request stores a CAS-protected, owner-scoped, idempotent **intent**, leaving state INTERRUPTED and resume_started=false. Parent may instead cancel the interrupted job.
+- Historical 3/6-state job tables migrate with FK integrity validation; worker_started=0 remains SQL-enforced. The existing pilot still starts no worker.
+- Exact functional PR head [CI #40970211921](https://github.com/Griggelor/MinionOne/actions/runs/40970211921): **181/181 Windows and 181/181 Ubuntu PASS**, SDK and API feasibility checks PASS. The v0.14 package must separately pass versioned CI and wheel installation.
+- Missing: genuine provider quiescence proof, attempt epoch >=2, actual safe checkpoint restore, host process termination, live Unsloth original-chat ownership/wakeup and verified Win32 file broker. **Live Resume/Beta NO-GO**.
 
 ## 0.13.0.dev0 – extended duration contract (no live worker)
 

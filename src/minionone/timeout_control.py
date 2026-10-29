@@ -48,12 +48,13 @@ class TimeoutControlStore:
             )""")
 
     @staticmethod
-    def _view(job, record):
+    def _view(job, record, fence_verified):
         # No raw checkpoint SHA, request key, resource handle or private data.
         return {
             "job_id":job["job_id"],"state":job["state"],
             "version":job["version"],"error_code":"TIMEOUT",
-            "resume_available":bool(record["worker_quiescent"] and
+            "resume_available":bool(fence_verified and
+                                    record["worker_quiescent"] and
                                     record["checkpoint_sha256"] is not None and
                                     job["state"]=="INTERRUPTED" and
                                     not record["resume_requested"]),
@@ -68,7 +69,14 @@ class TimeoutControlStore:
             row=self.owner._owned_row(con,principal,thread_id,job_id)
             record=con.execute("SELECT * FROM timeout_records WHERE job_id=?",
                                (job_id,)).fetchone()
-            return None if record is None else self._view(row,record)
+            if record is None:
+                return None
+            fence=con.execute(
+                "SELECT status,attempt_epoch FROM attempt_fences WHERE job_id=?",
+                (job_id,)).fetchone()
+            verified=bool(fence is not None and fence["status"]=="FENCED" and
+                          fence["attempt_epoch"]==record["attempt_epoch"])
+            return self._view(row,record,verified)
 
     def record_timeout(self, job_id, *, expected_version, attempt_epoch,
                        worker_quiescent, checkpoint_sha256, operation_id):

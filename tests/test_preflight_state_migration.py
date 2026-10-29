@@ -223,6 +223,22 @@ class LegacyMigrationTests(unittest.TestCase):
         # Existing v0.10 optional tables also reference the jobs parent.
         OutboxStore(self.path)
         AttemptFenceStore(self.path)
+        with closing(sqlite3.connect(self.path)) as con:
+            # Simulated historical unresolved child effects: migration must
+            # preserve their FK references and quarantine metadata untouched.
+            con.execute("""INSERT INTO outbox_intents
+              (job_id,operation_id,payload_sha256,job_state_version,
+               delivery_state,outbox_version,attempts,dispatch_token_hash,
+               receipt_json,created_utc,updated_utc)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+              ("JOB-legacy001","notify-legacy1",DIGEST,0,
+               "NEEDS_RECONCILIATION",2,1,"c"*64,"{}",'t','t'))
+            con.execute("""INSERT INTO attempt_fences
+              (job_id,operation_id,job_version,attempt_epoch,status,
+               capability_sha256,created_utc,updated_utc)
+              VALUES (?,?,?,?,?,?,?,?)""",
+              ("JOB-legacy001","reserve-legacy1",0,1,"FENCED","d"*64,"t","t"))
+            con.commit()
         store=AdmissionStore(self.path,credentials={TOKEN:("operator",{"thread"})})
         self.assertEqual(store.status(TOKEN,"thread","JOB-legacy001")["state"],"ACCEPTED")
         updated=store.advance_pre_dispatch("JOB-legacy001",0,"validate-0001","VALIDATING")
@@ -232,6 +248,12 @@ class LegacyMigrationTests(unittest.TestCase):
         with closing(sqlite3.connect(self.path)) as con:
             self.assertEqual(con.execute("SELECT count(*) FROM admissions").fetchone()[0],1)
             self.assertEqual(con.execute("SELECT count(*) FROM admission_events").fetchone()[0],2)
+            self.assertEqual(con.execute("SELECT count(*) FROM outbox_intents").fetchone()[0],1)
+            self.assertEqual(con.execute("SELECT count(*) FROM attempt_fences").fetchone()[0],1)
+            self.assertEqual(con.execute("SELECT delivery_state FROM outbox_intents").fetchone()[0],
+                             "NEEDS_RECONCILIATION")
+            self.assertEqual(con.execute("SELECT status FROM attempt_fences").fetchone()[0],
+                             "FENCED")
             self.assertEqual(con.execute("PRAGMA foreign_key_check").fetchall(),[])
             self.assertEqual(con.execute("SELECT worker_started FROM jobs").fetchone()[0],0)
 

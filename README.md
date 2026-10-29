@@ -11,7 +11,9 @@ MinionOne aims to delegate bounded tasks from a primary local assistant to speci
 - Installable **experimental** Python package in `src/minionone/`.
 - `AdmissionStore`: SQLite-backed, persisted job admission with authenticated caller-scoped threads from **trusted local configuration**, idempotency receipts, transactional admission event recording, optimistic state versions, authenticated abort requests and safe cancellation for jobs never started.
 - Positive, negative, adversarial, concurrency and restart tests.
-- GitHub Actions on Windows and Linux using Python 3.13.
+- `LMStudioProbe`: strict literal-loopback read-only model discovery using documented `GET /v1/models`.
+- `LMStudioCompletion`: tool-free, bounded local text inference using documented `POST /v1/chat/completions`; worker output is untrusted and is never executed or automatically integrated.
+- GitHub Actions on Windows and Linux using Python 3.13. The current remote CI suite has **32 tests per OS**, with an independently reviewed [PASS run](https://github.com/Griggelor/MinionOne/actions/runs/40899172333) before the later provider timeout and documentation changes.
 
 **Not implemented:** MCP server registration, real Unsloth parent/thread attestation or same-chat notification, LM Studio worker invocation, secure Windows filesystem broker, six executable worker tools, artifact publisher, full durable state machine/outbox, resource accounting and full end-to-end job execution. This repository is not a working multi-agent automation system yet.
 

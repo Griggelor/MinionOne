@@ -42,7 +42,7 @@ async def exercise(url):
 
 async def verify_tools(session):
     init = await session.initialize()
-    assert init.server_info.name == "minionone-pilot", "wrong MCP server identity"
+    assert init.model_dump(by_alias=True)["serverInfo"]["name"] == "minionone-pilot", "wrong MCP server identity"
     tools = await session.list_tools()
     names = {t.name for t in tools.tools}
     assert names == {
@@ -50,7 +50,7 @@ async def verify_tools(session):
         "minionone_job_status", "minionone_job_events", "minionone_abort",
     }, "unexpected MCP capability escalation or missing tool"
     response = await session.call_tool("minionone_status", arguments={})
-    assert not response.isError, "server rejected official MCP client call"
+    assert not response.model_dump(by_alias=True).get("isError", False), "server rejected official MCP client call"
     result = json.loads(response.content[0].text)
     assert result["release_gate"] == "NO_GO"
     assert result["worker_execution_enabled"] is False

@@ -108,6 +108,20 @@ class TestMCPHTTP(unittest.TestCase):
             response=sock.recv(1024)
             self.assertTrue(response == b"" or b"408" in response)
 
+    def test_excess_connections_are_refused(self):
+        import socket
+        capacity=self.srv._slots
+        for _ in range(8):
+            self.assertTrue(capacity.acquire(blocking=False))
+        try:
+            with socket.create_connection(("127.0.0.1",self.srv.server_port),timeout=2) as sock:
+                sock.settimeout(3)
+                sock.sendall(b"GET /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+                self.assertEqual(sock.recv(100),b"")
+        finally:
+            for _ in range(8):
+                capacity.release()
+
     def test_non_loopback_and_weak_secret_denied(self):
         with self.assertRaises(ValueError):
             LocalMCP(("0.0.0.0",0),token=TOKEN,database_path=Path(self.temp.name)/"a.db")

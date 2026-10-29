@@ -3,6 +3,29 @@
 **Version:** 0.9.0.dev0  
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
 
+## New MCP-pilot implementation
+
+- Production-path HTTP listener at src/minionone/mcp_server.py using 2025-06-18
+  Streamable HTTP JSON response mode. Binds only 127.0.0.1 and checks Host,
+  Origin and an operator-only secret before reading request bodies.
+- Six deliberately narrow tools: gate status; read-only local model discovery;
+  admission, state, redacted events and abort for jobs that NEVER execute workers.
+- Admission quota defaults to 256 **lifetime jobs per configured principal**;
+  transactional existing-key replay is allowed even at quota.
+- A partial request timeout is enforced to avoid indefinitely blocked handlers.
+- Installed module entrypoint: python -m minionone.mcp_cli; wheel created only
+  by a successful CI build, with a SHA-256 checksum.
+- Real Unsloth Studio interoperability, sender-chat attestation and Windows
+  handle-based containment are **not tested**. This is a transport pilot, not beta.
+
+**Verified CI evidence before latest version-consistency change:** GitHub
+[dual-OS run 40903714400](https://github.com/Griggelor/MinionOne/actions/runs/40903714400)
+at ed0e0f11b5d11ad9ee41df20e0a058a6f4f1b86a:
+Ubuntu 24.04 **46/46 PASS**; Windows-latest **46/46 PASS**.
+[Wheel build 40903714254](https://github.com/Griggelor/MinionOne/actions/runs/40903714254):
+PASS, install smoke and SHA-256 artifact generated. A newer commit must
+be checked independently; these numbers are commit-specific.
+
 ## Implemented in this public GitHub repository
 
 - Editable/installable Python source package with `minionone` operator-only CLI (`status`, `probe-lmstudio`, `smoke`).

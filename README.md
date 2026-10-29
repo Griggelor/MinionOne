@@ -15,6 +15,7 @@ read-only LM Studio model discovery, and persisted registration/status/events/
 cancellation of *non-executing* jobs. The configured bearer token is not evidence
 of an actual Unsloth chat identity.
 
+- [**Download installable CI-tested wheel directly from GitHub**](docs/INSTALL_GITHUB_ARTIFACT_WINDOWS.md)
 - [Windows install and Unsloth UI connection test](docs/WINDOWS_UNSLOTH_MCP_PILOT.md)
 - [GitHub Actions: MCP transport tests on Windows and Linux](https://github.com/Griggelor/MinionOne/actions/workflows/admission-ci.yml)
 - [GitHub Actions: installable wheel build](https://github.com/Griggelor/MinionOne/actions/workflows/pilot-wheel.yml)
@@ -30,7 +31,7 @@ The pilot does not expose workers, file tools, a verified input seal, publicatio
 - `LMStudioProbe`: strict literal-loopback read-only model discovery using documented `GET /v1/models`.
 - `LMStudioCompletion`: tool-free, bounded local text inference using documented `POST /v1/chat/completions`; worker output is untrusted and is never executed or automatically integrated.
 - Operator diagnostic CLI (`minionone` or `python -m minionone`) with explicit NO-GO status, read-only model probe and fixed synthetic smoke prompt; it never launches a worker, reads user projects or exposes model responses by default.
-- GitHub Actions on Windows and Linux using Python 3.13. The current remote CI suite has **32 tests per OS**, with an independently reviewed [PASS run](https://github.com/Griggelor/MinionOne/actions/runs/40899172333) before the later provider timeout and documentation changes.
+- GitHub Actions runs Python 3.13 on Windows and Linux. Verified at [commit 1388eb5 / CI #40906687884](https://github.com/Griggelor/MinionOne/actions/runs/40906687884): **64/64 tests per OS PASS**. [Package run #40906687907](https://github.com/Griggelor/MinionOne/actions/runs/40906687907) requires both platforms to pass before uploading the installable wheel.
 
 **Not implemented:** real Unsloth UI integration evidence or parent/thread attestation or same-chat notification, LM Studio worker invocation, secure Windows filesystem broker, six executable worker tools, artifact publisher, full durable state machine/outbox, resource accounting and full end-to-end job execution. This repository is not a working multi-agent automation system yet.
 
@@ -47,7 +48,7 @@ python -m minionone probe-lmstudio
 # python -m minionone smoke --model YOUR_LOADED_MODEL_ID
 ```
 
-The repository's current GitHub Actions coverage is for **admission only**. A larger sanitized v0.8 reference/design source exists outside this repository: its legacy 123 tests are **not** represented as remote GitHub CI unless actually imported and rerun.
+The current GitHub Actions coverage includes authenticated admission, pure lifecycle invariants, and real-socket MCP transport plus mocked local-provider contracts. It does not include target Unsloth or NTFS tests. A larger sanitized v0.8 reference/design source exists outside this repository: its legacy 123 tests are **not** represented as remote GitHub CI unless actually imported and rerun.
 
 ## Security model and gates
 

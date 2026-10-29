@@ -4,6 +4,7 @@ import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from urllib.parse import urlsplit
+from . import __version__
 from .admission import AdmissionStore, InputRejected, PermissionDenied, IdempotencyConflict, VersionConflict
 from .lmstudio_probe import LMStudioProbe, ProbeError
 
@@ -144,7 +145,7 @@ class MCPHandler(BaseHTTPRequestHandler):
                 if type(params.get("protocolVersion")) is not str:
                     raise InputRejected("protocolVersion missing")
                 result={"protocolVersion":PROTOCOL,"capabilities":{"tools":{"listChanged":False}},
-                        "serverInfo":{"name":"minionone-pilot","version":"0.9.1-dev"}}
+                        "serverInfo":{"name":"minionone-pilot","version":__version__}}
             elif method=="ping":
                 result={}
             elif method=="tools/list":

@@ -130,6 +130,17 @@ class OutboxTests(unittest.TestCase):
         with self.assertRaises(OutboxRejected):
             OutboxStore(Path(self.temp.name)/"missing.sqlite")
 
+    def test_job_version_or_state_change_blocks_dispatch_without_side_effect(self):
+        first=self.prepare()
+        with closing(sqlite3.connect(self.db)) as con:
+            con.execute("UPDATE jobs SET version=8, state='INTEGRATING' WHERE job_id=?", (JOB,))
+            con.commit()
+        with self.assertRaises(OutboxConflict):
+            self.store.claim(JOB,"notify-0001",expected_outbox_version=0)
+        self.assertEqual(self.store.status(JOB,"notify-0001")["delivery_state"],"PREPARED")
+        self.assertEqual(self.store.status(JOB,"notify-0001")["attempt"],0)
+        self.assertEqual(self.store.prepare(JOB,"notify-0001",DIGEST,expected_state_version=7),first)
+
     def test_no_raw_payload_or_network_endpoint_stored(self):
         self.prepare()
         with sqlite3.connect(self.db) as con:

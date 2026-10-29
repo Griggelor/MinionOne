@@ -27,8 +27,9 @@ class FakeBroker:
     def __init__(self, decisions=None):
         self.decisions=decisions or {}
         self.calls=[]
-    def execute(self, name, arguments):
+    def execute(self, name, arguments, *, timeout_seconds):
         self.calls.append(name)
+        self.last_timeout=timeout_seconds
         outcome=self.decisions.get(name,"ok")
         if outcome=="deny":
             raise BrokerScopeDenied("outside JOB scope / forbidden path")
@@ -205,9 +206,29 @@ class AgentLoopTests(unittest.TestCase):
 
     def test_tool_broker_contract_cannot_fabricate_status(self):
         class BadBroker:
-            def execute(self,name,arguments): return {"status":"ok"}
+            def execute(self,name,arguments,*,timeout_seconds): return {"status":"ok"}
         r=self.runner().run(FakeProvider([self.tool()]),BadBroker())
         self.assertEqual(r.status,"BROKER_FAILURE")
+
+    def test_broker_tool_timeout_contract_and_late_response_fails_closed(self):
+        class SlowBroker(FakeBroker):
+            def execute(self,name,arguments,*,timeout_seconds):
+                reply=super().execute(name,arguments,timeout_seconds=timeout_seconds)
+                self.outer.now=999
+                return reply
+        broker=SlowBroker();broker.outer=self.clock
+        provider=FakeProvider([self.tool("list_files")])
+        result=self.runner().run(provider,broker)
+        self.assertEqual(result.status,"TIMEOUT")
+        self.assertEqual(result.loops,1)
+        self.assertFalse(result.delivered)
+        self.assertTrue(0<broker.last_timeout<=30)
+
+    def test_unreported_token_usage_is_denied(self):
+        p=FakeProvider([ModelStep("finish",text="could not measure",total_tokens=0)])
+        result=self.runner().run(p,FakeBroker())
+        self.assertEqual(result.status,"PROVIDER_INVALID")
+        self.assertIsNone(result.candidate_sha256)
 
     def test_worker_tools_are_exactly_six_and_no_general_os_io(self):
         self.assertEqual(ALLOWED_WORKER_TOOLS,frozenset({

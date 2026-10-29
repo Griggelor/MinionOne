@@ -1,7 +1,15 @@
 # Development status — 2026-10-29
 
-**Version:** 0.12.0.dev0  
+**Version:** 0.13.0.dev0  
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
+
+## 0.13.0.dev0 – extended duration contract (no live worker)
+
+- PR #25: optional manager-selected 1–4h job duration; standard mode still 900s default/1200s max.
+- Max 300s per model completion and stricter broker tool caps: list_files 10s, read_file 30s, create_work 60s, publish_artifact 120s, report_progress/ask_question 5s.
+- No changes to 200 model turns, 60 tool calls, three security denials or token budget. Synthetic tests 168/168 per OS on [CI #40967495967](https://github.com/Griggelor/MinionOne/actions/runs/40967495967).
+- ADR: [duration and deadline hierarchy](docs/ADR_G2_EXTENDED_WORKER_TIMEOUTS.md).
+- No actual long-running worker, safe Windows file broker, durable budget persistence or Unsloth wakeup. **Beta NO-GO.**
 
 ## 0.12.0.dev0 bounded agent loop and LM Studio planner (PRE-ALPHA)
 

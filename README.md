@@ -2,7 +2,7 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.12.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.13.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
 MinionOne aims to delegate bounded tasks from a primary local assistant to specialist workers (initially via LM Studio), while keeping authorization, state, resource budgets, files and final integration under the trusted manager's control. It is **not** an official Unsloth project or an endorsed Unsloth extension.
 
@@ -33,6 +33,8 @@ of an actual Unsloth chat identity.
 The pilot now persists manager-only VALIDATING, QUEUED and RESOURCE_CHECK transitions, with an automatic atomic migration of v0.10 pilot databases. **Back up the stopped private database before upgrading**; this is not a real worker run. The pilot does not expose workers, file tools, a verified input seal, publication or wakeup.
 **Community beta remains NO-GO.**
 
+
+**New optional long-job policy (v0.13):** The trusted manager may explicitly select an extended profile with a 1-hour default and 4-hour ceiling. The original standard 15–20-minute profile remains. Individual LM Studio model requests still max at 300s, with stricter tool-specific limits such as read_file 30s. Model turns (200 maximum), tool requests (60 maximum), denial strikes and token limits do not increase. No live worker or writable file tool is enabled. See [runtime ADR](docs/ADR_G2_EXTENDED_WORKER_TIMEOUTS.md).
 
 **New internal v0.12 agent planner:** A finite agent-loop coordinator supports 50 default/model-turns up to a hard cap of 200, a three-strike policy for repeated broker-denied tool requests, and distinct token/model/tool/wall-clock/no-progress limits. The default **standard** profile preserves the normative v0.6 ceilings of **60 tool calls and 1,200 seconds total runtime**. An explicitly trusted-manager-selected **extended** policy is now modeled with a **one-hour default and four-hour hard ceiling**, retaining the 60-call/200-turn limits and adding stricter per-tool timeouts (e.g. file reads at most 30 seconds). This policy is not yet exposed through MCP, is not a running worker, and cannot be requested by model text. The LM Studio tool-call adapter parses approved tool requests and sanitized tool results on localhost; it is not wired to a real worker/file broker. Candidate results are **AWAITING_REVIEW**, never automatically sent to the parent. Real file/worker tools remain disabled.
 

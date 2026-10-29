@@ -1,4 +1,4 @@
-"""Versioned v0.10 development snapshot must be internally consistent."""
+"""Versioned dev artifact must remain internally consistent."""
 import importlib.metadata
 from pathlib import Path
 import tomllib
@@ -6,7 +6,7 @@ import unittest
 from minionone import __version__
 
 ROOT=Path(__file__).resolve().parents[1]
-EXPECTED="0.12.0.dev0"
+EXPECTED="0.13.0.dev0"
 
 class TestDevelopmentVersion(unittest.TestCase):
     def test_packaged_and_runtime_version_match_milestone(self):

@@ -14,7 +14,7 @@ and artifact publication are disabled.
 2. Select the most recent successful run on the main branch.
 3. Confirm three green jobs: Required tests (ubuntu-24.04), Required tests
    (windows-latest) and build-pilot. Build now depends on BOTH test jobs.
-4. Under Artifacts, download MinionOne-MCP-PILOT-UNVERIFIED-0.12.0.dev0.
+4. Under Artifacts, download MinionOne-MCP-PILOT-UNVERIFIED-0.13.0.dev0.
    GitHub may require signing in. Artifacts are retained for 14 days.
 5. Extract the ZIP. It contains a Python wheel and SHA256SUMS.txt.
 

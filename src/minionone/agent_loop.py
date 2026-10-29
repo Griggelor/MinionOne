@@ -37,6 +37,7 @@ class AgentLimits:
     max_tokens: int = 150_000
     wall_seconds: int = 1800
     model_call_seconds: int = 120
+    tool_call_seconds: int = 30
     max_denials: int = 3
     max_idle_loops: int = 8
 
@@ -47,6 +48,7 @@ class AgentLimits:
             ('max_tokens', 1, 2_000_000),
             ('wall_seconds', 1, 86_400),
             ('model_call_seconds', 1, 300),
+            ('tool_call_seconds', 1, 300),
             ('max_denials', 1, 3),
             ('max_idle_loops', 1, 200),
         )
@@ -91,7 +93,7 @@ class AgentRun:
 def _valid_step(step):
     if type(step) is not ModelStep or type(step.action) is not str:
         return False
-    if (type(step.total_tokens) is not int or step.total_tokens < 0 or
+    if (type(step.total_tokens) is not int or step.total_tokens < 1 or
             type(step.reasoning_tokens) is not int or
             step.reasoning_tokens < 0 or
             step.reasoning_tokens > step.total_tokens):
@@ -182,7 +184,15 @@ class AgentLoop:
                 reply = BrokerReply('DENIED', 'FORBIDDEN_TOOL')
             else:
                 try:
-                    reply = broker.execute(step.name, step.arguments)
+                    tool_remaining = end - self._clock()
+                except Exception:
+                    return receipt('TIMEOUT')
+                if not math.isfinite(tool_remaining) or tool_remaining <= 0:
+                    return receipt('TIMEOUT')
+                tool_timeout = min(self.limits.tool_call_seconds, tool_remaining)
+                try:
+                    reply = broker.execute(step.name, step.arguments,
+                                           timeout_seconds=tool_timeout)
                 except BrokerScopeDenied:
                     denials += 1
                     reply = BrokerReply('DENIED', 'SCOPE_DENIED')
@@ -191,6 +201,12 @@ class AgentLoop:
                 else:
                     if type(reply) is not BrokerReply or reply.status != 'ok':
                         return receipt('BROKER_FAILURE')
+            try:
+                tool_after = self._clock()
+            except Exception:
+                return receipt('TIMEOUT')
+            if not math.isfinite(tool_after) or tool_after >= end:
+                return receipt('TIMEOUT')
             try:
                 provider.observe_tool(step.name, reply)
             except Exception:

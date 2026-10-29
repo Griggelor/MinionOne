@@ -7,11 +7,16 @@ from __future__ import annotations
 import json
 from urllib.request import Request
 from urllib.error import HTTPError, URLError
+from .diagnostics import classify_provider_failure, diagnostic as provider_diagnostic
 from .lmstudio_probe import LMStudioProbe
 
 
 class CompletionRejected(RuntimeError):
-    pass
+    def __init__(self, message, *, diagnostic=None):
+        # Public callers must use self.diagnostic, never raw causes.
+        super().__init__(message)
+        self.diagnostic = diagnostic if diagnostic is not None else provider_diagnostic(
+            "PROVIDER_RESPONSE_INVALID")
 
 
 class LMStudioCompletion:
@@ -45,7 +50,8 @@ class LMStudioCompletion:
                     raise CompletionRejected('inference refused')
                 raw=response.read(self._provider.max_response_bytes+1)
         except (HTTPError,URLError,TimeoutError,OSError,ValueError) as e:
-            raise CompletionRejected('provider unavailable or refused') from e
+            raise CompletionRejected('provider unavailable or refused',
+                                         diagnostic=classify_provider_failure(e)) from e
         if len(raw)>self._provider.max_response_bytes:
             raise CompletionRejected('inference response too large')
         try:

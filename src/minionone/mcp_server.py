@@ -10,7 +10,8 @@ from .admission import AdmissionStore, InputRejected, PermissionDenied, Idempote
 from .lmstudio_probe import LMStudioProbe, ProbeError
 from .outbox import OutboxStore
 from .attempt_fence import AttemptFenceStore
-from .timeout_control import TimeoutControlStore
+from .timeout_control import TimeoutControlStore, TimeoutControlDenied
+from .diagnostics import diagnostic, safe_tool_fault
 
 PROTOCOL = "2025-06-18"
 TOOLS = [
@@ -132,13 +133,13 @@ class MCPHandler(BaseHTTPRequestHandler):
     def _preflight(self):
         port=self.server.server_port
         if self.headers.get("Host","") not in (f"127.0.0.1:{port}",f"localhost:{port}") or self.headers.get("Origin") is not None:
-            self._send(403)
+            self._send(403,{"error":diagnostic("MCP_REQUEST_DENIED").to_dict()})
             return False
         if self.path != "/mcp":
             self._send(404)
             return False
         if not hmac.compare_digest(self.headers.get("Authorization",""),"Bearer "+self.server.credential):
-            self._send(401)
+            self._send(401,{"error":diagnostic("MCP_AUTH_FAILED").to_dict()})
             return False
         return True
 
@@ -198,9 +199,13 @@ class MCPHandler(BaseHTTPRequestHandler):
                 try:
                     value=self.server.call_tool(name,params.get("arguments",{}))
                     result={"content":[{"type":"text","text":json.dumps(value,sort_keys=True)}]}
-                except (InputRejected,PermissionDenied,IdempotencyConflict,VersionConflict,
-                        ProbeError,ValueError,TypeError):
-                    result={"isError":True,"content":[{"type":"text","text":"Operation denied or unavailable."}]}
+                except Exception as exc:
+                    # Fixed taxonomy only: never reflect raw provider responses,
+                    # client content, credentials or paths in the MCP result.
+                    fault=safe_tool_fault(exc)
+                    result={"isError":True,"content":[{"type":"text",
+                        "text":json.dumps({"ok":False,"error":fault.to_dict()},
+                                          sort_keys=True,separators=(",",":"))}]}
             else:
                 self._send(200,_error(ident,-32601,"Method not found"));return
             self._send(200,{"jsonrpc":"2.0","id":ident,"result":result})

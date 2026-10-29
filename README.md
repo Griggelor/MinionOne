@@ -26,6 +26,7 @@ of an actual Unsloth chat identity.
 - [G2 recovery before MCP socket startup](docs/G2_STARTUP_RECOVERY.md)
 - [G2 canonical pre-dispatch state and v0.10 DB migration](docs/G2_CANONICAL_PREFLIGHT_MIGRATION.md)
 - [G2 durable timeout and safe resume-request pilot](docs/G2_TIMEOUT_RESUME_INTENT.md)
+- [G2 safe actionable API/auth/connectivity errors (initial slice)](docs/G2_ACTIONABLE_ERRORS.md)
 - [G2 bounded agent loops, security strikes, Thinking-token accounting](docs/G2_AGENT_LOOP_BUDGETS.md)
 - [G2 ADR: optional one-to-four-hour job duration with per-tool deadlines](docs/ADR_G2_EXTENDED_WORKER_TIMEOUTS.md)
 - [G2 local LM Studio tool-call planner — no file broker](docs/G2_LMSTUDIO_TOOL_PLANNER.md)

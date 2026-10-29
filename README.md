@@ -6,6 +6,22 @@
 
 MinionOne aims to delegate bounded tasks from a primary local assistant to specialist workers (initially via LM Studio), while keeping authorization, state, resource budgets, files and final integration under the trusted manager's control. It is **not** an official Unsloth project or an endorsed Unsloth extension.
 
+## New: opt-in local MCP transport pilot
+
+A **real, authenticated Streamable HTTP MCP endpoint** is now implemented, using the
+2025-06-18 JSON-response protocol on literal IPv4 loopback only. This is **NOT**
+the full MinionOne multi-agent worker manager. Its tools permit redacted status,
+read-only LM Studio model discovery, and persisted registration/status/events/
+cancellation of *non-executing* jobs. The configured bearer token is not evidence
+of an actual Unsloth chat identity.
+
+- [Windows install and Unsloth UI connection test](docs/WINDOWS_UNSLOTH_MCP_PILOT.md)
+- [GitHub Actions: MCP transport tests on Windows and Linux](https://github.com/Griggelor/MinionOne/actions/workflows/admission-ci.yml)
+- [GitHub Actions: installable wheel build](https://github.com/Griggelor/MinionOne/actions/workflows/pilot-wheel.yml)
+
+The pilot does not expose workers, file tools, a verified input seal, publication or wakeup.
+**Community beta remains NO-GO.**
+
 ## What is implemented
 
 - Installable **experimental** Python package in `src/minionone/`.
@@ -16,7 +32,7 @@ MinionOne aims to delegate bounded tasks from a primary local assistant to speci
 - Operator diagnostic CLI (`minionone` or `python -m minionone`) with explicit NO-GO status, read-only model probe and fixed synthetic smoke prompt; it never launches a worker, reads user projects or exposes model responses by default.
 - GitHub Actions on Windows and Linux using Python 3.13. The current remote CI suite has **32 tests per OS**, with an independently reviewed [PASS run](https://github.com/Griggelor/MinionOne/actions/runs/40899172333) before the later provider timeout and documentation changes.
 
-**Not implemented:** MCP server registration, real Unsloth parent/thread attestation or same-chat notification, LM Studio worker invocation, secure Windows filesystem broker, six executable worker tools, artifact publisher, full durable state machine/outbox, resource accounting and full end-to-end job execution. This repository is not a working multi-agent automation system yet.
+**Not implemented:** real Unsloth UI integration evidence or parent/thread attestation or same-chat notification, LM Studio worker invocation, secure Windows filesystem broker, six executable worker tools, artifact publisher, full durable state machine/outbox, resource accounting and full end-to-end job execution. This repository is not a working multi-agent automation system yet.
 
 ## Develop and test
 

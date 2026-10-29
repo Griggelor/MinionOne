@@ -1,0 +1,230 @@
+"""Experimental authenticated admission, transactional CAS and cancellation.
+
+NOT a production MCP service: Windows file confinement, Unsloth thread-attestation,
+provider integration, output publishing and delivery acknowledgement are absent.
+The credentials map is trusted administrator configuration, never model output.
+"""
+from __future__ import annotations
+
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from hashlib import sha256
+import hmac
+import json
+from pathlib import Path
+import re
+import secrets
+import sqlite3
+
+
+class InputRejected(ValueError):
+    pass
+
+
+class PermissionDenied(PermissionError):
+    pass
+
+
+class IdempotencyConflict(ValueError):
+    pass
+
+
+class VersionConflict(ValueError):
+    pass
+
+
+_ID = re.compile(r'[A-Za-z0-9_.:-]{1,128}\Z', re.ASCII)
+_OP = re.compile(r'[A-Za-z0-9_.:-]{8,128}\Z', re.ASCII)
+_SHA = re.compile(r'[a-f0-9]{64}\Z', re.ASCII)
+
+
+def _utc():
+    return datetime.now(timezone.utc).isoformat(timespec='microseconds').replace('+00:00', 'Z')
+
+
+def _digest(value):
+    return sha256(json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True).encode('ascii')).hexdigest()
+
+
+def _field(pattern, value, name):
+    if type(value) is not str or not pattern.fullmatch(value):
+        raise InputRejected('invalid ' + name)
+
+
+class AdmissionStore:
+    """Internal admission/CAS store for jobs that NEVER launch workers.
+
+    This class must not be bound directly to untrusted MCP tools. Authenticating
+    the true parent and chat thread on the transport requires a separately
+    demonstrated upstream integration. In this slice the mapping is preapproved.
+    """
+
+    def __init__(self, database_path, *, credentials):
+        if type(credentials) is not dict or not credentials:
+            raise InputRejected('trusted credentials mapping required')
+        clean = {}
+        for token, identity in credentials.items():
+            if type(token) is not str or not 32 <= len(token) <= 512:
+                raise InputRejected('invalid configured credential')
+            if not isinstance(identity, tuple) or len(identity) != 2:
+                raise InputRejected('invalid configured identity')
+            principal, threads = identity
+            _field(_ID, principal, 'configured principal')
+            if type(threads) not in (set, frozenset) or not threads:
+                raise InputRejected('configured threads must be nonempty set')
+            for thread in threads:
+                _field(_ID, thread, 'configured thread')
+            clean[token] = (principal, frozenset(threads))
+        self._credentials = clean
+        self.database_path = Path(database_path)  # trusted manager configuration only
+        self.database_path.parent.mkdir(parents=True, exist_ok=True)
+        with self._connection() as con:
+            con.executescript('''
+            CREATE TABLE IF NOT EXISTS jobs(
+              job_id TEXT PRIMARY KEY, principal TEXT NOT NULL, thread_id TEXT NOT NULL,
+              input_digest TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN
+                ('ACCEPTED','CANCEL_REQUESTED','CANCELLED')),
+              version INTEGER NOT NULL CHECK(version>=0),
+              worker_started INTEGER NOT NULL DEFAULT 0 CHECK(worker_started=0),
+              created_utc TEXT NOT NULL, updated_utc TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS admissions(
+              principal TEXT NOT NULL, operation_id TEXT NOT NULL,
+              request_hash TEXT NOT NULL, job_id TEXT NOT NULL, receipt TEXT NOT NULL,
+              PRIMARY KEY(principal,operation_id), FOREIGN KEY(job_id) REFERENCES jobs(job_id));
+            CREATE TABLE IF NOT EXISTS controls(
+              job_id TEXT NOT NULL, operation_id TEXT NOT NULL, request_hash TEXT NOT NULL,
+              receipt TEXT NOT NULL, PRIMARY KEY(job_id,operation_id),
+              FOREIGN KEY(job_id) REFERENCES jobs(job_id));
+            CREATE TABLE IF NOT EXISTS admission_events(
+              job_id TEXT NOT NULL, seq INTEGER NOT NULL, status TEXT NOT NULL,
+              operation_id TEXT NOT NULL, actor TEXT NOT NULL, occurred_utc TEXT NOT NULL,
+              PRIMARY KEY(job_id,seq), FOREIGN KEY(job_id) REFERENCES jobs(job_id));
+            ''')
+
+    @contextmanager
+    def _connection(self):
+        con = sqlite3.connect(str(self.database_path), isolation_level=None, timeout=10.0)
+        try:
+            con.row_factory = sqlite3.Row
+            con.execute('PRAGMA busy_timeout=10000')
+            con.execute('PRAGMA foreign_keys=ON')
+            con.execute('PRAGMA journal_mode=WAL')
+            con.execute('PRAGMA synchronous=FULL')
+            yield con
+            if con.in_transaction:
+                con.commit()
+        except BaseException:
+            if con.in_transaction:
+                con.rollback()
+            raise
+        finally:
+            con.close()
+
+    def _principal(self, token, thread_id):
+        if type(token) is not str or type(thread_id) is not str:
+            raise PermissionDenied('unauthorized parent/thread')
+        found = None
+        for known, scope in self._credentials.items():
+            if hmac.compare_digest(token, known):
+                found = scope
+        if found is None or thread_id not in found[1]:
+            raise PermissionDenied('unauthorized parent/thread')
+        return found[0]
+
+    @staticmethod
+    def _snapshot(row):
+        return {k: row[k] for k in
+                ('job_id','state','version','input_digest','created_utc','updated_utc')}
+
+    def _owned_row(self, con, principal, thread_id, job_id):
+        _field(_ID, job_id, 'job id')
+        row = con.execute('SELECT * FROM jobs WHERE job_id=? AND principal=? AND thread_id=?',
+                          (job_id, principal, thread_id)).fetchone()
+        if row is None:
+            raise PermissionDenied('job unavailable')
+        return row
+
+    def admit(self, parent_token, thread_id, input_digest, operation_id):
+        principal = self._principal(parent_token, thread_id)
+        _field(_ID, thread_id, 'thread')
+        _field(_SHA, input_digest, 'input digest')
+        _field(_OP, operation_id, 'operation id')
+        request_hash = _digest([thread_id, input_digest])
+        with self._connection() as con:
+            con.execute('BEGIN IMMEDIATE')
+            prior = con.execute('SELECT request_hash,job_id,receipt FROM admissions WHERE principal=? AND operation_id=?',
+                                (principal, operation_id)).fetchone()
+            if prior:
+                if prior['request_hash'] != request_hash:
+                    raise IdempotencyConflict('admission key reused with different request')
+                self._owned_row(con, principal, thread_id, prior['job_id'])
+                return json.loads(prior['receipt'])
+            job_id = 'JOB-' + secrets.token_hex(16)
+            now = _utc()
+            con.execute('INSERT INTO jobs(job_id,principal,thread_id,input_digest,state,version,created_utc,updated_utc) VALUES (?,?,?,?,?,?,?,?)',
+                        (job_id,principal,thread_id,input_digest,'ACCEPTED',0,now,now))
+            receipt = self._snapshot(self._owned_row(con, principal, thread_id, job_id))
+            con.execute('INSERT INTO admissions VALUES (?,?,?,?,?)',
+                        (principal,operation_id,request_hash,job_id,json.dumps(receipt,sort_keys=True)))
+            con.execute('INSERT INTO admission_events VALUES (?,?,?,?,?,?)',
+                        (job_id,1,'ACCEPTED',operation_id,'MANAGER',now))
+            return receipt
+
+    def status(self, parent_token, thread_id, job_id):
+        principal = self._principal(parent_token, thread_id)
+        with self._connection() as con:
+            return self._snapshot(self._owned_row(con, principal, thread_id, job_id))
+
+    def events(self, parent_token, thread_id, job_id):
+        principal = self._principal(parent_token, thread_id)
+        with self._connection() as con:
+            self._owned_row(con, principal, thread_id, job_id)
+            return [dict(r) for r in con.execute('''SELECT seq,status,operation_id,actor,occurred_utc
+              FROM admission_events WHERE job_id=? ORDER BY seq LIMIT 500''',(job_id,)).fetchall()]
+
+    def request_abort(self, parent_token, thread_id, job_id, expected_version, operation_id):
+        principal = self._principal(parent_token, thread_id)
+        _field(_ID, job_id, 'job id')
+        _field(_OP, operation_id, 'operation id')
+        if type(expected_version) is not int or expected_version < 0:
+            raise InputRejected('invalid expected version')
+        digest = _digest([expected_version,'abort'])
+        with self._connection() as con:
+            con.execute('BEGIN IMMEDIATE')
+            row = self._owned_row(con, principal, thread_id, job_id)
+            prior = con.execute('SELECT request_hash,receipt FROM controls WHERE job_id=? AND operation_id=?',
+                                (job_id,operation_id)).fetchone()
+            if prior:
+                if prior['request_hash'] != digest:
+                    raise IdempotencyConflict('control key reused with different request')
+                return json.loads(prior['receipt'])
+            if row['version'] != expected_version or row['state'] != 'ACCEPTED':
+                raise VersionConflict('stale or ineligible state')
+            now = _utc()
+            con.execute('UPDATE jobs SET state=?,version=?,updated_utc=? WHERE job_id=?',
+                        ('CANCEL_REQUESTED',expected_version+1,now,job_id))
+            con.execute('INSERT INTO admission_events VALUES (?,?,?,?,?,?)',
+                        (job_id,2,'CANCEL_REQUESTED',operation_id,'AUTHENTICATED_PARENT',now))
+            receipt = self._snapshot(self._owned_row(con,principal,thread_id,job_id))
+            con.execute('INSERT INTO controls VALUES (?,?,?,?)',
+                        (job_id,operation_id,digest,json.dumps(receipt,sort_keys=True)))
+            return receipt
+
+    def confirm_quiescent_cancel(self, job_id, expected_version, operation_id):
+        """Internal only; safe ONLY because this slice never starts a worker."""
+        _field(_ID, job_id, 'job id')
+        _field(_OP, operation_id, 'operation id')
+        if type(expected_version) is not int or expected_version < 0:
+            raise InputRejected('invalid expected version')
+        with self._connection() as con:
+            con.execute('BEGIN IMMEDIATE')
+            row = con.execute('SELECT * FROM jobs WHERE job_id=?',(job_id,)).fetchone()
+            if (row is None or row['version'] != expected_version
+                    or row['state'] != 'CANCEL_REQUESTED' or row['worker_started'] != 0):
+                raise VersionConflict('not verified quiescent')
+            now = _utc()
+            con.execute('UPDATE jobs SET state=?,version=?,updated_utc=? WHERE job_id=?',
+                        ('CANCELLED',expected_version+1,now,job_id))
+            con.execute('INSERT INTO admission_events VALUES (?,?,?,?,?,?)',
+                        (job_id,3,'CANCELLED',operation_id,'MANAGER',now))
+            return self._snapshot(con.execute('SELECT * FROM jobs WHERE job_id=?',(job_id,)).fetchone())

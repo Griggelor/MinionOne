@@ -25,6 +25,7 @@ of an actual Unsloth chat identity.
 - [G2 one-shot worker attempt fencing — no worker start](docs/G2_ATTEMPT_FENCING.md)
 - [G2 recovery before MCP socket startup](docs/G2_STARTUP_RECOVERY.md)
 - [G2 canonical pre-dispatch state and v0.10 DB migration](docs/G2_CANONICAL_PREFLIGHT_MIGRATION.md)
+- [G2 durable timeout and safe resume-request pilot](docs/G2_TIMEOUT_RESUME_INTENT.md)
 - [G2 bounded agent loops, security strikes, Thinking-token accounting](docs/G2_AGENT_LOOP_BUDGETS.md)
 - [G2 ADR: optional one-to-four-hour job duration with per-tool deadlines](docs/ADR_G2_EXTENDED_WORKER_TIMEOUTS.md)
 - [G2 local LM Studio tool-call planner — no file broker](docs/G2_LMSTUDIO_TOOL_PLANNER.md)
@@ -33,6 +34,8 @@ of an actual Unsloth chat identity.
 The pilot now persists manager-only VALIDATING, QUEUED and RESOURCE_CHECK transitions, with an automatic atomic migration of v0.10 pilot databases. **Back up the stopped private database before upgrading**; this is not a real worker run. The pilot does not expose workers, file tools, a verified input seal, publication or wakeup.
 **Community beta remains NO-GO.**
 
+
+**New timeout/resume control-plane prototype:** A timed-out, manager-attested quiescent attempt becomes canonical `INTERRUPTED` with reason `TIMEOUT`. Uncertain termination becomes `NEEDS_RECONCILIATION` and cannot be resumed. The job-status MCP tool reports whether a checkpoint and fenced attempt make Resume eligible. `minionone_resume_request` accepts an authenticated idempotent **request only**; it does not start another worker or enter `RESUMING`. Real safe restart and original Unsloth identity remain blocked.
 
 **New optional long-job policy (v0.13):** The trusted manager may explicitly select an extended profile with a 1-hour default and 4-hour ceiling. The original standard 15–20-minute profile remains. Individual LM Studio model requests still max at 300s, with stricter tool-specific limits such as read_file 30s. Model turns (200 maximum), tool requests (60 maximum), denial strikes and token limits do not increase. No live worker or writable file tool is enabled. See [runtime ADR](docs/ADR_G2_EXTENDED_WORKER_TIMEOUTS.md).
 

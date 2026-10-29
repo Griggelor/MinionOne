@@ -3,6 +3,12 @@
 **Version:** 0.14.0.dev0  
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
 
+## Ongoing error-handling review (mandatory before Beta)
+
+- [Issue #29](https://github.com/Griggelor/MinionOne/issues/29): comprehensive end-to-end error handling with understandable messages for API failures, incorrect credentials/passwords, connection failures, timeouts, SQLite/file permissions, provider OOM, worker failures and parent delivery/ACK.
+- [PR #30](https://github.com/Griggelor/MinionOne/pull/30): first code slice introduces fixed safe `code`, `message`, `action`, `retryable` for local provider errors and MCP authorization, plus CLI fault output. Tests must prove passwords, API keys, paths and raw provider responses never leak.
+- **Still open:** durable per-job error events, tool/broker and filesystem failure mapping, original-chat UI/wakeup, checkpoint-resume error status, external LM Studio/Unsloth fault injection and independent security review. The PR does not turn on real worker actions. Beta NO-GO.
+
 ## 0.14.0.dev0 – durable timeout and parent Resume request (non-executing)
 
 - [PR #27](https://github.com/Griggelor/MinionOne/pull/27) merged: a canonical synthetic RUNNING job can be recorded as INTERRUPTED with reason TIMEOUT only after a matching old attempt is fenced and the manager attests provider quiescence. Otherwise NEEDS_RECONCILIATION reports unknown worker liveness and forbids Resume.

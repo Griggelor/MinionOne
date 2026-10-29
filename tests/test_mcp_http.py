@@ -54,7 +54,8 @@ class TestMCPHTTP(unittest.TestCase):
         _,listed=self.rpc("tools/list")
         names={tool["name"] for tool in listed["result"]["tools"]}
         self.assertEqual(names,{"minionone_status","minionone_models",
-            "minionone_admit","minionone_job_status","minionone_job_events","minionone_abort"})
+            "minionone_admit","minionone_job_status","minionone_job_events","minionone_abort",
+            "minionone_resume_request"})
         state=json.loads(self.tool("minionone_status")["content"][0]["text"])
         self.assertFalse(state["worker_execution_enabled"])
         self.assertFalse(state["parent_thread_attested"])

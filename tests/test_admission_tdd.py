@@ -6,7 +6,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from src.minionone.admission import (
+from minionone.admission import (
     AdmissionStore, PermissionDenied, InputRejected,
     IdempotencyConflict, VersionConflict,
 )

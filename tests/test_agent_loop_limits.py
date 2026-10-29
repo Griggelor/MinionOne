@@ -90,11 +90,16 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual((r.status,r.loops),("AWAITING_REVIEW",200))
 
     def test_does_not_execute_iteration_201(self):
-        provider=FakeProvider([ModelStep("continue",total_tokens=1)]*201)
-        r=self.runner(max_loops=200,max_idle_loops=200).run(provider,FakeBroker())
+        productive_pattern=(
+            [ModelStep("continue",total_tokens=1)]*3+
+            [ModelStep("tool",name="report_progress",
+                       arguments={},total_tokens=1)])
+        provider=FakeProvider(productive_pattern*50+
+                              [ModelStep("finish",text="not reached",total_tokens=1)])
+        r=self.runner(max_loops=200).run(provider,FakeBroker())
         self.assertEqual((r.status,r.loops),("LOOP_LIMIT",200))
         self.assertEqual(len(provider.timeouts),200)
-        self.assertEqual(r.tool_calls,0)
+        self.assertEqual(r.tool_calls,50)
         self.assertFalse(r.delivered)
 
     def test_default_is_50_and_hard_max_200(self):

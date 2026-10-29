@@ -166,6 +166,18 @@ class DurableTimeoutTests(unittest.TestCase):
                  checkpoint_sha256=CHECKPOINT,operation_id="timeout-0001")
         self.assertEqual(self.owner.status(TOKEN,"thread",self.job)["state"],"RUNNING")
 
+    def test_parent_may_cancel_interrupted_job_instead_of_resuming(self):
+        self.timeout()
+        cancelled_request=self.owner.request_abort(
+            TOKEN,"thread",self.job,3,"abort-0001")
+        self.assertEqual(cancelled_request["state"],"CANCEL_REQUESTED")
+        cancelled=self.owner.confirm_quiescent_cancel(self.job,4,"cancel-0001")
+        self.assertEqual(cancelled["state"],"CANCELLED")
+        control=self.control.status(TOKEN,"thread",self.job)
+        self.assertFalse(control["resume_available"])
+        with self.assertRaises(TimeoutControlDenied):
+            self.control.request_resume(TOKEN,"thread",self.job,5,"resume-0001")
+
     def test_no_new_mcp_execute_or_resume_dispatch_and_synthetic_ui(self):
         names={tool["name"] for tool in TOOLS}
         self.assertIn("minionone_resume_request",names)

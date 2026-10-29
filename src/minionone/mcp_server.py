@@ -69,6 +69,10 @@ class MCPHandler(BaseHTTPRequestHandler):
     server_version="MinionOne-Pilot"
     sys_version=""
 
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(2)
+
     def log_message(self, *_):
         return # Never log secrets, body, paths or client-supplied messages.
 
@@ -113,7 +117,12 @@ class MCPHandler(BaseHTTPRequestHandler):
                 or self.headers.get("Transfer-Encoding") or self.headers.get("Content-Encoding")):
             self._send(413);return
         try:
-            msg=json.loads(self.rfile.read(int(length)).decode("utf-8"))
+            raw=self.rfile.read(int(length))
+        except (TimeoutError,OSError):
+            self._send(408)
+            return
+        try:
+            msg=json.loads(raw.decode("utf-8"))
         except (UnicodeError, ValueError):
             self._send(200,_error(None,-32700,"Parse error"));return
         if type(msg) is not dict or msg.get("jsonrpc")!="2.0" or type(msg.get("method")) is not str:

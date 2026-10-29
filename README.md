@@ -34,6 +34,8 @@ The pilot now persists manager-only VALIDATING, QUEUED and RESOURCE_CHECK transi
 **Community beta remains NO-GO.**
 
 
+**New optional long-job policy (v0.13):** The trusted manager may explicitly select an extended profile with a 1-hour default and 4-hour ceiling. The original standard 15–20-minute profile remains. Individual LM Studio model requests still max at 300s, with stricter tool-specific limits such as read_file 30s. Model turns (200 maximum), tool requests (60 maximum), denial strikes and token limits do not increase. No live worker or writable file tool is enabled. See [runtime ADR](docs/ADR_G2_EXTENDED_WORKER_TIMEOUTS.md).
+
 **New internal v0.12 agent planner:** A finite agent-loop coordinator supports 50 default/model-turns up to a hard cap of 200, a three-strike policy for repeated broker-denied tool requests, and distinct token/model/tool/wall-clock/no-progress limits. The default **standard** profile preserves the normative v0.6 ceilings of **60 tool calls and 1,200 seconds total runtime**. An explicitly trusted-manager-selected **extended** policy is now modeled with a **one-hour default and four-hour hard ceiling**, retaining the 60-call/200-turn limits and adding stricter per-tool timeouts (e.g. file reads at most 30 seconds). This policy is not yet exposed through MCP, is not a running worker, and cannot be requested by model text. The LM Studio tool-call adapter parses approved tool requests and sanitized tool results on localhost; it is not wired to a real worker/file broker. Candidate results are **AWAITING_REVIEW**, never automatically sent to the parent. Real file/worker tools remain disabled.
 
 ## What is implemented

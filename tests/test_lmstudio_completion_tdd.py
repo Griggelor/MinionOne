@@ -74,6 +74,13 @@ class TestCompletion(unittest.TestCase):
                 self.cli.complete(model,prompt,max_tokens=tokens)
         self.assertIsNone(FakeCompletion.last_request)
 
+    def test_inference_timeout_is_bounded_but_longer_than_probe(self):
+        base=f'http://127.0.0.1:{self.srv.server_port}'
+        self.assertEqual(LMStudioCompletion(base,timeout=120)._timeout,120)
+        for invalid in (0,301,True):
+            with self.subTest(invalid=invalid),self.assertRaises(CompletionRejected):
+                LMStudioCompletion(base,timeout=invalid)
+
     def test_bad_status(self):
         FakeCompletion.status=503
         with self.assertRaises(CompletionRejected):

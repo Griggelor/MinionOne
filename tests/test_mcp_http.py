@@ -49,6 +49,8 @@ class TestMCPHTTP(unittest.TestCase):
                   "clientInfo":{"name":"wire-test","version":"1"},"capabilities":{}})
         self.assertEqual(status,200)
         self.assertEqual(resp["result"]["protocolVersion"],"2025-06-18")
+        from minionone import __version__
+        self.assertEqual(resp["result"]["serverInfo"]["version"],__version__)
         _,listed=self.rpc("tools/list")
         names={tool["name"] for tool in listed["result"]["tools"]}
         self.assertEqual(names,{"minionone_status","minionone_models",

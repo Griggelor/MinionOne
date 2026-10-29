@@ -8,6 +8,7 @@ import json
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener, ProxyHandler, HTTPRedirectHandler
 from urllib.error import HTTPError, URLError
+from .diagnostics import classify_provider_failure, diagnostic as provider_diagnostic
 
 
 class InvalidProbeConfig(ValueError):
@@ -15,7 +16,11 @@ class InvalidProbeConfig(ValueError):
 
 
 class ProbeError(RuntimeError):
-    pass
+    def __init__(self, message, *, diagnostic=None):
+        # Public callers must use self.diagnostic, never raw causes.
+        super().__init__(message)
+        self.diagnostic = diagnostic if diagnostic is not None else provider_diagnostic(
+            "PROVIDER_RESPONSE_INVALID")
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -62,7 +67,8 @@ class LMStudioProbe:
                     raise ProbeError('model discovery returned unexpected status')
                 data=response.read(self.max_response_bytes+1)
         except (HTTPError,URLError,TimeoutError,OSError,ValueError) as e:
-            raise ProbeError('model discovery failed or was refused') from e
+            raise ProbeError('model discovery failed or was refused',
+                             diagnostic=classify_provider_failure(e)) from e
         if len(data)>self.max_response_bytes:
             raise ProbeError('model discovery response exceeded byte budget')
         try:

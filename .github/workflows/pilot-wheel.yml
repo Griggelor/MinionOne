@@ -63,7 +63,7 @@ jobs:
       - name: Upload package strictly as a CI artifact, not a signed release
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: MinionOne-MCP-PILOT-UNVERIFIED-0.10.0.dev0
+          name: MinionOne-MCP-PILOT-UNVERIFIED-0.11.0.dev0
           path: dist/
           retention-days: 14
           if-no-files-found: error

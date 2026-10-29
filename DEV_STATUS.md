@@ -1,7 +1,15 @@
 # Development status — 2026-10-29
 
-**Version:** 0.10.0.dev0  
+**Version:** 0.11.0.dev0  
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
+
+## 0.11.0.dev0 canonical pre-dispatch milestone
+
+- [PR #19](https://github.com/Griggelor/MinionOne/pull/19) merged at d135987: the **existing** canonical jobs table now persists VALIDATING, QUEUED and RESOURCE_CHECK with central lifecycle checks, versioned idempotent manager transitions and dynamic audit sequences. No parallel state owner added.
+- The legacy v0.10 schema migration preserves existing admissions, controls, events, outbox and attempt-fence child relations. It checks foreign keys before commit and rolls back invalid legacy data. A production-path MCP test verifies status/abort correctly reflect the new states.
+- GitHub CI [#40946389035](https://github.com/Griggelor/MinionOne/actions/runs/40946389035) at final feature commit 5db5ecfd: **124/124 Windows PASS; 124/124 Ubuntu PASS**. Official MCP SDK [#40946389029](https://github.com/Griggelor/MinionOne/actions/runs/40946389029) **4/4 PASS**; Win32 API feasibility [#40946389055](https://github.com/Griggelor/MinionOne/actions/runs/40946389055) PASS.
+- No RUNNING, RESULT_READY or COMPLETED states are accessible via the persistent manager; SQLite still enforces worker_started=0. **No real worker execution, authenticated parent session, secure Windows file broker, output artifact integration or beta release.**
+- Before applying schema changes to a pilot machine: stop all MinionOne processes and back up the private SQLite database (including WAL/SHM as appropriate using SQLite's backup API), then test first with synthetic data.
 
 ## 0.10.0.dev0 development checkpoint (not beta)
 

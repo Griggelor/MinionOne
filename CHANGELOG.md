@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.0.dev0 — 2026-10-29 (PUBLIC PRE-ALPHA, NOT BETA)
+
+- [PR #19](https://github.com/Griggelor/MinionOne/pull/19): migrate the same canonical SQLite jobs table with atomic FK verification; persist VALIDATING, QUEUED, RESOURCE_CHECK manager-only states and dynamic audit/CAS/idempotency receipts.
+- Existing v0.10 pilot jobs/admissions/outbox/attempt-fence references preserved; corruption rejects migration. **Stop and back up pilot DB before upgrade**. The database CHECK(worker_started=0) and six old MCP tools remain unchanged.
+- New adversarial tests: legacy child preservation including populated effect tables, rollback after broken FK, concurrent CAS, old idempotency receipt/restart, real MCP status and abort. Final branch CI: Windows 124/124 and Ubuntu 124/124 PASS at 5db5ecfd; official MCP SDK matrix 4/4 PASS.
+- No worker launch, sealed files, real Unsloth parent-chat identity, provider quiescence or integration ACK. Still a synthetic connection pilot. **Beta NO-GO.**
+
 ## 0.10.0.dev0 — 2026-10-29 (PUBLIC PRE-ALPHA, NOT BETA)
 
 This is a developer test package for MCP protocol attachment with **zero worker execution rights**.

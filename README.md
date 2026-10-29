@@ -1,43 +1,48 @@
 # MinionOne
 
-**Unsloth Studio MCP extension for secure, local multi-agent delegation.**
+**Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **PUBLIC PRE-ALPHA — NOT PRODUCTION-READY.** This is an independent community project, not an official Unsloth product. Current development contains specifications, test contracts and a limited experimental SQLite audit component, **not** a verified end-to-end MCP job manager.
+> **Public PRE-ALPHA · 0.9.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
-MinionOne is designed to delegate bounded tasks from a trusted parent assistant to local LLM workers (initially via LM Studio), while limiting worker authority through a manager-enforced tool broker.
+MinionOne aims to delegate bounded tasks from a primary local assistant to specialist workers (initially via LM Studio), while keeping authorization, state, resource budgets, files and final integration under the trusted manager's control. It is **not** an official Unsloth project or an endorsed Unsloth extension.
 
-## Intended security model
+## What is implemented
 
-- `input/`: sealed, read-only worker input.
-- `work/`: worker read and **create-only** through an authorized broker; never overwrite or delete.
-- `output/`: manager-only, immutable published artifacts and a redacted job log.
-- Workers have **no shell, arbitrary code execution, network, browser, Git, unrestricted filesystem or self-integration rights**.
-- Persisted job states, scoped authentication, idempotency, fencing, recovery and explicit parent acknowledgement are required for the future runtime.
+- Installable **experimental** Python package in `src/minionone/`.
+- `AdmissionStore`: SQLite-backed, persisted job admission with authenticated caller-scoped threads from **trusted local configuration**, idempotency receipts, transactional admission event recording, optimistic state versions, authenticated abort requests and safe cancellation for jobs never started.
+- Positive, negative, adversarial, concurrency and restart tests.
+- GitHub Actions on Windows and Linux using Python 3.13.
 
-**These are design requirements, not yet verified production guarantees.**
+**Not implemented:** MCP server registration, real Unsloth parent/thread attestation or same-chat notification, LM Studio worker invocation, secure Windows filesystem broker, six executable worker tools, artifact publisher, full durable state machine/outbox, resource accounting and full end-to-end job execution. This repository is not a working multi-agent automation system yet.
 
-## Implementation status
+## Develop and test
 
-A preliminary internal SQLite audit/journal prototype and offline contract/test suite exist. On a separate prepared public-source snapshot, **123/123 offline tests** and **87/87 transport manifest checks** passed on Linux on 2026-10-29. They do not establish a secure Windows file broker or functional Unsloth / LM Studio integration. GitHub Actions results are not yet available.
+Prerequisites: Python 3.11+; 3.13 is the CI target.
 
-Major remaining gates:
+```bash
+python -m pip install -e .
+python -m unittest discover -s tests -v
+```
 
-1. **G1a:** authenticated Unsloth MCP attachment, parent ownership and real same-chat resumption.
-2. **G1b:** Windows NTFS handle-bound confinement under reparse points, hardlinks, rename races and failure injection.
-3. **G1c:** LM Studio / worker model resource and residency behavior on target hardware.
-4. **G2–G3:** durable manager, six authorized worker tools, crash recovery and real synthetic end-to-end test.
-5. Independent security review, reproducible release and explicit maintainer approval.
+The repository's current GitHub Actions coverage is for **admission only**. A larger sanitized v0.8 reference/design source exists outside this repository: its legacy 123 tests are **not** represented as remote GitHub CI unless actually imported and rerun.
 
-See [Issues](https://github.com/Griggelor/MinionOne/issues) for concrete gate work. No production use or security guarantee is implied.
+## Security model and gates
 
-## Public source import
+**No untrusted worker is allowed direct shell, network, generic file APIs, Git, other MCP capabilities, execution or project integration.** Required target folders:
 
-The initial GitHub README is a bootstrap document. The cleaned full **v0.8-dev source** (specifications, code, test suite, CI workflow and SHA-256 manifest) is being prepared as a separate import artifact. Do **not** import prior Git bundles containing historical third-party reference archives.
+- `input/`: sealed, verified, read-only worker input.
+- `work/`: broker-scoped create-only worker output (no overwrite/delete).
+- `output/`: manager-only immutable publication and redacted log.
 
-## Security and participation
+These are **requirements**, not implemented Windows security guarantees. A fail-closed Windows NTFS handle broker, authenticated Unsloth MCP ownership and real LM Studio/Unsloth E2E evidence must be provided before a usable beta. Learn more in [Architecture and release gates](docs/ARCHITECTURE_AND_RELEASE_GATES.md).
 
-Please do not post secrets, private customer data or actionable vulnerability details in public issues. Use GitHub private vulnerability reporting if enabled.
+## Project management
 
-**License:** No software license has yet been adopted by the owner. Public visibility is not a grant of permission to copy, modify or redistribute the code. Third-party provenance and an explicit license choice remain open decisions.
+- [Roadmap and issues](https://github.com/Griggelor/MinionOne/issues)
+- [CI results](https://github.com/Griggelor/MinionOne/actions)
+- [Security disclosure](SECURITY.md)
+- [Public GitHub source archive](https://github.com/Griggelor/MinionOne/archive/refs/heads/main.zip) — **source only, not an installer or beta**.
 
-**Status:** Publicly developed experimental pre-alpha, **release NO-GO**.
+**License:** No software license has been approved yet; public visibility is not permission to redistribute. External source provenance and license choice are tracked in [Issue #8](https://github.com/Griggelor/MinionOne/issues/8).
+
+**Release verdict:** NO-GO. Do not process sensitive real-world documents or assume secure sandboxing at this stage.

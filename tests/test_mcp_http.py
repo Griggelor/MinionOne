@@ -117,7 +117,12 @@ class TestMCPHTTP(unittest.TestCase):
             with socket.create_connection(("127.0.0.1",self.srv.server_port),timeout=2) as sock:
                 sock.settimeout(3)
                 sock.sendall(b"GET /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
-                self.assertEqual(sock.recv(100),b"")
+                try:
+                    response=sock.recv(100)
+                except (ConnectionResetError, ConnectionAbortedError):
+                    # Windows aborts rejected sockets; POSIX often returns EOF.
+                    response=b""
+                self.assertEqual(response,b"")
         finally:
             for _ in range(8):
                 capacity.release()

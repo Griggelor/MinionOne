@@ -2,7 +2,7 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.9.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.10.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
 MinionOne aims to delegate bounded tasks from a primary local assistant to specialist workers (initially via LM Studio), while keeping authorization, state, resource budgets, files and final integration under the trusted manager's control. It is **not** an official Unsloth project or an endorsed Unsloth extension.
 
@@ -22,6 +22,9 @@ of an actual Unsloth chat identity.
 - [Official MCP SDK interop (v1.30.0 / v2.3.0, Windows + Ubuntu)](docs/G1A_OFFICIAL_MCP_SDK_INTEROP.md)
 - [Windows NTFS handle API feasibility — not a secure sandbox](docs/G1B_WINDOWS_API_FEASIBILITY.md)
 - [G2 conservative delivery outbox — no network sending](docs/G2_OUTBOX_SLICE_ADR022.md)
+- [G2 one-shot worker attempt fencing — no worker start](docs/G2_ATTEMPT_FENCING.md)
+- [G2 recovery before MCP socket startup](docs/G2_STARTUP_RECOVERY.md)
+- [G1c parent-pinned UMA eligibility — no model loading](docs/G1C_RESOURCE_ELIGIBILITY.md)
 
 The pilot does not expose workers, file tools, a verified input seal, publication or wakeup.
 **Community beta remains NO-GO.**
@@ -34,9 +37,9 @@ The pilot does not expose workers, file tools, a verified input seal, publicatio
 - `LMStudioProbe`: strict literal-loopback read-only model discovery using documented `GET /v1/models`.
 - `LMStudioCompletion`: tool-free, bounded local text inference using documented `POST /v1/chat/completions`; worker output is untrusted and is never executed or automatically integrated.
 - Operator diagnostic CLI (`minionone` or `python -m minionone`) with explicit NO-GO status, read-only model probe and fixed synthetic smoke prompt; it never launches a worker, reads user projects or exposes model responses by default.
-- GitHub Actions Python 3.13 core suite: [run #40916174040](https://github.com/Griggelor/MinionOne/actions/runs/40916174040) confirmed **77/77 tests on Windows and 77/77 on Ubuntu**. The [package workflow](https://github.com/Griggelor/MinionOne/actions/workflows/pilot-wheel.yml) requires both OS suites before publishing the pilot wheel. [Win32 feasibility run #40916892418](https://github.com/Griggelor/MinionOne/actions/runs/40916892418): **6/6 API experiments**, not a security pass. [Official MCP SDK run #40917985128](https://github.com/Griggelor/MinionOne/actions/runs/40917985128): **4/4 OS/SDK combinations passed**, not an Unsloth-live test.
+- GitHub Actions Python 3.13 main-branch suite: [run #40925220168](https://github.com/Griggelor/MinionOne/actions/runs/40925220168) confirmed **109/109 tests on Windows and 109/109 on Ubuntu** at commit 5b11c77. The [package workflow](https://github.com/Griggelor/MinionOne/actions/workflows/pilot-wheel.yml) requires both OS test jobs before uploading a wheel. Separate [Win32 API experiments](https://github.com/Griggelor/MinionOne/actions/runs/40916892418) and [official MCP SDK interoperability](https://github.com/Griggelor/MinionOne/actions/runs/40917985128) also passed, but these do not establish target Unsloth or secure file-broker behavior.
 
-**Not implemented:** real Unsloth UI integration evidence or parent/thread attestation or same-chat notification, LM Studio worker invocation, secure Windows filesystem broker, six executable worker tools, artifact publisher, full durable state machine/outbox, resource accounting and full end-to-end job execution. This repository is not a working multi-agent automation system yet.
+**Not implemented:** real Unsloth UI integration evidence or parent/thread attestation or same-chat notification, LM Studio worker invocation, secure Windows filesystem broker, six executable worker tools, artifact publisher, complete canonical worker-state engine, production provider-fenced worker attempts, trusted host resource telemetry and full end-to-end job execution. This repository is not a working multi-agent automation system yet.
 
 ## Develop and test
 

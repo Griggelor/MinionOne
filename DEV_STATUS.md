@@ -1,7 +1,15 @@
 # Development status — 2026-10-29
 
-**Version:** 0.9.0.dev0  
+**Version:** 0.10.0.dev0  
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
+
+## 0.10.0.dev0 development checkpoint (not beta)
+
+- [PR #15](https://github.com/Griggelor/MinionOne/pull/15): one-shot, manager-only worker attempt reservation and irrevocable epoch fencing; no provider start. Initial exact-head CI showed **90/90 per OS**.
+- [PR #16](https://github.com/Griggelor/MinionOne/pull/16): actual MCP startup now quarantines uncertain outbox effects and fences reserved attempts **before socket binding**. Red/green production-path failure injection: [run #40924081134](https://github.com/Griggelor/MinionOne/actions/runs/40924081134) was red; subsequently **95/95 Windows and Linux PASS** at [run #40924172291](https://github.com/Griggelor/MinionOne/actions/runs/40924172291).
+- [PR #17](https://github.com/Griggelor/MinionOne/pull/17): strict single-worker, parent-pinned UMA budget eligibility from synthetic trusted telemetry. No real resource measurement, reservation or model execution.
+- Latest combined main-branch [CI #40925220168](https://github.com/Griggelor/MinionOne/actions/runs/40925220168) at commit 5b11c77: **109/109 on Windows** (24.604s) and **109/109 on Ubuntu** (13.023s).
+- **Not proven:** actual Unsloth chat identity and wakeup; handle-bound Windows sandbox; live Flint worker with parent Rulith kept resident; immutable artifact publication; full multi-attempt recovery and independent third-party security review. The actual MCP pilot still exposes no worker/file tools. Full Beta remains **NO-GO**.
 
 ## Latest verified engineering evidence
 

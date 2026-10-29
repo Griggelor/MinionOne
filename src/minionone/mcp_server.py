@@ -8,6 +8,8 @@ from urllib.parse import urlsplit
 from . import __version__
 from .admission import AdmissionStore, InputRejected, PermissionDenied, IdempotencyConflict, VersionConflict
 from .lmstudio_probe import LMStudioProbe, ProbeError
+from .outbox import OutboxStore
+from .attempt_fence import AttemptFenceStore
 
 PROTOCOL = "2025-06-18"
 TOOLS = [
@@ -38,6 +40,16 @@ class LocalMCP(ThreadingHTTPServer):
         self.credential = token
         self.thread_id = thread
         self.store = AdmissionStore(database_path, credentials={token:(principal,{thread})})
+        # Recover external-effect uncertainty BEFORE opening the listening socket.
+        # Partial recovery failures propagate; never serve requests in that case.
+        self.outbox = OutboxStore(database_path)
+        self.attempt_fences = AttemptFenceStore(database_path)
+        outbox_count = self.outbox.quarantine_in_flight()
+        attempt_count = self.attempt_fences.fence_unreconciled()
+        self.recovery_summary = {
+            "outbox_quarantined": outbox_count,
+            "attempts_fenced": attempt_count,
+        }
         self.probe = LMStudioProbe(lmstudio_url)
         self._slots=threading.BoundedSemaphore(8)
         super().__init__(address, MCPHandler)

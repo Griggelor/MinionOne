@@ -110,6 +110,17 @@ class DurableTimeoutTests(unittest.TestCase):
         with closing(sqlite3.connect(self.db)) as con:
             self.assertEqual(con.execute("SELECT count(*) FROM timeout_records").fetchone()[0],0)
 
+    def test_status_never_offers_resume_if_fence_becomes_active(self):
+        self.timeout()
+        with closing(sqlite3.connect(self.db)) as con:
+            con.execute("UPDATE attempt_fences SET status='RESERVED' WHERE job_id=?",
+                        (self.job,))
+            con.commit()
+        status=self.control.status(TOKEN,"thread",self.job)
+        self.assertFalse(status["resume_available"])
+        with self.assertRaises(TimeoutControlDenied):
+            self.control.request_resume(TOKEN,"thread",self.job,3,"resume-0001")
+
     def test_idempotent_timeout_replay_no_duplicate_events(self):
         a=self.timeout()
         self.assertEqual(self.timeout(),a)

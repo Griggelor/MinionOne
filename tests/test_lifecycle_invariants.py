@@ -97,6 +97,16 @@ class TestLifecyclePolicy(unittest.TestCase):
             with self.subTest(bad=bad),self.assertRaises(LifecycleRejected):
                 check_evidence(bad)
 
+    def test_adversarial_unhashable_fields_fail_closed(self):
+        for bad in (replace(Evidence(), worker_outcome=[]),
+                    replace(Evidence(), notification_delivery=[]),
+                    replace(Evidence(), parent_restore={}),
+                    replace(Evidence(), integration_ack=[])):
+            with self.subTest(bad=bad), self.assertRaises(LifecycleRejected):
+                check_evidence(bad)
+        with self.assertRaises(LifecycleRejected):
+            check_transition('ACCEPTED', [], Evidence())
+
     def test_restore_requires_confirmed_failure(self):
         good=Evidence(worker_outcome='DONE',parent_restore='FAILED')
         self.assertTrue(check_transition('RESULT_READY','RESTORATION_REQUIRED',good))

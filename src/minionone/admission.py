@@ -331,7 +331,8 @@ class AdmissionStore:
                     raise IdempotencyConflict('control key reused with different request')
                 return json.loads(prior['receipt'])
             if (row['version'] != expected_version or
-                    row['state'] not in ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK') or
+                    row['state'] not in ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK',
+                                         'INTERRUPTED') or
                     row['worker_started'] != 0):
                 raise VersionConflict('stale or ineligible state')
             check_transition(row['state'], 'CANCEL_REQUESTED', Evidence())

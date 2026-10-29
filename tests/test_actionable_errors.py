@@ -84,7 +84,7 @@ class DiagnosticUnitTests(unittest.TestCase):
 
     def test_diagnostics_reject_untrusted_provider_raw_error_body(self):
         d=classify_provider_failure(http_error(401))
-        self.assertNotIn("password",json.dumps(d.to_dict()))
+        self.assertNotIn(SECRET,json.dumps(d.to_dict()))
         self.assertFalse(d.retryable)
 
 
@@ -106,6 +106,21 @@ class ClientBoundaryTests(unittest.TestCase):
                 probe._opener=FakeOpener(exc)
                 with self.assertRaises(ProbeError) as cm:
                     probe.models()
+                self.assertEqual(cm.exception.diagnostic.code,code)
+                self.assertNotIn(SECRET,str(cm.exception))
+
+    def test_tool_planner_keeps_classified_provider_api_failure(self):
+        from minionone.lmstudio_agent import LMStudioAgentProvider, PlannerRejected
+        for status,code in ((401,"PROVIDER_AUTH_FAILED"),
+                            (429,"PROVIDER_RATE_LIMITED"),
+                            (503,"PROVIDER_SERVER_ERROR")):
+            with self.subTest(status=status):
+                adapter=LMStudioAgentProvider(
+                    "http://127.0.0.1:1234",model_id="synthetic",
+                    approved_prompt="synthetic non-file job")
+                adapter._provider._opener=FakeOpener(http_error(status))
+                with self.assertRaises(PlannerRejected) as cm:
+                    adapter.next_step(timeout_seconds=10)
                 self.assertEqual(cm.exception.diagnostic.code,code)
                 self.assertNotIn(SECRET,str(cm.exception))
 

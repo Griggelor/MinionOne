@@ -1,5 +1,6 @@
 """Independent adversarial boundary tests; no production MCP or NTFS claim."""
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -64,7 +65,7 @@ class AdversarialAdmissionTests(unittest.TestCase):
     def test_cannot_mark_worker_started_in_database(self):
         job = self.new_job()
         with self.assertRaises(sqlite3.IntegrityError):
-            with sqlite3.connect(self.db) as con:
+            with closing(sqlite3.connect(self.db)) as con:
                 con.execute('UPDATE jobs SET worker_started=1 WHERE job_id=?', (job['job_id'],))
 
     def test_recovery_idempotence_never_mints_new_job(self):

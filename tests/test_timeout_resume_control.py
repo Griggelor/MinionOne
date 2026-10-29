@@ -199,5 +199,43 @@ class DurableTimeoutTests(unittest.TestCase):
                          "INTERRUPTED")
         self.assertFalse(server.call_tool("minionone_status",{})["worker_execution_enabled"])
 
+
+class HistoricalSixStateMigrationTests(unittest.TestCase):
+    def test_v013_jobs_schema_migrates_with_existing_children(self):
+        with tempfile.TemporaryDirectory() as root:
+            db=Path(root)/"existing.sqlite"
+            with closing(sqlite3.connect(db)) as con:
+                con.executescript("""PRAGMA foreign_keys=ON;
+                CREATE TABLE jobs (
+                  job_id TEXT PRIMARY KEY, principal TEXT NOT NULL,
+                  thread_id TEXT NOT NULL, input_digest TEXT NOT NULL,
+                  state TEXT NOT NULL CHECK(state IN
+                    ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK',
+                     'CANCEL_REQUESTED','CANCELLED')),
+                  version INTEGER NOT NULL CHECK(version>=0),
+                  worker_started INTEGER NOT NULL DEFAULT 0 CHECK(worker_started=0),
+                  created_utc TEXT NOT NULL, updated_utc TEXT NOT NULL);
+                CREATE TABLE admission_events(
+                  job_id TEXT NOT NULL,seq INTEGER NOT NULL,status TEXT NOT NULL,
+                  operation_id TEXT NOT NULL,actor TEXT NOT NULL,
+                  occurred_utc TEXT NOT NULL,PRIMARY KEY(job_id,seq),
+                  FOREIGN KEY(job_id) REFERENCES jobs(job_id));
+                INSERT INTO jobs VALUES
+                 ('JOB-existing001','parent','thread',
+                  'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                  'QUEUED',2,0,'t','t');
+                INSERT INTO admission_events VALUES
+                 ('JOB-existing001',1,'ACCEPTED','admit-0001','MANAGER','t');
+                """)
+                con.commit()
+            owner=AdmissionStore(db,credentials={TOKEN:("parent",{"thread"})})
+            self.assertEqual(owner.status(TOKEN,"thread","JOB-existing001")["state"],"QUEUED")
+            with closing(sqlite3.connect(db)) as con:
+                self.assertEqual(con.execute("PRAGMA foreign_key_check").fetchall(),[])
+                self.assertEqual(con.execute("SELECT count(*) FROM admission_events").fetchone()[0],1)
+                con.execute("UPDATE jobs SET state='INTERRUPTED' WHERE job_id='JOB-existing001'")
+                with self.assertRaises(sqlite3.IntegrityError):
+                    con.execute("UPDATE jobs SET worker_started=1 WHERE job_id='JOB-existing001'")
+
 if __name__=="__main__":
     unittest.main()

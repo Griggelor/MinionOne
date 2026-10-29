@@ -44,7 +44,7 @@ class OutboxTests(unittest.TestCase):
             self.store.prepare(JOB,"notify-0001",DIGEST,expected_state_version=8)
 
     def test_no_premature_side_effect_without_result_ready(self):
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con:
             con.execute("UPDATE jobs SET state='ACCEPTED' WHERE job_id=?", (JOB,))
             con.commit()
         with self.assertRaises(OutboxRejected):
@@ -143,7 +143,7 @@ class OutboxTests(unittest.TestCase):
 
     def test_no_raw_payload_or_network_endpoint_stored(self):
         self.prepare()
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con:
             cols=[r[1] for r in con.execute("PRAGMA table_info(outbox_intents)")]
             self.assertNotIn("prompt",cols)
             self.assertNotIn("body",cols)

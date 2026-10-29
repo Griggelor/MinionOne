@@ -10,6 +10,7 @@ from .admission import AdmissionStore, InputRejected, PermissionDenied, Idempote
 from .lmstudio_probe import LMStudioProbe, ProbeError
 from .outbox import OutboxStore
 from .attempt_fence import AttemptFenceStore
+from .timeout_control import TimeoutControlStore
 
 PROTOCOL = "2025-06-18"
 TOOLS = [
@@ -18,7 +19,8 @@ TOOLS = [
  {"name":"minionone_admit","description":"Register a durable non-executing job with a previously approved SHA256.","inputSchema":{"type":"object","properties":{"input_digest":{"type":"string"},"operation_id":{"type":"string"}},"required":["input_digest","operation_id"],"additionalProperties":False}},
  {"name":"minionone_job_status","description":"Read an admitted job state.","inputSchema":{"type":"object","properties":{"job_id":{"type":"string"}},"required":["job_id"],"additionalProperties":False}},
  {"name":"minionone_job_events","description":"Read redacted manager event metadata.","inputSchema":{"type":"object","properties":{"job_id":{"type":"string"}},"required":["job_id"],"additionalProperties":False}},
- {"name":"minionone_abort","description":"Request cancellation of a non-executing job with CAS.","inputSchema":{"type":"object","properties":{"job_id":{"type":"string"},"expected_version":{"type":"integer"},"operation_id":{"type":"string"}},"required":["job_id","expected_version","operation_id"],"additionalProperties":False}}
+ {"name":"minionone_abort","description":"Request cancellation of a non-executing job with CAS.","inputSchema":{"type":"object","properties":{"job_id":{"type":"string"},"expected_version":{"type":"integer"},"operation_id":{"type":"string"}},"required":["job_id","expected_version","operation_id"],"additionalProperties":False}},
+ {"name":"minionone_resume_request","description":"Record a parent-authorized resume INTENT for a safely interrupted timed-out job. DOES NOT launch a worker.","inputSchema":{"type":"object","properties":{"job_id":{"type":"string"},"expected_version":{"type":"integer"},"operation_id":{"type":"string"}},"required":["job_id","expected_version","operation_id"],"additionalProperties":False}}
 ]
 TOOL_MAP = {t["name"]: t for t in TOOLS}
 
@@ -44,6 +46,7 @@ class LocalMCP(ThreadingHTTPServer):
         # Partial recovery failures propagate; never serve requests in that case.
         self.outbox = OutboxStore(database_path)
         self.attempt_fences = AttemptFenceStore(database_path)
+        self.timeout_control = TimeoutControlStore(self.store)
         outbox_count = self.outbox.quarantine_in_flight()
         attempt_count = self.attempt_fences.fence_unreconciled()
         self.recovery_summary = {
@@ -87,12 +90,19 @@ class LocalMCP(ThreadingHTTPServer):
         if name == "minionone_admit":
             return self.store.admit(token,thread,args["input_digest"],args["operation_id"])
         if name == "minionone_job_status":
-            return self.store.status(token,thread,args["job_id"])
+            status = self.store.status(token,thread,args["job_id"])
+            timeout = self.timeout_control.status(token,thread,args["job_id"])
+            if timeout is not None:
+                status = {**status,"timeout":timeout}
+            return status
         if name == "minionone_job_events":
             return {"events":self.store.events(token,thread,args["job_id"])}
         if name == "minionone_abort":
             return self.store.request_abort(token,thread,args["job_id"],
                                             args["expected_version"],args["operation_id"])
+        if name == "minionone_resume_request":
+            return self.timeout_control.request_resume(token,thread,args["job_id"],
+                                      args["expected_version"],args["operation_id"])
         raise InputRejected("unknown tool")
 
 class MCPHandler(BaseHTTPRequestHandler):

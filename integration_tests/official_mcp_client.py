@@ -48,6 +48,7 @@ async def verify_tools(session):
     assert names == {
         "minionone_status", "minionone_models", "minionone_admit",
         "minionone_job_status", "minionone_job_events", "minionone_abort",
+        "minionone_resume_request",
     }, "unexpected MCP capability escalation or missing tool"
     response = await session.call_tool("minionone_status", arguments={})
     assert not response.model_dump(by_alias=True).get("isError", False), "server rejected official MCP client call"

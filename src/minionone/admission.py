@@ -89,6 +89,7 @@ class AdmissionStore:
               job_id TEXT PRIMARY KEY, principal TEXT NOT NULL, thread_id TEXT NOT NULL,
               input_digest TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN
                 ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK',
+               'RUNNING','INTERRUPTED','RESUMING','NEEDS_RECONCILIATION',
                'CANCEL_REQUESTED','CANCELLED')),
               version INTEGER NOT NULL CHECK(version>=0),
               worker_started INTEGER NOT NULL DEFAULT 0 CHECK(worker_started=0),
@@ -124,18 +125,26 @@ class AdmissionStore:
         if sqlrow is None:
             raise InputRejected('canonical jobs schema unavailable')
         definition = sqlrow[0]
-        if "'VALIDATING'" in definition and "'RESOURCE_CHECK'" in definition:
-            if 'CHECK(worker_started=0)' not in definition.replace(' ', ''):
+        normalized = ''.join(definition.split())
+        if (all(("'" + state + "'") in definition for state in (
+                "VALIDATING","RESOURCE_CHECK","RUNNING","INTERRUPTED",
+                "RESUMING","NEEDS_RECONCILIATION"))):
+            if 'CHECK(worker_started=0)' not in normalized:
                 raise InputRejected('worker execution must remain database-disabled')
             if con.execute('PRAGMA foreign_key_check').fetchone() is not None:
                 raise InputRejected('broken canonical foreign keys')
             return
-        normalized = ''.join(definition.split())
-        if (not all(term in normalized for term in (
-                "('ACCEPTED','CANCEL_REQUESTED','CANCELLED')",
-                'CHECK(worker_started=0)', 'PRIMARYKEY', 'input_digest',
-                'thread_id', 'created_utc', 'updated_utc'))):
-            raise InputRejected('unexpected legacy jobs schema')
+        # Support exactly the known historical 3-state and 6-state schemas.
+        old_three="('ACCEPTED','CANCEL_REQUESTED','CANCELLED')"
+        old_six=(
+            "('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK',"
+            "'CANCEL_REQUESTED','CANCELLED')"
+        )
+        if (not any(x in normalized for x in (old_three,old_six)) or
+                not all(term in normalized for term in (
+                    'CHECK(worker_started=0)', 'PRIMARYKEY', 'input_digest',
+                    'thread_id', 'created_utc', 'updated_utc'))):
+            raise InputRejected('unexpected historical jobs schema')
         # Changing CHECK requires a table rebuild in SQLite. Disable FK
         # enforcement only for the duration of this manager-owned migration;
         # verify ALL existing references BEFORE committing. BEGIN IMMEDIATE
@@ -147,6 +156,7 @@ class AdmissionStore:
               job_id TEXT PRIMARY KEY, principal TEXT NOT NULL, thread_id TEXT NOT NULL,
               input_digest TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN
                 ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK',
+                 'RUNNING','INTERRUPTED','RESUMING','NEEDS_RECONCILIATION',
                  'CANCEL_REQUESTED','CANCELLED')),
               version INTEGER NOT NULL CHECK(version>=0),
               worker_started INTEGER NOT NULL DEFAULT 0 CHECK(worker_started=0),
@@ -321,7 +331,8 @@ class AdmissionStore:
                     raise IdempotencyConflict('control key reused with different request')
                 return json.loads(prior['receipt'])
             if (row['version'] != expected_version or
-                    row['state'] not in ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK') or
+                    row['state'] not in ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK',
+                                         'INTERRUPTED') or
                     row['worker_started'] != 0):
                 raise VersionConflict('stale or ineligible state')
             check_transition(row['state'], 'CANCEL_REQUESTED', Evidence())

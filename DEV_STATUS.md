@@ -1,7 +1,15 @@
 # Development status — 2026-10-29
 
-**Version:** 0.11.0.dev0  
+**Version:** 0.12.0.dev0  
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
+
+## 0.12.0.dev0 bounded agent loop and LM Studio planner (PRE-ALPHA)
+
+- [PR #21](https://github.com/Griggelor/MinionOne/pull/21) merged manager-only AgentLoop: default 50, hard 200 model turns; 3 denied-tool strikes then SECURITY_ABORT; finite overall/model/tool deadlines, token (reported Thinking included) and no-progress thresholds; model final -> AWAITING_REVIEW.
+- [PR #23](https://github.com/Griggelor/MinionOne/pull/23) tightened the initial values against normative worker_policy v0.6: <=60 tool calls, <=1200s wall time, even with 200 model turns.
+- [PR #22](https://github.com/Griggelor/MinionOne/pull/22) added LM Studio localhost tool-call message planner and synthetic multi-step conversation tests. Actual sandbox/worker calls remain disabled; no real live Flint, Unsloth wakeup or OS file authorizations.
+- Source test evidence: PR21 [144/144 on each OS](https://github.com/Griggelor/MinionOne/actions/runs/40950294398), PR23 [145/145 on each OS](https://github.com/Griggelor/MinionOne/actions/runs/40951492562), PR22 [156/156 on each OS](https://github.com/Griggelor/MinionOne/actions/runs/40951411465). Combined main/version commit requires its own verified CI result; do not claim green in advance.
+- Security reviews are in reviews/G2_AGENT_LOOP_SECURITY_REVIEW.md and PR #23/#22 review comments. These are separate passes by the same assistant, not independent third-party audits. **Beta NO-GO.**
 
 ## 0.11.0.dev0 canonical pre-dispatch milestone
 

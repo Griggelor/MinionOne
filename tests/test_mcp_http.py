@@ -94,6 +94,18 @@ class TestMCPHTTP(unittest.TestCase):
         self.assertEqual(self.send({"jsonrpc":"2.0","method":"notifications/initialized"})[0],202)
         self.assertEqual(self.rpc("other-method")[1]["error"]["code"],-32601)
 
+    def test_slow_partial_body_releases_connection(self):
+        import socket
+        with socket.create_connection(("127.0.0.1",self.srv.server_port),timeout=3) as sock:
+            sock.settimeout(5)
+            data=(f"POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:{self.srv.server_port}\r\n"
+                  f"Authorization: Bearer {TOKEN}\r\nContent-Type: application/json\r\n"
+                  "Accept: application/json, text/event-stream\r\n"
+                  "Content-Length: 99\r\n\r\n{}")
+            sock.sendall(data.encode("ascii"))
+            response=sock.recv(1024)
+            self.assertTrue(response == b"" or b"408" in response)
+
     def test_non_loopback_and_weak_secret_denied(self):
         with self.assertRaises(ValueError):
             LocalMCP(("0.0.0.0",0),token=TOKEN,database_path=Path(self.temp.name)/"a.db")

@@ -14,10 +14,14 @@ from urllib.request import Request
 
 from .agent_loop import ModelStep, BrokerReply, ALLOWED_WORKER_TOOLS
 from .lmstudio_probe import LMStudioProbe
+from .diagnostics import classify_provider_failure, diagnostic as provider_diagnostic
 
 
 class PlannerRejected(RuntimeError):
-    pass
+    def __init__(self, message, *, diagnostic=None):
+        super().__init__(message)
+        self.diagnostic = diagnostic if diagnostic is not None else provider_diagnostic(
+            "PROVIDER_RESPONSE_INVALID")
 
 
 _MODEL = re.compile(r"[A-Za-z0-9_./:-]{1,256}\Z", re.ASCII)
@@ -116,7 +120,8 @@ class LMStudioAgentProvider:
                     raise PlannerRejected("provider refused request")
                 raw=response.read(_MAX_RESPONSE_BYTES+1)
         except (HTTPError,URLError,OSError,TimeoutError,ValueError) as exc:
-            raise PlannerRejected("provider unavailable or refused") from exc
+            raise PlannerRejected("provider unavailable or refused",
+                                  diagnostic=classify_provider_failure(exc)) from exc
         if len(raw)>_MAX_RESPONSE_BYTES:
             raise PlannerRejected("response exceeds byte budget")
         try:

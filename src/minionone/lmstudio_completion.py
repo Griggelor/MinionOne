@@ -17,7 +17,10 @@ class CompletionRejected(RuntimeError):
 class LMStudioCompletion:
     def __init__(self, base_url='http://127.0.0.1:1234', *, timeout=10,
                  api_key=None, max_response_bytes=128*1024):
-        self._provider = LMStudioProbe(base_url, timeout=timeout,
+        if type(timeout) not in (float,int) or not 1 <= timeout <= 300:
+            raise CompletionRejected('invalid bounded inference timeout')
+        self._timeout = float(timeout)
+        self._provider = LMStudioProbe(base_url, timeout=min(10,timeout),
                                        api_key=api_key, max_response_bytes=max_response_bytes)
 
     def complete(self, model_id: str, prompt: str, *, max_tokens: int=256) -> dict:
@@ -37,7 +40,7 @@ class LMStudioCompletion:
         req=Request(self._provider.base_url+'/v1/chat/completions',data=body,
                     headers=headers,method='POST')
         try:
-            with self._provider._opener.open(req,timeout=self._provider.timeout) as response:
+            with self._provider._opener.open(req,timeout=self._timeout) as response:
                 if response.status!=200:
                     raise CompletionRejected('inference refused')
                 raw=response.read(self._provider.max_response_bytes+1)

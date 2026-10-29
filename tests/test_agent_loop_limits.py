@@ -71,7 +71,8 @@ class AgentLoopTests(unittest.TestCase):
         self.assertTrue(all(x>0 and x<=30 for x in provider.timeouts))
 
     def test_can_finish_exactly_on_loop_200(self):
-        provider=FakeProvider([ModelStep("continue",total_tokens=1)]*199+
+        provider=FakeProvider([ModelStep("tool",name="report_progress",
+                                         arguments={},total_tokens=1)]*199+
                               [ModelStep("finish",text="finished",total_tokens=1)])
         r=self.runner().run(provider,FakeBroker())
         self.assertEqual((r.status,r.loops),("AWAITING_REVIEW",200))

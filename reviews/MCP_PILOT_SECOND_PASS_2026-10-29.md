@@ -72,10 +72,12 @@ but installed product/version and same-chat behavior must be tested. No live
 handshake evidence from user target exists.
 
 ### MEDIUM — local-only transport is not a hardened multi-user Windows service
-The Python ThreadingHTTPServer model can create many short-lived request threads.
-A 2-second body read timeout and 16KiB cap reduce but do not eliminate resource
-abuse by processes holding the configured secret. Service isolation, strict ACLs,
-key lifecycle, thread/request concurrency cap and durable quota retention need
+The Python ThreadingHTTPServer now uses a bounded semaphore allowing at most
+eight active request handlers. When exhausted, an extra connection is closed
+without allocating another worker thread; this behavior has a real-socket negative
+test. A 2-second request-body timeout, 16KiB limit and persisted lifetime job
+quota also constrain denial-of-service effects. High-frequency local connection
+floods, Windows service isolation, strict ACLs and secret lifecycle still require
 review before privileged deployment.
 
 ### MEDIUM — public-source completeness and license
@@ -95,3 +97,13 @@ redistribution license has been chosen. Do not claim a community release.
   with synthetic data and no worker/file privileges.
 
 Production gates must not be waived merely because this pilot's tests are green.
+
+## Availability follow-up (same review pass)
+
+- Reproducer: with all eight server capacity permits held, a ninth HTTP
+  connection must close without launching an additional request thread.
+- The first test failed because LocalMCP had no active-connection limit.
+- Implementation: BoundedSemaphore(8), admission in process_request,
+  guaranteed release in process_request_thread and startup-error handling.
+- Real network-socket regression: test_excess_connections_are_refused.
+- Review remains **NO-GO for Beta**, even if this specific DoS class passes CI.

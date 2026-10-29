@@ -65,24 +65,53 @@ class LongRunPolicyTests(unittest.TestCase):
                 AgentLimits(runtime_profile="extended",**kwargs)
 
     def test_one_hour_allows_late_valid_candidate_but_not_late_result(self):
+        class SequenceProvider(Provider):
+            def __init__(self,clock,steps,elapsed):
+                super().__init__(clock,elapsed=elapsed)
+                self.steps=iter(steps)
+            def next_step(self,*,timeout_seconds):
+                self.timeouts.append(timeout_seconds)
+                self.clock.now+=self.elapsed
+                return next(self.steps)
+        steps=[ModelStep("tool",name="report_progress",arguments={},total_tokens=1)]*29
         clock=Clock()
-        p=Provider(clock,elapsed=3599)
-        r=AgentLoop(AgentLimits(runtime_profile="extended",model_call_seconds=300),clock=clock).run(p,Broker())
-        self.assertEqual((r.status,r.loops),("AWAITING_REVIEW",1))
+        p=SequenceProvider(clock,steps+
+                           [ModelStep("finish",text="ready for review",total_tokens=1)],
+                           elapsed=119)
+        r=AgentLoop(AgentLimits(runtime_profile="extended",model_call_seconds=120),
+                    clock=clock).run(p,Broker())
+        self.assertEqual((r.status,r.loops,r.tool_calls),("AWAITING_REVIEW",30,29))
         self.assertFalse(r.delivered)
-        self.assertEqual(p.timeouts,[300])
+        self.assertEqual(len(p.timeouts),30)
+        self.assertLess(clock.now,3600)
         clock=Clock()
-        p=Provider(clock,elapsed=3600)
-        r=AgentLoop(AgentLimits(runtime_profile="extended"),clock=clock).run(p,Broker())
+        late=SequenceProvider(clock,steps+
+                              [ModelStep("finish",text="late",total_tokens=1)],
+                              elapsed=120)
+        r=AgentLoop(AgentLimits(runtime_profile="extended",model_call_seconds=300),
+                    clock=clock).run(late,Broker())
         self.assertEqual(r.status,"TIMEOUT")
         self.assertIsNone(r.candidate_sha256)
 
     def test_four_hour_deadline_still_fences_late_candidate(self):
+        class ProviderTurns(Provider):
+            def __init__(self,clock):
+                super().__init__(clock,elapsed=240)
+                self.turns=0
+            def next_step(self,*,timeout_seconds):
+                self.timeouts.append(timeout_seconds)
+                self.clock.now+=240
+                self.turns+=1
+                if self.turns==60:
+                    return ModelStep("finish",text="too late",total_tokens=1)
+                return ModelStep("tool",name="report_progress",arguments={},total_tokens=1)
         clock=Clock()
-        p=Provider(clock,elapsed=14401)
-        limits=AgentLimits(runtime_profile="extended",wall_seconds=14400)
+        p=ProviderTurns(clock)
+        limits=AgentLimits(runtime_profile="extended",wall_seconds=14400,
+                           max_loops=200,model_call_seconds=300)
         r=AgentLoop(limits,clock=clock).run(p,Broker())
-        self.assertEqual(r.status,"TIMEOUT")
+        self.assertEqual((r.status,r.loops),("TIMEOUT",60))
+        self.assertIsNone(r.candidate_sha256)
 
     def test_tool_specific_deadline_cannot_inherit_five_minute_global_cap(self):
         actual={"list_files":10,"read_file":30,"create_work":60,
@@ -97,7 +126,33 @@ class LongRunPolicyTests(unittest.TestCase):
                                    tool_call_seconds=300,max_loops=1),clock=clock).run(provider,broker)
                 self.assertEqual(result.tool_calls,1)
                 self.assertEqual(broker.calls,[(name,cap)])
-                self.assertEqual(result.status,"TOOL_LIMIT" if False else "LOOP_LIMIT")
+                self.assertEqual(result.status,"LOOP_LIMIT")
+
+    def test_per_model_call_deadline_enforced_independent_of_job_time(self):
+        clock=Clock()
+        slow=Provider(clock,elapsed=121)
+        result=AgentLoop(AgentLimits(runtime_profile="extended"),clock=clock).run(
+            slow,Broker())
+        self.assertEqual(result.status,"TIMEOUT")
+        self.assertEqual(slow.timeouts,[120])
+        self.assertLess(clock.now,3600)
+
+    def test_individual_tool_deadline_enforced_independent_of_job_time(self):
+        clock=Clock()
+        provider=Provider(clock,ModelStep("tool",name="read_file",
+                                          arguments={},total_tokens=1))
+        class SlowBroker(Broker):
+            def execute(self,name,args,*,timeout_seconds):
+                reply=super().execute(name,args,timeout_seconds=timeout_seconds)
+                clock.now+=31
+                return reply
+        broker=SlowBroker()
+        result=AgentLoop(AgentLimits(runtime_profile="extended",
+                                    tool_call_seconds=300),clock=clock).run(
+                                        provider,broker)
+        self.assertEqual(result.status,"TIMEOUT")
+        self.assertEqual(broker.calls,[("read_file",30)])
+        self.assertLess(clock.now,3600)
 
     def test_operator_may_set_lower_per_tool_cap(self):
         clock=Clock()

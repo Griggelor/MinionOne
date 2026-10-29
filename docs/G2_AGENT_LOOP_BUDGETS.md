@@ -25,9 +25,10 @@ never proof of successful completion.
 | Agent model turns | 50 | max 200 |
 | Worker tool requests (including denied) | 60 | max 60 (normative v0.6) |
 | Total tokens reported by provider | 150,000 | max 2,000,000 |
-| Whole job wall budget | 900 seconds | max 1,200 seconds (normative v0.6) |
+| Standard job wall budget (v0.6) | 900 seconds | max 1,200 seconds |
+| Explicit extended job wall budget (v0.7 proposal) | 3,600 seconds | 3,600–14,400 seconds (1–4h) |
 | Model request timeout forwarded to provider | 120 seconds | max 300 seconds |
-| Tool request timeout forwarded to broker | 30 seconds | max 300 seconds |
+| Tool request timeout forwarded to broker | 30 seconds | configured max 300s, further capped by tool type |
 | Forbidden/out-of-scope access strikes | 3 | max 3 |
 | Consecutive no-progress model turns | 8 | max 200 |
 
@@ -37,7 +38,9 @@ Reasoning tokens must be nonnegative and <= total tokens; they are
 already included in total usage and are not double-counted. The private
 reasoning text is neither journaled nor exposed.
 
-The historical v0.6 worker_policy.schema.json explicitly caps max_tool_calls at 60 and max_runtime_seconds at 1200. Model loops up to 200 do NOT loosen either limit. The manager must take the minimum of all applicable admin policy and per-job limits.
+The historical v0.6 worker_policy.schema.json explicitly caps max_tool_calls at 60 and max_runtime_seconds at 1200 for the STANDARD legacy profile. An extended job (1–4 hours) is a separate, explicitly trusted manager-selected policy proposal documented in [the extended-duration ADR](ADR_G2_EXTENDED_WORKER_TIMEOUTS.md), not a silent alteration of v0.6. No external MCP client can choose it, and no real worker uses it yet. The max 60 tools and 200 model turns remain unchanged in BOTH profiles.
+
+A tool-specific bound is always applied: list_files 10s, read_file 30s, create_work 60s, publish_artifact 120s, report_progress 5s, ask_question 5s. A 300-second generic per-tool configuration is NOT a 300-second allowance for read_file. A model completion is different: up to 300 seconds including Thinking. Both model and tool deadlines are checked separately from the whole-job deadline.
 
 One loop = one model completion/decision. The current synthetic
 adapter represents at most one tool request per decision. A future

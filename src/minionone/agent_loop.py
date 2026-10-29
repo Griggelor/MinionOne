@@ -33,9 +33,9 @@ class BrokerScopeDenied(PermissionError):
 @dataclass(frozen=True, slots=True)
 class AgentLimits:
     max_loops: int = 50
-    max_tool_calls: int = 400
+    max_tool_calls: int = 60
     max_tokens: int = 150_000
-    wall_seconds: int = 1800
+    wall_seconds: int = 900
     model_call_seconds: int = 120
     tool_call_seconds: int = 30
     max_denials: int = 3
@@ -44,9 +44,9 @@ class AgentLimits:
     def __post_init__(self):
         checks = (
             ('max_loops', 1, 200),
-            ('max_tool_calls', 1, 2_000),
+            ('max_tool_calls', 1, 60),
             ('max_tokens', 1, 2_000_000),
-            ('wall_seconds', 1, 86_400),
+            ('wall_seconds', 1, 1200),
             ('model_call_seconds', 1, 300),
             ('tool_call_seconds', 1, 300),
             ('max_denials', 1, 3),

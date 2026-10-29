@@ -23,9 +23,9 @@ never proof of successful completion.
 | Control | Default | Hard policy |
 |---|---:|---|
 | Agent model turns | 50 | max 200 |
-| Worker tool requests (including denied) | 400 | max 2,000 |
+| Worker tool requests (including denied) | 60 | max 60 (normative v0.6) |
 | Total tokens reported by provider | 150,000 | max 2,000,000 |
-| Whole job wall budget | 1,800 seconds | max 86,400 seconds |
+| Whole job wall budget | 900 seconds | max 1,200 seconds (normative v0.6) |
 | Model request timeout forwarded to provider | 120 seconds | max 300 seconds |
 | Tool request timeout forwarded to broker | 30 seconds | max 300 seconds |
 | Forbidden/out-of-scope access strikes | 3 | max 3 |
@@ -36,6 +36,8 @@ A model step with missing or zero reported token usage is invalid.
 Reasoning tokens must be nonnegative and <= total tokens; they are
 already included in total usage and are not double-counted. The private
 reasoning text is neither journaled nor exposed.
+
+The historical v0.6 worker_policy.schema.json explicitly caps max_tool_calls at 60 and max_runtime_seconds at 1200. Model loops up to 200 do NOT loosen either limit. The manager must take the minimum of all applicable admin policy and per-job limits.
 
 One loop = one model completion/decision. The current synthetic
 adapter represents at most one tool request per decision. A future

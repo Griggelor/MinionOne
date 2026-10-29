@@ -87,10 +87,12 @@ class DurableTimeoutTests(unittest.TestCase):
         self.assertEqual(receipt["error_code"],"TIMEOUT")
         self.assertFalse(receipt["resume_available"])
         self.assertFalse(receipt["resume_requested"])
+        self.assertIsNone(receipt["worker_running"])
         with self.assertRaises(TimeoutControlDenied):
             self.control.request_resume(TOKEN,"thread",self.job,3,"resume-0001")
-        self.assertEqual(self.control.status(TOKEN,"thread",self.job)["state"],
-                         "NEEDS_RECONCILIATION")
+        quarantined=self.control.status(TOKEN,"thread",self.job)
+        self.assertEqual(quarantined["state"],"NEEDS_RECONCILIATION")
+        self.assertIsNone(quarantined["worker_running"])
 
     def test_unverified_checkpoint_is_not_recoverable(self):
         r=self.timeout(checkpoint=None)

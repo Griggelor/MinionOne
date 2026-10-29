@@ -13,7 +13,9 @@ The checkpoint digest is stored privately, never returned to a client.
 
 The MCP job status includes a timeout section when relevant:
 error_code TIMEOUT; resume_available; resume_requested;
-resume_started false; worker_running false. Resume is available
+resume_started false. The worker_running value is false only if
+quiescence was manager-attested; it is null (unknown) while
+NEEDS_RECONCILIATION. Neither status can invent provider termination. Resume is available
 only for an interrupted, quiescent attempt with a checkpoint.
 
 The minionone_resume_request tool records a parent-authorized

@@ -1,6 +1,7 @@
 """Independent G2 outbox safety tests: synthetic provider effects, NO real send."""
 import sqlite3
 import tempfile
+from contextlib import closing
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -17,9 +18,10 @@ class OutboxTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.db = Path(self.temp.name) / "jobs.sqlite"
         # Synthetic *future-manager* state used only for outbox contract tests.
-        with sqlite3.connect(self.db) as con:
+        with closing(sqlite3.connect(self.db)) as con:
             con.execute("CREATE TABLE jobs (job_id TEXT PRIMARY KEY, state TEXT NOT NULL, version INTEGER NOT NULL)")
             con.execute("INSERT INTO jobs VALUES (?, ?, ?)", (JOB, "RESULT_READY", 7))
+            con.commit()
         self.store = OutboxStore(self.db, max_entries_per_job=2)
 
     def prepare(self, key="notify-0001", digest=DIGEST):
@@ -44,6 +46,7 @@ class OutboxTests(unittest.TestCase):
     def test_no_premature_side_effect_without_result_ready(self):
         with sqlite3.connect(self.db) as con:
             con.execute("UPDATE jobs SET state='ACCEPTED' WHERE job_id=?", (JOB,))
+            con.commit()
         with self.assertRaises(OutboxRejected):
             self.prepare()
         self.assertEqual(self.store.list_entries(JOB), [])

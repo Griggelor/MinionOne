@@ -75,10 +75,14 @@ def check_evidence(e: Evidence):
         _require(type(getattr(e,attr)) is bool,'invalid evidence boolean')
     _require(type(e.attempt_no) is int and 0 <= e.attempt_no <= 1000,
              'invalid attempt counter')
-    _require(e.worker_outcome in _OUTCOMES, 'invalid worker outcome')
-    _require(e.notification_delivery in _DELIVERY,'invalid delivery status')
-    _require(e.parent_restore in _RESTORE,'invalid restoration status')
-    _require(e.integration_ack in _ACK,'invalid integration acknowledgement')
+    _require(type(e.worker_outcome) is str and e.worker_outcome in _OUTCOMES,
+             'invalid worker outcome')
+    _require(type(e.notification_delivery) is str and
+             e.notification_delivery in _DELIVERY,'invalid delivery status')
+    _require(type(e.parent_restore) is str and
+             e.parent_restore in _RESTORE,'invalid restoration status')
+    _require(type(e.integration_ack) is str and e.integration_ack in _ACK,
+             'invalid integration acknowledgement')
     _require(e.result_digest is None or
              (type(e.result_digest) is str and _HEX64.fullmatch(e.result_digest) is not None),
              'invalid result digest')
@@ -97,7 +101,8 @@ def check_transition(old: str, new: str, e: Evidence):
     """Validate a single requested state change; no implicit late repair."""
     _require(type(old) is str and type(new) is str and old in LEGAL_TRANSITIONS,
              'unknown source state')
-    _require(new in LEGAL_TRANSITIONS[old], 'illegal or terminal state transition')
+    _require(type(new) is str and new in LEGAL_TRANSITIONS[old],
+             'illegal or terminal state transition')
     check_evidence(e)
 
     if old == 'NEEDS_RECONCILIATION':

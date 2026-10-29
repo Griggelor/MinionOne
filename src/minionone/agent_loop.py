@@ -14,12 +14,20 @@ from hashlib import sha256
 import json
 import math
 import time
+from types import MappingProxyType
 
 
-ALLOWED_WORKER_TOOLS = frozenset((
-    'list_files', 'read_file', 'create_work', 'publish_artifact',
-    'report_progress', 'ask_question',
-))
+# Hard upper limits for a SINGLE broker request; not a per-job duration.
+# These short operations are metadata/file tasks, NEVER script execution.
+TOOL_TIMEOUT_CAP_SECONDS = MappingProxyType({
+    'list_files': 10,
+    'read_file': 30,
+    'create_work': 60,
+    'publish_artifact': 120,
+    'report_progress': 5,
+    'ask_question': 5,
+})
+ALLOWED_WORKER_TOOLS = frozenset(TOOL_TIMEOUT_CAP_SECONDS)
 
 
 class AgentConfigurationError(ValueError):
@@ -35,18 +43,32 @@ class AgentLimits:
     max_loops: int = 50
     max_tool_calls: int = 60
     max_tokens: int = 150_000
-    wall_seconds: int = 900
+    wall_seconds: int | None = None
+    runtime_profile: str = 'standard'
     model_call_seconds: int = 120
     tool_call_seconds: int = 30
     max_denials: int = 3
     max_idle_loops: int = 8
 
     def __post_init__(self):
+        # v0.6 legacy contract is unchanged. 'extended' is a NEW
+        # manager-only, explicitly selected v0.7 policy; never infer it
+        # from an untrusted model request or MCP tool argument.
+        if type(self.runtime_profile) is not str or self.runtime_profile not in (
+                'standard', 'extended'):
+            raise AgentConfigurationError('invalid trusted duration profile')
+        if self.wall_seconds is None:
+            object.__setattr__(
+                self, 'wall_seconds',
+                900 if self.runtime_profile == 'standard' else 3600)
+        wall_min, wall_max = (
+            (1, 1200) if self.runtime_profile == 'standard' else (3600, 14400)
+        )
         checks = (
             ('max_loops', 1, 200),
             ('max_tool_calls', 1, 60),
             ('max_tokens', 1, 2_000_000),
-            ('wall_seconds', 1, 1200),
+            ('wall_seconds', wall_min, wall_max),
             ('model_call_seconds', 1, 300),
             ('tool_call_seconds', 1, 300),
             ('max_denials', 1, 3),
@@ -147,6 +169,7 @@ class AgentLoop:
                 return receipt('TIMEOUT')
             timeout = min(self.limits.model_call_seconds, remaining)
             try:
+                start_model = self._clock()
                 step = provider.next_step(timeout_seconds=timeout)
             except Exception:
                 return receipt('PROVIDER_FAILURE')
@@ -155,7 +178,8 @@ class AgentLoop:
                 after = self._clock()
             except Exception:
                 return receipt('TIMEOUT')
-            if not math.isfinite(after) or after >= end:
+            if (not math.isfinite(after) or after >= end or
+                    after - start_model >= timeout):
                 return receipt('TIMEOUT')
             if not _valid_step(step):
                 return receipt('PROVIDER_INVALID')
@@ -189,8 +213,11 @@ class AgentLoop:
                     return receipt('TIMEOUT')
                 if not math.isfinite(tool_remaining) or tool_remaining <= 0:
                     return receipt('TIMEOUT')
-                tool_timeout = min(self.limits.tool_call_seconds, tool_remaining)
+                tool_timeout = min(self.limits.tool_call_seconds,
+                                   TOOL_TIMEOUT_CAP_SECONDS[step.name],
+                                   tool_remaining)
                 try:
+                    start_tool = self._clock()
                     reply = broker.execute(step.name, step.arguments,
                                            timeout_seconds=tool_timeout)
                 except BrokerScopeDenied:
@@ -205,7 +232,8 @@ class AgentLoop:
                 tool_after = self._clock()
             except Exception:
                 return receipt('TIMEOUT')
-            if not math.isfinite(tool_after) or tool_after >= end:
+            if (not math.isfinite(tool_after) or tool_after >= end or
+                    tool_after - start_tool >= tool_timeout):
                 return receipt('TIMEOUT')
             try:
                 provider.observe_tool(step.name, reply)

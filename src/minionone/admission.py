@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import secrets
 import sqlite3
+from .lifecycle import Evidence, check_transition
 
 
 class InputRejected(ValueError):
@@ -209,6 +210,7 @@ class AdmissionStore:
                 return json.loads(prior['receipt'])
             if row['version'] != expected_version or row['state'] != 'ACCEPTED':
                 raise VersionConflict('stale or ineligible state')
+            check_transition(row['state'], 'CANCEL_REQUESTED', Evidence())
             now = _utc()
             con.execute('UPDATE jobs SET state=?,version=?,updated_utc=? WHERE job_id=?',
                         ('CANCEL_REQUESTED',expected_version+1,now,job_id))
@@ -231,6 +233,8 @@ class AdmissionStore:
             if (row is None or row['version'] != expected_version
                     or row['state'] != 'CANCEL_REQUESTED' or row['worker_started'] != 0):
                 raise VersionConflict('not verified quiescent')
+            check_transition(row['state'], 'CANCELLED',
+                             Evidence(worker_outcome='CANCELLED',worker_quiescent=True))
             now = _utc()
             con.execute('UPDATE jobs SET state=?,version=?,updated_utc=? WHERE job_id=?',
                         ('CANCELLED',expected_version+1,now,job_id))

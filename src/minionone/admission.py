@@ -88,7 +88,8 @@ class AdmissionStore:
             CREATE TABLE IF NOT EXISTS jobs(
               job_id TEXT PRIMARY KEY, principal TEXT NOT NULL, thread_id TEXT NOT NULL,
               input_digest TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN
-                ('ACCEPTED','CANCEL_REQUESTED','CANCELLED')),
+                ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK',
+               'CANCEL_REQUESTED','CANCELLED')),
               version INTEGER NOT NULL CHECK(version>=0),
               worker_started INTEGER NOT NULL DEFAULT 0 CHECK(worker_started=0),
               created_utc TEXT NOT NULL, updated_utc TEXT NOT NULL);
@@ -105,6 +106,67 @@ class AdmissionStore:
               operation_id TEXT NOT NULL, actor TEXT NOT NULL, occurred_utc TEXT NOT NULL,
               PRIMARY KEY(job_id,seq), FOREIGN KEY(job_id) REFERENCES jobs(job_id));
             ''')
+            # Legacy v0.10 databases had only ACCEPTED/CANCEL_REQUESTED/
+            # CANCELLED in the canonical table's CHECK constraint. Migrate
+            # that SAME table (never create a second state owner).
+            self._migrate_legacy_jobs(con)
+            con.execute('''CREATE TABLE IF NOT EXISTS manager_transitions(
+                job_id TEXT NOT NULL, operation_id TEXT NOT NULL,
+                request_hash TEXT NOT NULL, receipt TEXT NOT NULL,
+                PRIMARY KEY(job_id,operation_id),
+                FOREIGN KEY(job_id) REFERENCES jobs(job_id)
+            )''')
+
+    def _migrate_legacy_jobs(self, con):
+        sqlrow = con.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='jobs'"
+        ).fetchone()
+        if sqlrow is None:
+            raise InputRejected('canonical jobs schema unavailable')
+        definition = sqlrow[0]
+        if "'VALIDATING'" in definition and "'RESOURCE_CHECK'" in definition:
+            if 'CHECK(worker_started=0)' not in definition.replace(' ', ''):
+                raise InputRejected('worker execution must remain database-disabled')
+            if con.execute('PRAGMA foreign_key_check').fetchone() is not None:
+                raise InputRejected('broken canonical foreign keys')
+            return
+        normalized = ''.join(definition.split())
+        if (not all(term in normalized for term in (
+                "('ACCEPTED','CANCEL_REQUESTED','CANCELLED')",
+                'CHECK(worker_started=0)', 'PRIMARYKEY', 'input_digest',
+                'thread_id', 'created_utc', 'updated_utc'))):
+            raise InputRejected('unexpected legacy jobs schema')
+        # Changing CHECK requires a table rebuild in SQLite. Disable FK
+        # enforcement only for the duration of this manager-owned migration;
+        # verify ALL existing references BEFORE committing. BEGIN IMMEDIATE
+        # serializes this migration with concurrent SQLite writers.
+        con.execute('PRAGMA foreign_keys=OFF')
+        try:
+            con.execute('BEGIN IMMEDIATE')
+            con.execute('''CREATE TABLE jobs__g2_preflight(
+              job_id TEXT PRIMARY KEY, principal TEXT NOT NULL, thread_id TEXT NOT NULL,
+              input_digest TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN
+                ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK',
+                 'CANCEL_REQUESTED','CANCELLED')),
+              version INTEGER NOT NULL CHECK(version>=0),
+              worker_started INTEGER NOT NULL DEFAULT 0 CHECK(worker_started=0),
+              created_utc TEXT NOT NULL, updated_utc TEXT NOT NULL)''')
+            con.execute('''INSERT INTO jobs__g2_preflight
+              (job_id,principal,thread_id,input_digest,state,version,
+               worker_started,created_utc,updated_utc)
+               SELECT job_id,principal,thread_id,input_digest,state,version,
+                      worker_started,created_utc,updated_utc FROM jobs''')
+            con.execute('DROP TABLE jobs')
+            con.execute('ALTER TABLE jobs__g2_preflight RENAME TO jobs')
+            if con.execute('PRAGMA foreign_key_check').fetchone() is not None:
+                raise InputRejected('legacy migration foreign-key integrity failure')
+            con.commit()
+        except BaseException:
+            if con.in_transaction:
+                con.rollback()
+            raise
+        finally:
+            con.execute('PRAGMA foreign_keys=ON')
 
     @contextmanager
     def _connection(self):
@@ -192,6 +254,56 @@ class AdmissionStore:
             return [dict(r) for r in con.execute('''SELECT seq,status,operation_id,actor,occurred_utc
               FROM admission_events WHERE job_id=? ORDER BY seq LIMIT 500''',(job_id,)).fetchall()]
 
+    def advance_pre_dispatch(self, job_id, expected_version, operation_id, target_state):
+        """Trusted manager ONLY: durable pre-execution stages on canonical jobs.
+
+        Never bind this method to an untrusted MCP/worker tool. There is no
+        worker launch, file authorization, model-provider or output operation.
+        Worker_started remains CHECK(worker_started=0) in SQLite.
+        """
+        _field(_ID, job_id, 'job id')
+        _field(_OP, operation_id, 'operation id')
+        if type(expected_version) is not int or expected_version < 0:
+            raise InputRejected('invalid expected version')
+        if type(target_state) is not str or target_state not in (
+                'VALIDATING', 'QUEUED', 'RESOURCE_CHECK'):
+            raise InputRejected('invalid pre-dispatch state')
+        request_hash = _digest([expected_version, target_state])
+        with self._connection() as con:
+            con.execute('BEGIN IMMEDIATE')
+            row = con.execute('SELECT * FROM jobs WHERE job_id=?',
+                              (job_id,)).fetchone()
+            if row is None:
+                raise VersionConflict('canonical job unavailable')
+            prior = con.execute(
+                'SELECT request_hash,receipt FROM manager_transitions '
+                'WHERE job_id=? AND operation_id=?',
+                (job_id,operation_id)).fetchone()
+            if prior is not None:
+                if prior['request_hash'] != request_hash:
+                    raise IdempotencyConflict('manager transition key conflict')
+                return json.loads(prior['receipt'])
+            if (row['worker_started'] != 0 or row['version'] != expected_version
+                    or row['state'] not in ('ACCEPTED','VALIDATING','QUEUED')):
+                raise VersionConflict('stale or ineligible pre-dispatch state')
+            check_transition(row['state'], target_state, Evidence())
+            seq = con.execute(
+                'SELECT COALESCE(MAX(seq),0)+1 FROM admission_events WHERE job_id=?',
+                (job_id,)).fetchone()[0]
+            now = _utc()
+            con.execute(
+                'UPDATE jobs SET state=?,version=?,updated_utc=? '
+                'WHERE job_id=? AND version=?',
+                (target_state,expected_version+1,now,job_id,expected_version))
+            con.execute('INSERT INTO admission_events VALUES (?,?,?,?,?,?)',
+                        (job_id,seq,target_state,operation_id,'MANAGER',now))
+            receipt = self._snapshot(con.execute(
+                'SELECT * FROM jobs WHERE job_id=?',(job_id,)).fetchone())
+            con.execute('INSERT INTO manager_transitions VALUES (?,?,?,?)',
+                        (job_id,operation_id,request_hash,
+                         json.dumps(receipt,sort_keys=True)))
+            return receipt
+
     def request_abort(self, parent_token, thread_id, job_id, expected_version, operation_id):
         principal = self._principal(parent_token, thread_id)
         _field(_ID, job_id, 'job id')
@@ -208,14 +320,19 @@ class AdmissionStore:
                 if prior['request_hash'] != digest:
                     raise IdempotencyConflict('control key reused with different request')
                 return json.loads(prior['receipt'])
-            if row['version'] != expected_version or row['state'] != 'ACCEPTED':
+            if (row['version'] != expected_version or
+                    row['state'] not in ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK') or
+                    row['worker_started'] != 0):
                 raise VersionConflict('stale or ineligible state')
             check_transition(row['state'], 'CANCEL_REQUESTED', Evidence())
             now = _utc()
             con.execute('UPDATE jobs SET state=?,version=?,updated_utc=? WHERE job_id=?',
                         ('CANCEL_REQUESTED',expected_version+1,now,job_id))
+            seq = con.execute(
+                'SELECT COALESCE(MAX(seq),0)+1 FROM admission_events WHERE job_id=?',
+                (job_id,)).fetchone()[0]
             con.execute('INSERT INTO admission_events VALUES (?,?,?,?,?,?)',
-                        (job_id,2,'CANCEL_REQUESTED',operation_id,'AUTHENTICATED_PARENT',now))
+                        (job_id,seq,'CANCEL_REQUESTED',operation_id,'AUTHENTICATED_PARENT',now))
             receipt = self._snapshot(self._owned_row(con,principal,thread_id,job_id))
             con.execute('INSERT INTO controls VALUES (?,?,?,?)',
                         (job_id,operation_id,digest,json.dumps(receipt,sort_keys=True)))
@@ -238,6 +355,9 @@ class AdmissionStore:
             now = _utc()
             con.execute('UPDATE jobs SET state=?,version=?,updated_utc=? WHERE job_id=?',
                         ('CANCELLED',expected_version+1,now,job_id))
+            seq = con.execute(
+                'SELECT COALESCE(MAX(seq),0)+1 FROM admission_events WHERE job_id=?',
+                (job_id,)).fetchone()[0]
             con.execute('INSERT INTO admission_events VALUES (?,?,?,?,?,?)',
-                        (job_id,3,'CANCELLED',operation_id,'MANAGER',now))
+                        (job_id,seq,'CANCELLED',operation_id,'MANAGER',now))
             return self._snapshot(con.execute('SELECT * FROM jobs WHERE job_id=?',(job_id,)).fetchone())

@@ -2,7 +2,7 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.11.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.12.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
 MinionOne aims to delegate bounded tasks from a primary local assistant to specialist workers (initially via LM Studio), while keeping authorization, state, resource budgets, files and final integration under the trusted manager's control. It is **not** an official Unsloth project or an endorsed Unsloth extension.
 
@@ -25,10 +25,15 @@ of an actual Unsloth chat identity.
 - [G2 one-shot worker attempt fencing — no worker start](docs/G2_ATTEMPT_FENCING.md)
 - [G2 recovery before MCP socket startup](docs/G2_STARTUP_RECOVERY.md)
 - [G2 canonical pre-dispatch state and v0.10 DB migration](docs/G2_CANONICAL_PREFLIGHT_MIGRATION.md)
+- [G2 bounded agent loops, security strikes, Thinking-token accounting](docs/G2_AGENT_LOOP_BUDGETS.md)
+- [G2 local LM Studio tool-call planner — no file broker](docs/G2_LMSTUDIO_TOOL_PLANNER.md)
 - [G1c parent-pinned UMA eligibility — no model loading](docs/G1C_RESOURCE_ELIGIBILITY.md)
 
 The pilot now persists manager-only VALIDATING, QUEUED and RESOURCE_CHECK transitions, with an automatic atomic migration of v0.10 pilot databases. **Back up the stopped private database before upgrading**; this is not a real worker run. The pilot does not expose workers, file tools, a verified input seal, publication or wakeup.
 **Community beta remains NO-GO.**
+
+
+**New internal v0.12 agent planner:** A finite agent-loop coordinator supports 50 default/model-turns up to a hard cap of 200, a three-strike policy for repeated broker-denied tool requests, and distinct token/model/tool/wall-clock/no-progress limits. Normative v0.6 ceilings **60 tool calls and 1,200 seconds total runtime** are enforced independently. The LM Studio tool-call adapter parses approved tool requests and sanitized tool results on localhost; it is not wired to a real worker/file broker. Candidate results are **AWAITING_REVIEW**, never automatically sent to the parent. Real file/worker tools remain disabled.
 
 ## What is implemented
 

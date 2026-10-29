@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0.dev0 — 2026-10-29 (PUBLIC PRE-ALPHA, NOT BETA)
+
+- [PR #21](https://github.com/Griggelor/MinionOne/pull/21): internal bounded model loop, maximum 200 turns, three forbidden tool/file-scope denial strikes, deadline/token/no-progress limits and untrusted candidate review gate.
+- [PR #23](https://github.com/Griggelor/MinionOne/pull/23): security correction — retain original v0.6 hard limits **60 tool calls and 1200 seconds runtime**, independent of model-turn count.
+- [PR #22](https://github.com/Griggelor/MinionOne/pull/22): strict loopback LM Studio function-call *planner* with bounded one-tool-per-model-step, token/reasoning accounting and synthetic conversation tests. No real file broker, worker execution or parent callback.
+- Versioned CI pilot wheel only after dual-OS tests; sample models/Windows hardware have not been tested. Pre-alpha installation is synthetic MCP smoke only.
+- **G1a/G1b/G1c/G2/G3/Beta remain NO-GO** for real multi-agent usage.
+
 ## 0.11.0.dev0 — 2026-10-29 (PUBLIC PRE-ALPHA, NOT BETA)
 
 - [PR #19](https://github.com/Griggelor/MinionOne/pull/19): migrate the same canonical SQLite jobs table with atomic FK verification; persist VALIDATING, QUEUED, RESOURCE_CHECK manager-only states and dynamic audit/CAS/idempotency receipts.

@@ -216,3 +216,22 @@ Contract second pass caught an initial security ceiling mismatch with normative 
 PR #22 merged 38c9fe30: LMStudioAgentProvider parses bounded localhost OpenAI-compatible tool calls, single-tool step, strict response/token/reasoning/argument validation, sanitized tool result history and fake broker multi-turn test; **not actual Flint execution or secure file tools**. [156/156 tests each OS](https://github.com/Griggelor/MinionOne/actions/runs/40951411465).
 Current v0.12 version bump test was first red; source/package/CI labels updated atomically. Wait for v0.12 exact-commit GitHub Windows+Ubuntu+SDK+wheel before calling this artifact verified. Beta and production: NO-GO.
 Remaining target blockers: real secure Win32 file broker, persistent per-attempt strike accounting and provider quiescence, actual LM Studio tool-call/model-residency testing, original Unsloth chat identity/wakeup, immutable artifacts, parent ACK and external security audit.
+
+## v0.13.0.dev0 extended runtime policy — 2026-10-29
+
+PR #25 implemented an expressly manager-selected internal 3600–14400
+second duration profile. The prior standard v0.6 policy remains 900
+seconds default, 1200 maximum. Individual model calls retain a 300
+second upper bound; file-related broker calls have stricter ceilings
+(read_file 30s, list_files 10s, create_work 60s, publish_artifact 120s).
+200 model turns and 60 tool requests remain unchanged.
+Test-first workflow initially red, then 168/168 on Windows and Ubuntu
+at https://github.com/Griggelor/MinionOne/actions/runs/40967495967;
+official MCP SDK and Windows API feasibility tests also passed.
+The local fake-provider test harness required an observe_tool callback;
+it was fixed before the successful evidence run. Review in
+reviews/G2_LONG_RUNNING_TIMEOUT_REVIEW.md and ADR in
+docs/ADR_G2_EXTENDED_WORKER_TIMEOUTS.md.
+There is still NO real manager-authorized long-running worker,
+durable strike/time accounting, safe file broker, actual target soak test,
+process quiescence or Unsloth same-chat completion. Beta NO-GO.

@@ -2,7 +2,7 @@
 
 **Experimental MCP connection pilot; not a multi-agent beta or production release.**
 
-The v0.12 package contains experimental agent-loop and LM Studio tool-call *code*, but no worker/file MCP tools are exposed. It is not an autonomous-agent beta. Only synthetic status/admission/abort tools are safe to exercise.
+The v0.15 package contains experimental agent-loop and LM Studio tool-call *code*, but no worker/file MCP tools are exposed. It is not an autonomous-agent beta. Only synthetic status/admission/abort tools are safe to exercise.
 
 **UPGRADE NOTE:** v0.11 migrates the local pilot SQLite jobs table at startup. Stop all MinionOne instances and take a restorable SQLite backup before installing or launching the upgraded pilot. Never try this migration on private project data; use synthetic tests only.
 Use only synthetic test data. Workers, secure file broker, same-chat callbacks
@@ -14,7 +14,7 @@ and artifact publication are disabled.
 2. Select the most recent successful run on the main branch.
 3. Confirm three green jobs: Required tests (ubuntu-24.04), Required tests
    (windows-latest) and build-pilot. Build now depends on BOTH test jobs.
-4. Under Artifacts, download MinionOne-MCP-PILOT-UNVERIFIED-0.14.0.dev0.
+4. Under Artifacts, download MinionOne-MCP-PILOT-UNVERIFIED-0.15.0.dev0.
    GitHub may require signing in. Artifacts are retained for 14 days.
 5. Extract the ZIP. It contains a Python wheel and SHA256SUMS.txt.
 

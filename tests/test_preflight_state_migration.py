@@ -99,10 +99,12 @@ class PreflightCanonicalTests(unittest.TestCase):
             self.assertEqual(con.execute("SELECT count(*) FROM manager_transitions").fetchone()[0],1)
 
     def test_forged_types_are_denied(self):
-        for val in (None,True,False,[],{},0):
+        for val in (None,True,False,[],{},-1,0.0):
             with self.subTest(value=val):
                 with self.assertRaises(InputRejected):
                     self.advance("QUEUED",val,"badver-0001")
+        for val in (None,True,False,[],{},0,0.0):
+            with self.subTest(state=val):
                 with self.assertRaises(InputRejected):
                     self.advance(val,0,"badstage-0001")
         with self.assertRaises(InputRejected):

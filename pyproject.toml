@@ -15,6 +15,9 @@ classifiers = [
   "Operating System :: OS Independent"
 ]
 
+[project.scripts]
+minionone = "minionone.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["minionone*"]

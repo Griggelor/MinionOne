@@ -6,6 +6,7 @@ import json
 import os
 from . import __version__
 from .lmstudio_probe import LMStudioProbe
+from .diagnostics import safe_tool_fault
 from .lmstudio_completion import LMStudioCompletion
 
 _BASE='http://127.0.0.1:1234'
@@ -48,8 +49,11 @@ def main(argv=None):
                     'response_bytes':len(content.encode('utf-8')),
                     'response_sha256':hashlib.sha256(content.encode('utf-8')).hexdigest()})
             return 0
-    except Exception:
-        # Never reflect provider/model errors, secrets, URLs or raw generated text.
-        _print({'ok':False,'responded':False,'error_code':'LOCAL_PROBE_FAILED'})
+    except Exception as exc:
+        # Only fixed safe diagnostics. Never reflect raw provider/model error
+        # messages, credentials, URLs, request payloads or server response text.
+        fault=safe_tool_fault(exc)
+        _print({'ok':False,'responded':False,'error_code':fault.code,
+                'error':fault.to_dict()})
         return 2
     return 2

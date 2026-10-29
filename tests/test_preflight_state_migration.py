@@ -138,6 +138,24 @@ class PreflightCanonicalTests(unittest.TestCase):
         self.assertEqual(self.store.status(TOKEN,"thread",self.job)["version"],1)
         self.assertEqual(len(self.store.events(TOKEN,"thread",self.job)),2)
 
+    def test_actual_local_mcp_status_and_abort_use_canonical_manager_state(self):
+        from minionone.mcp_server import LocalMCP
+        server=LocalMCP(("127.0.0.1",0),token=TOKEN,database_path=self.path,
+                        principal="operator",thread="thread")
+        self.addCleanup(server.server_close)
+        stage=server.store.advance_pre_dispatch(self.job,0,"queue-0001","QUEUED")
+        self.assertEqual(stage["state"],"QUEUED")
+        status=server.call_tool("minionone_job_status",{"job_id":self.job})
+        self.assertEqual((status["state"],status["version"]),("QUEUED",1))
+        self.assertFalse(server.call_tool("minionone_status",{})["worker_execution_enabled"])
+        abort=server.call_tool("minionone_abort",{
+            "job_id":self.job,"expected_version":1,"operation_id":"abort-0001"})
+        self.assertEqual(abort["state"],"CANCEL_REQUESTED")
+        rows=server.call_tool("minionone_job_events",{"job_id":self.job})["events"]
+        self.assertEqual([r["seq"] for r in rows],[1,2,3])
+        self.assertEqual([r["status"] for r in rows],
+                         ["ACCEPTED","QUEUED","CANCEL_REQUESTED"])
+
     def test_no_mcp_or_worker_privilege_added(self):
         names={t["name"] for t in TOOLS}
         self.assertNotIn("minionone_advance_pre_dispatch",names)

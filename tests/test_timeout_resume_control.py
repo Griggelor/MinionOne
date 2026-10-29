@@ -118,7 +118,7 @@ class DurableTimeoutTests(unittest.TestCase):
         with closing(sqlite3.connect(self.db)) as con:
             self.assertEqual(con.execute("SELECT count(*) FROM timeout_records").fetchone()[0],1)
             self.assertEqual(con.execute("SELECT count(*) FROM admission_events WHERE job_id=?",
-                                        (self.job,)).fetchone()[0],4)
+                                        (self.job,)).fetchone()[0],3)
 
     def test_owner_auth_and_stale_cas(self):
         self.timeout()

@@ -76,3 +76,41 @@ interfaces in pilot mode.
 [Second-pass MCP security review](reviews/MCP_PILOT_SECOND_PASS_2026-10-29.md).
 Same assistant in a distinct adversarial role; third-party audit remains open.
 Release judgement **FAIL for beta**, transport pilot only.
+
+
+## Follow-on work: G2 guard integration and artifact gates (same day)
+
+- PR #10 [lifecycle policy](https://github.com/Griggelor/MinionOne/pull/10)
+  merged via ae60a926... after independent-role adversarial review. Includes
+  immutable 17-state transition guard and strict evidence requirements for
+  COMPLETED, CANCELLED, fencing, retry and provider reconciliation. The
+  evidence itself must come from a future authenticated, durable manager.
+- PR #11 [atomic policy enforcement](https://github.com/Griggelor/MinionOne/pull/11)
+  merged via 1388eb569741... . The two existing real SQLite owner operations
+  now call canonical lifecycle guard inside their transaction. Injection tests
+  prove denied decisions leave state/version/events unchanged.
+- CI after merge on commit 1388eb5697414399509f7dd71058548c7c79b1f3:
+  [dual-OS tests #40906687884](https://github.com/Griggelor/MinionOne/actions/runs/40906687884):
+  Windows-latest **64/64 PASS** and Ubuntu-24.04 **64/64 PASS**.
+- [CI-gated wheel #40906687907](https://github.com/Griggelor/MinionOne/actions/runs/40906687907):
+  required Windows+Ubuntu test jobs and dependent build-pilot all **PASS**.
+  Includes wheel import smoke and SHA256SUMS.txt. This fixes a real CI gap in
+  which artifact upload previously could happen despite an independent red
+  Windows suite.
+- Cross-OS negative socket test corrected to accept EOF on Linux OR
+  ConnectionReset/ConnectionAborted on Windows for intentionally refused
+  ninth client; CI confirmed both environments. Do not misrepresent the
+  earlier Windows failure as production MCP defect.
+- [Direct GitHub artifact installation guide](docs/INSTALL_GITHUB_ARTIFACT_WINDOWS.md).
+  Existing exact build has 14-day artifact retention and is a **PILOT only**.
+- Latest docs-only commits have to run their own CI. Do not infer PASS for
+  a newer SHA solely from the prior commit.
+
+### Still blocked for multi-agent Beta
+
+Unsloth caller/chat identity attestation and same-chat wakeup; actual Win32
+handle-based read-only/sealed input and create-only work broker under races;
+real LM Studio/Flint worker execution with target resource admission; durable
+multi-attempt dispatcher/fencing, outbox, explicit parent ACK and recovery;
+independent human/third-party security audit, source provenance and approved
+license. All release claims remain NO-GO until explicit evidence exists.

@@ -18,3 +18,8 @@ Provide the affected revision, the violated trust boundary, a synthetic reproduc
 **Gate policy:** CI contract checks do not substitute for real target Windows NTFS, Unsloth MCP ownership or provider end-to-end security tests. A successful GitHub workflow is **not** an assurance certificate.
 
 For planned independent security review and release gates, see [Issue #9](https://github.com/Griggelor/MinionOne/issues/9).
+
+
+### v0.20 developmental boundary
+
+The descriptor-relative read-only input seal is only available on POSIX hosts. It is **not** a production file broker. Windows sealing, Worker file access, cloud export and live provider switching remain disabled/unimplemented. SQLite-pinned input is immutable as manager state but source files may be changed by the authorized parent; `verify_workspace_input` detects changes before any future execution. Do not use confidential production files.

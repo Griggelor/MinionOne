@@ -2,7 +2,9 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.18.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.20.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+
+**New v0.19 WIP:** opt-in operator-approved project workspace staging with a durable PREPARING job ID (no seal, no worker file access, no Windows NTFS sandbox). See [target workflow](docs/PRODUCT_TARGET_WORKFLOW.md) and [live status evidence](evidence/product-status/PRODUCT_STATUS.md).
 
 MinionOne aims to delegate bounded tasks from a primary local assistant to specialist workers (initially via LM Studio), while keeping authorization, state, resource budgets, files and final integration under the trusted manager's control. It is **not** an official Unsloth project or an endorsed Unsloth extension.
 
@@ -135,3 +137,8 @@ These are **requirements**, not implemented Windows security guarantees. A fail-
 **License:** No software license has been approved yet; public visibility is not permission to redistribute. External source provenance and license choice are tracked in [Issue #8](https://github.com/Griggelor/MinionOne/issues/8).
 
 **Release verdict:** NO-GO. Do not process sensitive real-world documents or assume secure sandboxing at this stage.
+
+
+### New local-only v0.20 development capability
+
+With `--project demo=<trusted-root>` enabled, Flash can reserve a job, write `input/TASK.md`, a flat `manifest.json` of SHA-256 digests and other declared inputs, and call `minionone_seal_workspace`. POSIX-only: creates canonical `ACCEPTED` with same job ID and manager-projected `output/job.log.jsonl`; **no Worker start**. Windows fails closed until secure native handles are verified. See `docs/V020_POSIX_SEAL_SCOPE.md`. Provider roadmap: `docs/MODEL_PROVIDER_ROADMAP.md`.

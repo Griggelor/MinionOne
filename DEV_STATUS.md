@@ -1,6 +1,6 @@
 # Development status — 2026-10-30
 
-**Version:** 0.18.0.dev0
+**Version:** 0.19.0.dev0 (unmerged development, no target beta)
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
 
 ## v0.18.0.dev0 — complete test-document job path
@@ -160,3 +160,11 @@ be checked independently; these numbers are commit-specific.
 7. Approved license and provenance analysis before open-source distribution (Issue #8).
 
 **None of these gates is waived by green mock-based tests.** The downloadable GitHub source archive is a development snapshot, not a beta installer.
+
+
+## v0.20.0.dev0 – new working increment (not a product release)
+
+- Actual POSIX MCP input seal, canonical job-ID admission, manager-pinned bytes and joblog projection: LOCAL only.
+- No Windows filesystem-seal approval and no worker NTFS access; security `NO-GO` remains.
+- T-082/T-102 local contract successful; T-163 worker-start contract still failing.
+- Model backends from spec: LM Studio partially implemented; Unsloth-native and OpenAI cloud not implemented (`docs/MODEL_PROVIDER_ROADMAP.md`).

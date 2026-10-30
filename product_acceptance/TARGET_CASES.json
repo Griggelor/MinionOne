@@ -1,0 +1,1293 @@
+{
+  "schema_version": 1,
+  "baseline": "169 original test cases from documents 07, 16 and 23; plus 12 new two-phase acceptance tests",
+  "cases": [
+    {
+      "id": "T-001",
+      "intent": "Ein vorbereiteter absoluter Jobpfad wird über MCP übernommen; derselbe Root wird verwendet",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-002",
+      "intent": "Nicht existierender/fremder Ordner: Ablehnung, kein Ersatzroot",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-003",
+      "intent": "`../`, Junction, Symlink, UNC, Hardlink: Worker wird technisch isoliert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-004",
+      "intent": "Identischer Task über Fake-LM-Studio, Fake-Unsloth, Fake-Cloud liefert gleiches Response-Schema",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-005",
+      "intent": "Lokaler Model-Swap nur nach Parent-Turn-Ende; der Manager arbeitet ohne geladenen Parent",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-006",
+      "intent": "Parent mit korrekter Thread-ID wird im selben Chat reaktiviert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-007",
+      "intent": "`QUESTION` pausiert; idempotentes `answer` setzt denselben Job fort",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-008",
+      "intent": "Events/Tool-I/O/gelieferte Reasoning-Summaries vollständig und redigiert persistiert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-009",
+      "intent": "Ergebnisse nur im zugewiesenen `output/`, Status korrekt lesbar",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-010",
+      "intent": "Personennamen/Adressen/Dateimetadaten als Cloud-Payload -> Disclosure blockiert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-011",
+      "intent": "Pseudonym-Vault worker-/cloud-unzugänglich; lokale Rückübersetzung validiert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-012",
+      "intent": "Budgetgrenze: zusätzliche API-Aufrufe werden verhindert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-013",
+      "intent": "Crash/Restart mit bestätigtem State: kein doppelter Schritt, Resume/Intervention möglich",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-014",
+      "intent": "Worker-Patch ins Hauptprojekt ohne Review/Freigabe -> blockiert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-015",
+      "intent": "Doppelte/umgeordnete State-Events verändern Job nicht unzulässig",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-016",
+      "intent": "Lade-Timeout: kein falscher DONE, Restore separat sichtbar",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-017",
+      "intent": "Worker versucht Auditlog/Manifeststatus zu überschreiben: Zugriff verweigert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-018",
+      "intent": "Bei Speichermangel `allow_if_needed`: Swap nur wenn zulässig",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-019",
+      "intent": "Nach echtem Rulith-Reload ist ursprünglicher Unsloth-Chat weiterhin bedienbar",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-020",
+      "intent": "Später Cloud-Tool-Read enthält PII; Egress-Filter blockiert ebenfalls",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-021",
+      "intent": "Jobabschluss erzeugt genau eine korrelierte Parent-Nachricht",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-022",
+      "intent": "Flash reagiert nach echtem Modellwechsel auf Jobbenachrichtigung",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-023",
+      "intent": "Parent-Chat beschäftigt -> kein konkurrierender Chat-Run; späterer Retry",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-024",
+      "intent": "Unsloth-Restart zwischen Ergebnis und Zustellung -> persistente Outbox",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-025",
+      "intent": "Provider-Discovery + Markdown-Profil erzeugen korrektes Worker-Listing",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-026",
+      "intent": "Provider down/Modell nicht geladen: `ready=false` bzw. UNKNOWN, nicht einsatzbereit",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-027",
+      "intent": "Profiländerung bleibt versioniert nach Neustart erhalten",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-028",
+      "intent": "Worker ändert eigene Sicherheits-/API-Konfiguration: verboten",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-029",
+      "intent": "Zweifacher Abschluss-Event: genau ein Chat-Resume und eine Jobzuordnung",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-030",
+      "intent": "Unsloth `plan_load` + LM-Studio Estimate werden erfasst, Grenzen markiert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-031",
+      "intent": "`forbid` verhindert jede absichtliche und indirekte Parent-Eviction",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-032",
+      "intent": "Beide Modelle passen: kein Parent-Unload, Worker nach Möglichkeit reused",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-033",
+      "intent": "Estimator unsicher/nicht verfügbar: strukturierte Fehlerrückgabe, Parent erhalten",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-034",
+      "intent": "Flint über LM Studio API antwortet auf synthetischen Job",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-035",
+      "intent": "Unsloth-internes Modell wird über native Funktionen gewählt und angesprochen",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-036",
+      "intent": "Cloud-Key aus SecretStore, Cloud-Aufruf nur nach Sicherheitsgate",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-037",
+      "intent": "Keys werden aus Logs/Jobexport/API-Fehlern entfernt, Secret Scan besteht",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-038",
+      "intent": "Workerprofil bleibt bei Umstellung LM Studio ↔ Unsloth fachlich unverändert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-039",
+      "intent": "Backend mit aktivem Auto-Evict bei `forbid` -> sicher verweigern",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-040",
+      "intent": "Geladenes Worker-Modell wird unverändert verwendet",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-041",
+      "intent": "UMA-Speicher: kein Doppeltzählen von RAM/VRAM, Unsicherheitsflags",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-042",
+      "intent": "Manipulierte/fremde `thread_id` kann keine Parent-Nachricht auslösen",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-043",
+      "intent": "Tool-Proxy blockiert Shell/Netzwerkzugriff außerhalb Whitelist",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-044",
+      "intent": "Worker DONE + Parent RESTORE_FAILED -> kein falsch erfolgreiches System-Gesamtergebnis",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-045",
+      "intent": "Prompt injection aus TASK/Workeroutput überschreibt keine Admin-Policy",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-046",
+      "intent": "Hash nach Vorbereitung geändert -> Job bricht kontrolliert ab",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-047",
+      "intent": "Cloud-Echtdaten ohne Approval -> blockiert; Approval widerrufbar",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-048",
+      "intent": "Archivexport liefert Audit+Artifacts ohne Geheimnisse; Löschung nach Policy",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-049",
+      "intent": "OOM beim parallelen Load -> Fehler, Parentzustand verifiziert, keine Kill-Aktion",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-050",
+      "intent": "Chat gelöscht/archiviert oder Account gewechselt -> Benachrichtigung sicher ausstehend/gescheitert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-051",
+      "intent": "Provider liefert keine Reasoning-Tokens -> Audit erhebt keinen falschen Claim",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-052",
+      "intent": "Worker legt synthetischen Test-/Reviewbericht an und stellt Rückfrage nach Toolaktionen",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-053",
+      "intent": "MinionOne während Swap beendet -> kontrollierter Recovery-Status und Manual Repair",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-054",
+      "intent": "Flash zeigt Hauptprojekt an, Worker kann nur an übergebenen Jobordner",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-055",
+      "intent": "Providerfehler: HTTP401/429/503/Timeout strukturiert, Retry budgetiert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-056",
+      "intent": "Katalog unterscheidet configured/installed/loaded/ready/unknown korrekt",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-057",
+      "intent": "Crash zwischen Chatnachricht und Ack -> Retry dedupliziert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-058",
+      "intent": "Schätzung okay, realer Speicherverbrauch zu groß: keine Parent-Policy-Verletzung",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-059",
+      "intent": "Releaseartefakte reproduzierbar; Hash-/Manifest-/Version-Validierung besteht",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-060",
+      "intent": "Ohne explizite Freigabe wird keine Public-Funktion/Unsloth-PR ausgeführt",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-061",
+      "intent": "Router wählt bei synthetischem Coding-/Review-Task geeignetes Profil anhand dokumentierter Kriterien",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-062",
+      "intent": "Zwei Worker-Sessions laufen getrennt; Ergebnisse konfligieren kontrolliert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-063",
+      "intent": "Event-Monitor zeigt Live-Events und gecachte Artefakte ohne vertrauliche Inhalte",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-064",
+      "intent": "Rollenprofile lassen sich persistent speichern und erneut zuordnen",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-065",
+      "intent": "Worker beantragt Shell/PowerShell/Python/exec/run_tests; kein Prozess wird gestartet, DENY Event",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-066",
+      "intent": "Handle-based Windows Broker gegen Symlink, Junction, Hardlink, ADS, UNC, DOS-Namen, TOCTOU",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-067",
+      "intent": "`TASK.md` oder `input/*` nach Accept verändert: Snapshot stabil/Job-Reject",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-068",
+      "intent": "`COMPLETED` vor Integrations-Ack/Delivery/Restore wird abgewiesen",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-069",
+      "intent": "Timeout nach Server-Send vor Ack: erst Reconciliation, kein blindes Retry",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-070",
+      "intent": "Unbefugter Caller mit echter Thread-ID darf Parent nicht schreiben",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-071",
+      "intent": "Worker-/Profil-/TASK-Injektion erlaubt kein Policy-/Secret-Upgrade",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-072",
+      "intent": "Worker kann Eventwriter nicht ändern/Reasoning nicht fälschlich behaupten",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-073",
+      "intent": "JIT-Auto-Evict bei `forbid` -> reject vor Load; geschützter Parent bleibt",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-074",
+      "intent": "0 externe Payloads im lokalen MVP, später vollständiger Egress-Test inklusive Tool-Response",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-075",
+      "intent": "Adapter meldet unsupported/UNKNOWN, kein behauptetes load/estimate/resume",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-076",
+      "intent": "Recovery nach Prozessverlust maschinenlesbar, belegbar, ohne verdeckten Erfolg",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-077",
+      "intent": "Offline CI unter dokumentiertem Ziel, Timeout ist niemals PASS",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-078",
+      "intent": "Patch wird erst nach Reviewer-/User-Ack in Hauptprojekt integriert; Rollback/Evidenz",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-079",
+      "intent": "Cloud-Kosten, Public-Release, destruktive Aktion und Testexec ohne Freigabe geblockt",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-080",
+      "intent": "Worker exportiert keine Secrets; keine stille Loglöschung, Admin-Retention",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-081",
+      "intent": "Worker darf `output/` nicht listen/lesen, auch nicht über Receipts oder Fehlerantworten",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-082",
+      "intent": "Input-Snapshot unveränderlich; Task und Manifest unter `input/`",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-083",
+      "intent": "Work-RW ohne Root-Escape; Link/Junction/ADS/TOCTOU",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-084",
+      "intent": "Output write-once: doppelte Publikation verändert keine bestehenden Bytes",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-085",
+      "intent": "Worker-Event darf keine Manager-Actor/Status-/Ack-Felder fälschen",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-086",
+      "intent": "Event-Journal und Output-Projektion crash- und idempotenzsicher",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-087",
+      "intent": "Logs inkrementell lesbar für Parent; Work-Drafts bleiben nicht autoritativ",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-088",
+      "intent": "Worker besitzt keine direkten Host-/Unsloth-Filesystemtools",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-089",
+      "intent": "Erkennung manipulierten Event-Hash/Sequence mit geschütztem Anchor",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-090",
+      "intent": "Retry/Event-Spam/Budget-Exhaustion, kein blindes Overwrite",
+      "baseline": "16_TRACEABILITY_SECURITY_NFR.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "REQUIREMENT_DEFINITION"
+    },
+    {
+      "id": "T-091",
+      "intent": "Job-ID sofort nach persistenter Registrierung, auch bei späterem Crash",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-092",
+      "intent": "list_jobs / get_job_status nach Neustart, Owner-Bind und fremde Job-ID verweigern",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-093",
+      "intent": "Heartbeat/Lease-Ablauf, Fencing vor INTERRUPTED und vor neuem Attempt",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-094",
+      "intent": "Resume aus unverändertem versiegelten Input und Work-Snapshot; attempt_no+1",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-095",
+      "intent": "Resume ohne Checkpoint oder mit aktiver alter Lease verweigern",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-096",
+      "intent": "Abort ist zweiphasig: CANCEL_REQUESTED -> nach Quiescence CANCELLED",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-097",
+      "intent": "Gleichzeitiges Resume/Abort und wiederholte Commands idempotent und CAS-sicher",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-098",
+      "intent": "Retry nach FAILED unterscheidet sich von Resume, unbestimmte Side Effects blockiert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-099",
+      "intent": "Worker create_work ist nur Neuanlage; Casefold-Kollision/Overwrite/Delete verhindert",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-100",
+      "intent": "Eine output/job.log.jsonl, manager-exklusiv und inkrementell lesbar",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-101",
+      "intent": "DB-Commit/Dateiappend-Crash, Torn Line und verifizierter Projection-Rebuild",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-102",
+      "intent": "Alle Manager-Toolaktionen als redigierte strukturierte Logevents mit fester Sequenz",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-103",
+      "intent": "Worker kann output/log nicht lesen/schreiben oder Managerstatus fälschen",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-104",
+      "intent": "RESULT_READY/INTEGRATING/RESTORATION_REQUIRED getrennt von COMPLETED/ACK",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-105",
+      "intent": "Reconciliation von Provider-Send und Parent-Resume ohne doppelte Nachricht",
+      "baseline": "07_TESTSTRATEGIE_TRACEABILITY.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-106",
+      "intent": "admit identical idempotency job key",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-107",
+      "intent": "reject changed sealed snapshot for reused key",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-108",
+      "intent": "cross-principal job status must reveal nothing",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-109",
+      "intent": "cross-principal log retrieval must reveal nothing",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-110",
+      "intent": "cross-principal worker tool call must fail",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-111",
+      "intent": "cross-principal abort attempt rejected",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-112",
+      "intent": "correct worker creates one work file",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-113",
+      "intent": "duplicate file cannot replace original",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-114",
+      "intent": "casefold collision on Windows rejected",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-115",
+      "intent": "same idempotent create returns receipt once",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-116",
+      "intent": "same operation key changed bytes rejected",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-117",
+      "intent": "shell/terminal denied",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-118",
+      "intent": "worker cannot see output logs",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-119",
+      "intent": "worker cannot write input",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-120",
+      "intent": "parent directory traversal fails",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-121",
+      "intent": "publisher copies work snapshot with digest",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-122",
+      "intent": "publishing nonexistent work denied",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-123",
+      "intent": "output filename already used remains unchanged",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-124",
+      "intent": "worker progress does not leak raw secret",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-125",
+      "intent": "stale attempt cannot commit tool action",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-126",
+      "intent": "resume uses new attempt and state-version CAS",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-127",
+      "intent": "duplicate resume does not create second attempt",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-128",
+      "intent": "abort needs quiescence before CANCELLED",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-129",
+      "intent": "same command key reused for different action denied",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-130",
+      "intent": "budget overflow does not mutate work",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-131",
+      "intent": "log order is sequence-monotonic",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-132",
+      "intent": "log since-seq incremental paging",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-133",
+      "intent": "no worker log modification tool",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-134",
+      "intent": "interrupt cannot declare worker DONE",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-135",
+      "intent": "interrupt without attempt rejected",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-136",
+      "intent": "interrupt with integration ACK rejected",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-137",
+      "intent": "resume cannot smuggle unrelated answer fields",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-138",
+      "intent": "resume cannot smuggle unrelated ACK fields",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-139",
+      "intent": "RESTORATION_REQUIRED has explicit retry_restore",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-140",
+      "intent": "invalid restoration state rejected",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-141",
+      "intent": "uncertain outcome supports request_reconciliation",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-142",
+      "intent": "no resume before reconciliation",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-143",
+      "intent": "reconciliation flag required",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-144",
+      "intent": "real junction/symlink swap concurrent read",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-145",
+      "intent": "hardlink escape to outside root",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-146",
+      "intent": "ADS/device/UNC/8dot3 names rejected",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-147",
+      "intent": "jobroot is symlink or other volume",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-148",
+      "intent": "adjacent Windows user reads output",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-149",
+      "intent": "crash after journal commit before projection append",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-150",
+      "intent": "torn log tail repaired without duplicate event",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-151",
+      "intent": "DB busy/disk full does not falsely mark success",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-152",
+      "intent": "concurrent abort/resume only one CAS wins",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-153",
+      "intent": "uncertain message delivery never double-sends",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-154",
+      "intent": "foreign Unsloth thread cannot receive message",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-155",
+      "intent": "authorized Unsloth thread same-chat wakeup",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-156",
+      "intent": "parent chat busy, defer without second run",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-157",
+      "intent": "provider cancel returns after delayed token stream",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-158",
+      "intent": "parent no-eviction verified on real UMA hardware",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-159",
+      "intent": "HTML/markdown/archives remain inert in preview",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-160",
+      "intent": "provider response containing injected tool call rejected",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-161",
+      "intent": "credential canary absent from visible log/export",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-162",
+      "intent": "MCP unsupported method returns explicit not-supported",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-163",
+      "intent": "snapshot changes during admission are rejected",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-164",
+      "intent": "restore failure does not claim completed",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-165",
+      "intent": "version migration safely handles old journal",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-166",
+      "intent": "cumulative budget remains consumed across resume",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-167",
+      "intent": "retention deletes only approved job snapshots",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-168",
+      "intent": "global rate/size quota blocks multi-job DoS",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-169",
+      "intent": "untrusted work artifact cannot run git hooks",
+      "baseline": "23_TEST_PLAN_V06.md",
+      "verification": "NOT_VERIFIED",
+      "required_gate": "TARGET_PRODUCT"
+    },
+    {
+      "id": "T-170",
+      "intent": "Prepare approved project workspace over authenticated real MCP",
+      "baseline": "v0.19 requested two-phase flow",
+      "verification": "NOT_RUN",
+      "required_gate": "G2_LOCAL_ONLY",
+      "test_module": "test_workspace_preparation.py"
+    },
+    {
+      "id": "T-171",
+      "intent": "Repeat and recreate manager preserve the same prepared job ID",
+      "baseline": "v0.19 requested two-phase flow",
+      "verification": "NOT_RUN",
+      "required_gate": "G2_LOCAL_ONLY",
+      "test_module": "test_workspace_preparation.py"
+    },
+    {
+      "id": "T-172",
+      "intent": "Changed idempotency input and malformed operation are rejected",
+      "baseline": "v0.19 requested two-phase flow",
+      "verification": "NOT_RUN",
+      "required_gate": "G2_LOCAL_ONLY",
+      "test_module": "test_workspace_preparation.py"
+    },
+    {
+      "id": "T-173",
+      "intent": "Client-controlled arbitrary host paths denied",
+      "baseline": "v0.19 requested two-phase flow",
+      "verification": "NOT_RUN",
+      "required_gate": "G2_LOCAL_ONLY",
+      "test_module": "test_workspace_preparation.py"
+    },
+    {
+      "id": "T-174",
+      "intent": "PREPARING cannot be represented as admitted or executed",
+      "baseline": "v0.19 requested two-phase flow",
+      "verification": "NOT_RUN",
+      "required_gate": "G2_LOCAL_ONLY",
+      "test_module": "test_workspace_preparation.py"
+    },
+    {
+      "id": "T-175",
+      "intent": "Invalid MCP authentication cannot prepare any directory",
+      "baseline": "v0.19 requested two-phase flow",
+      "verification": "NOT_RUN",
+      "required_gate": "G2_LOCAL_ONLY",
+      "test_module": "test_workspace_preparation.py"
+    },
+    {
+      "id": "T-176",
+      "intent": "Unreachable model provider does not discard reserved job",
+      "baseline": "v0.19 requested two-phase flow",
+      "verification": "NOT_RUN",
+      "required_gate": "G2_LOCAL_ONLY",
+      "test_module": "test_workspace_preparation.py"
+    },
+    {
+      "id": "T-177",
+      "intent": "Replaced staging path symlink rejected by local prefilter (NOT Win32 proof)",
+      "baseline": "v0.19 requested two-phase flow",
+      "verification": "NOT_RUN",
+      "required_gate": "G2_LOCAL_ONLY",
+      "test_module": "test_workspace_preparation.py"
+    },
+    {
+      "id": "T-178",
+      "intent": "Unknown workspace denied rather than fabricated",
+      "baseline": "v0.19 requested two-phase flow",
+      "verification": "NOT_RUN",
+      "required_gate": "G2_LOCAL_ONLY",
+      "test_module": "test_workspace_preparation.py"
+    },
+    {
+      "id": "T-179",
+      "intent": "Concurrent same operation produces one persistent job ID",
+      "baseline": "v0.19 requested two-phase flow",
+      "verification": "NOT_RUN",
+      "required_gate": "G2_LOCAL_ONLY",
+      "test_module": "test_workspace_preparation.py"
+    },
+    {
+      "id": "T-180",
+      "intent": "Workspace preparation is disabled in default production MCP configuration",
+      "baseline": "v0.19 requested two-phase flow",
+      "verification": "NOT_RUN",
+      "required_gate": "G2_LOCAL_ONLY",
+      "test_module": "test_workspace_preparation.py"
+    },
+    {
+      "id": "T-181",
+      "intent": "Foreign principal cannot read or mutate another principal workspace",
+      "baseline": "v0.19 requested two-phase flow",
+      "verification": "NOT_RUN",
+      "required_gate": "G2_LOCAL_ONLY",
+      "test_module": "test_workspace_preparation.py"
+    },
+    {
+      "id": "T-182",
+      "intent": "Reservation quota prevents unbounded prepared-folder creation; idempotent retries stay valid",
+      "baseline": "v0.19 requested two-phase flow",
+      "verification": "NOT_RUN",
+      "required_gate": "G2_LOCAL_ONLY",
+      "test_module": "test_workspace_preparation.py"
+    }
+  ]
+}

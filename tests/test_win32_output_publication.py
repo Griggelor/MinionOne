@@ -183,6 +183,7 @@ class WindowsOutputPublisherTests(unittest.TestCase):
         self.stage()
         with closing(sqlite3.connect(self.db)) as db:
             db.execute("UPDATE workspace_publications SET content=?",(b"tampered",))
+            db.commit()
         with self.assertRaises(InputRejected):
             self.publish()
 

@@ -26,6 +26,25 @@ TOOLS = [
 ]
 TOOL_MAP = {t["name"]: t for t in TOOLS}
 
+WORKSPACE_TOOLS = [
+ {'name':'minionone_prepare_workspace',
+  'description':'Opt-in manager-only PREPARING workspace in an operator-approved project. Not admitted or executable.',
+  'inputSchema':{'type':'object','properties':{'project_id':{'type':'string'},'operation_id':{'type':'string'}},
+                 'required':['project_id','operation_id'],'additionalProperties':False}},
+ {'name':'minionone_seal_workspace',
+  'description':'POSIX-only development: verify input manifest, pin task+files in SQLite and admit the SAME job ID. Windows disabled; no worker launch.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'},'expected_version':{'type':'integer'},'operation_id':{'type':'string'}},
+                 'required':['job_id','expected_version','operation_id'],'additionalProperties':False}},
+ {'name':'minionone_verify_workspace_input',
+  'description':'Verify that admitted POSIX staging input still matches the pinned manager snapshot. NOT a worker-start proof.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'}},
+                 'required':['job_id'],'additionalProperties':False}},
+ {'name':'minionone_workspace_status',
+  'description':'Read an owned PREPARING or admitted workspace; never launches worker execution.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'}},
+                 'required':['job_id'],'additionalProperties':False}}
+]
+
 PILOT_TOOLS = [
  {'name':'minionone_wait_test_job','description':'Wait up to 20 seconds for a test-job outcome, then return one consistent status snapshot. Repeat while still running.',
   'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'},'wait_seconds':{'type':'integer','minimum':1,'maximum':20}},'required':['job_id'],'additionalProperties':False}},
@@ -50,7 +69,7 @@ class LocalMCP(ThreadingHTTPServer):
     def __init__(self, address, *, token, database_path, principal="local-operator",
                  thread="configured-pilot", lmstudio_url="http://127.0.0.1:1234",
                  enable_test_jobs=False,worker_model=None,worker_api_key=None,
-                 min_free_mb=4096,model_call_seconds=60):
+                 min_free_mb=4096,model_call_seconds=60,workspace_projects=None):
         if (type(address) is not tuple or len(address) != 2 or
             address[0] != "127.0.0.1" or type(address[1]) is not int or
             not 0 <= address[1] <= 65535):
@@ -59,8 +78,8 @@ class LocalMCP(ThreadingHTTPServer):
             not token.isascii() or any(ord(c)<33 or ord(c)>126 for c in token)):
             raise ValueError("strong bearer credential required")
         if type(enable_test_jobs) is not bool:raise ValueError('invalid test-job switch')
-        self.pilot=None;self._pilot_lock=None
-        self.tools=TOOLS+(PILOT_TOOLS if enable_test_jobs else [])
+        self.pilot=None;self._pilot_lock=None;self.workspace=None
+        self.tools=TOOLS+(PILOT_TOOLS if enable_test_jobs else [])+(WORKSPACE_TOOLS if workspace_projects is not None else [])
         self.tool_map={t['name']:t for t in self.tools}
         if enable_test_jobs:
             from .pilot_lock import PilotLock
@@ -69,6 +88,9 @@ class LocalMCP(ThreadingHTTPServer):
         self.thread_id = thread
         try:
             self.store = AdmissionStore(database_path, credentials={token:(principal,{thread})})
+            if workspace_projects is not None:
+                from .workspace_preparation import WorkspacePreparation
+                self.workspace = WorkspacePreparation(self.store,workspace_projects)
             # Recover external-effect uncertainty BEFORE opening the listening socket.
             # Partial recovery failures propagate; never serve requests in that case.
             self.outbox = OutboxStore(database_path)
@@ -130,7 +152,9 @@ class LocalMCP(ThreadingHTTPServer):
                     "parent_thread_attested":False,"worker_execution_enabled":self.pilot is not None,
                     "worker_file_backend":"sqlite_documents" if self.pilot else None,
                     "host_filesystem_tools_enabled":False,
-                    "windows_file_broker_verified":False,"auto_wakeup_enabled":False}
+                    "windows_file_broker_verified":False,"auto_wakeup_enabled":False,
+                    "workspace_preparation_enabled":self.workspace is not None,
+                    "workspace_execution_enabled":False}
         if name == "minionone_models":
             return {"models":self.probe.models(),"provider_identity_verified":False}
         if name == "minionone_admit":
@@ -145,6 +169,25 @@ class LocalMCP(ThreadingHTTPServer):
         if name == "minionone_resume_request":
             return self.timeout_control.request_resume(token,thread,args["job_id"],
                                       args["expected_version"],args["operation_id"])
+        if self.workspace is not None:
+            if name == 'minionone_prepare_workspace':
+                receipt=self.workspace.reserve(token,thread,args['project_id'],args['operation_id'])
+                # Model discovery is optional. Never roll back a durable reservation
+                # because the provider happens to be unavailable.
+                try:
+                    ids=self.probe.models()
+                    receipt['models']=[{'model_id':x,'description':'Loaded LM Studio model; worker capabilities unverified'} for x in ids]
+                    receipt['model_discovery']='AVAILABLE_UNVERIFIED'
+                except ProbeError:
+                    receipt['models']=[]
+                    receipt['model_discovery']='UNAVAILABLE'
+                return receipt
+            if name == 'minionone_seal_workspace':
+                return self.workspace.seal(token,thread,args['job_id'],args['expected_version'],args['operation_id'])
+            if name == 'minionone_verify_workspace_input':
+                return self.workspace.verify_input(token,thread,args['job_id'])
+            if name == 'minionone_workspace_status':
+                return self.workspace.status(token,thread,args['job_id'])
         if self.pilot is not None:
             if name=='minionone_wait_test_job':
                 seconds=args.get('wait_seconds',10)

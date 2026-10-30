@@ -14,6 +14,8 @@ def main(argv=None):
     p.add_argument("--port",type=int,default=8765)
     p.add_argument("--db",default=None,help="Private state database (operator-controlled path)")
     p.add_argument("--lmstudio-url",default="http://127.0.0.1:1234")
+    p.add_argument("--project",action="append",default=[],metavar="ID=ABSOLUTE_DIR",
+                   help="Opt in to PREPARING-only job workspaces under a trusted project. No worker file permissions.")
     args=p.parse_args(argv)
     token=os.environ.get("MINIONONE_MCP_TOKEN")
     if token is None or len(token)<32:
@@ -28,8 +30,17 @@ def main(argv=None):
             db=root/"pilot-jobs.sqlite"
         else:
             db=Path(args.db)
+        projects={}
+        for entry in args.project:
+            if '=' not in entry:
+                raise ValueError('invalid trusted project configuration')
+            key, directory=entry.split('=',1)
+            if not key or key in projects or not directory:
+                raise ValueError('duplicate or invalid trusted project configuration')
+            projects[key]=directory
         server=LocalMCP(("127.0.0.1",args.port),token=token,
-                        database_path=db,lmstudio_url=args.lmstudio_url)
+                        database_path=db,lmstudio_url=args.lmstudio_url,
+                        workspace_projects=(projects or None))
     except Exception as exc:
         fault=safe_tool_fault(exc)
         if isinstance(exc,OSError) and exc.errno==errno.EADDRINUSE:
@@ -41,6 +52,8 @@ def main(argv=None):
         return 2
     print(f"MinionOne PILOT: http://127.0.0.1:{server.server_port}/mcp",flush=True)
     print("PRE-ALPHA: no worker execution, no verified Unsloth chat ownership, no Windows sandbox.",flush=True)
+    if args.project:
+        print("PREPARING workspace staging enabled; input is NOT sealed; no worker file access.",flush=True)
     try:
         server.serve_forever(poll_interval=0.2)
     except KeyboardInterrupt:

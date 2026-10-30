@@ -21,6 +21,7 @@ from .lmstudio_agent import LMStudioAgentProvider, PlannerRejected
 from .pilot_transport import DeadlineOpener
 from .worker_contract import SYSTEM_POLICY, task_message
 from .job_telemetry import append as log_event
+from .worker_io import append as append_worker_io
 
 _NAME=re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z',re.ASCII)
 _RESERVED={'con','prn','aux','nul',*(f'com{i}' for i in range(1,10)),*(f'lpt{i}' for i in range(1,10))}
@@ -222,6 +223,8 @@ class PilotJobs:
 
     def _run(self,job,cap):
         publication_started=False
+        io_published=False
+        workspace_job=False
         try:
             with self.owner._connection() as con:
                 configured=con.execute('SELECT model_id FROM pilot_runs WHERE job_id=?',(job,)).fetchone()
@@ -238,6 +241,7 @@ class PilotJobs:
                 if row['state']=='CANCEL_REQUESTED':
                     self._finish_in(con,row,'CANCELLED',None);return
                 if row['state']!='RESOURCE_CHECK':raise PilotError('PILOT_STATE_INVALID')
+                workspace_job=row['job_kind']=='WORKSPACE'
                 self.owner._transition(con,row,'RUNNING',Evidence(attempt_no=1,active_lease=True,worker_outcome='RUNNING'),'pilot-running-'+secrets.token_hex(8))
                 task=con.execute('SELECT task FROM pilot_runs WHERE job_id=?',(job,)).fetchone()[0]
                 names=[r[0] for r in con.execute("SELECT name FROM pilot_files WHERE job_id=? AND zone='input' ORDER BY name",(job,))]
@@ -257,15 +261,27 @@ class PilotJobs:
                 elif _digest({'task':task,'files':sealed})!=row['input_digest']:
                     raise PilotError('PILOT_FILE_CHANGED')
             instructions=task_message(task,names)
+            def worker_io_sink(kind,body):
+                # SENSITIVE exact external model JSON request/response bodies
+                # and exact broker tool replies, never HTTP auth headers.
+                with self.owner._connection() as io_con:
+                    io_con.execute('BEGIN IMMEDIATE')
+                    self._current(io_con,job,cap)
+                    append_worker_io(io_con,job,kind,body)
             provider=LMStudioAgentProvider(self.config.base_url,model_id=self.config.model_id,
                         approved_prompt=instructions,system_prompt=SYSTEM_POLICY,
-                        max_output_tokens=2048,api_key=self.config.api_key)
+                        max_output_tokens=2048,api_key=self.config.api_key,
+                        io_sink=worker_io_sink if workspace_job else None)
             provider._provider._opener=DeadlineOpener(self.config.base_url,self.config.api_key)
             observed=ObservedProvider(self,job,cap,provider)
             broker=DocumentBroker(self,job,cap)
             run=AgentLoop(AgentLimits(wall_seconds=self.config.wall_seconds,
                     model_call_seconds=self.config.model_call_seconds)).run(observed,broker,
                     cancelled=lambda:self._cancelled(job))
+            if workspace_job:
+                # Publish the full exact transcript before claiming RESULT_READY.
+                self.workspace_execution.publish_worker_io(job)
+                io_published=True
             if run.status=='AWAITING_REVIEW':
                 if row['job_kind']=='WORKSPACE':
                     if self.workspace_execution is None:raise PilotError('PILOT_STATE_INVALID')
@@ -280,6 +296,18 @@ class PilotJobs:
                 self._finish(job,'NEEDS_RECONCILIATION' if uncertain else 'FAILED',code)
         except Exception as exc:
             code=safe_tool_fault(exc).code
+            if workspace_job and not io_published:
+                try:
+                    with self.owner._connection() as io_con:
+                        io_con.execute('BEGIN IMMEDIATE')
+                        append_worker_io(io_con,job,'CAPTURE_ERROR',
+                                         json.dumps({'error_code':code},sort_keys=True))
+                    self.workspace_execution.publish_worker_io(job)
+                    io_published=True
+                except Exception:
+                    # A broken SQLite/native transcript boundary is not safe
+                    # to treat as a successful, fully accounted execution.
+                    publication_started=True
             try:self._finish(job,'NEEDS_RECONCILIATION' if publication_started else 'FAILED',code)
             except Exception:pass  # DB outage leaves the durable active intent for restart quarantine.
         finally:
@@ -423,6 +451,8 @@ class DocumentBroker:
                 data={'path':zone+'/'+key,'content':row['content'],'sha256':row['digest']}
             elif name in ('create_work','publish_artifact'):
                 key=_name(args['name']);zone='work' if name=='create_work' else 'output'
+                if key in ('worker-io.jsonl','job.log.jsonl'):
+                    raise BrokerScopeDenied('manager-only output name denied')
                 if name=='create_work':
                     try:content=_text(args['content'],8192)
                     except InputRejected:raise BrokerScopeDenied('document size denied') from None

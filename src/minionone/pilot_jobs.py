@@ -216,11 +216,18 @@ class PilotJobs:
         if len(matches)!=1 or matches[0].get('state')!='loaded':raise PilotError('PILOT_MODEL_NOT_LOADED')
 
     def _run(self,job,cap):
+        publication_started=False
         try:
             with self.owner._connection() as con:
                 configured=con.execute('SELECT model_id FROM pilot_runs WHERE job_id=?',(job,)).fetchone()
                 if configured['model_id']!=self.config.model_id:raise PilotError('PILOT_MODEL_NOT_LOADED')
             self._readiness()
+            if self.workspace_execution is not None:
+                with self.owner._connection() as con:
+                    kind=con.execute('SELECT job_kind FROM jobs WHERE job_id=?',(job,)).fetchone()
+                if kind is not None and kind['job_kind']=='WORKSPACE':
+                    self.workspace_execution.workspace.verify_input(
+                        self.workspace_execution.token,self.workspace_execution.thread,job)
             with self.owner._connection() as con:
                 con.execute('BEGIN IMMEDIATE');row=con.execute('SELECT * FROM jobs WHERE job_id=?',(job,)).fetchone()
                 if row['state']=='CANCEL_REQUESTED':
@@ -261,6 +268,7 @@ class PilotJobs:
             if run.status=='AWAITING_REVIEW':
                 if row['job_kind']=='WORKSPACE':
                     if self.workspace_execution is None:raise PilotError('PILOT_STATE_INVALID')
+                    publication_started=True
                     self.workspace_execution.publish_finished(job,cap)
                 self._finish(job,'RESULT_READY',None)
             elif run.status=='CANCELLED':self._finish(job,'CANCELLED',None)
@@ -271,7 +279,7 @@ class PilotJobs:
                 self._finish(job,'NEEDS_RECONCILIATION' if uncertain else 'FAILED',code)
         except Exception as exc:
             code=safe_tool_fault(exc).code
-            try:self._finish(job,'FAILED',code)
+            try:self._finish(job,'NEEDS_RECONCILIATION' if publication_started else 'FAILED',code)
             except Exception:pass  # DB outage leaves the durable active intent for restart quarantine.
         finally:
             with self._lock:self._threads.discard(threading.current_thread())

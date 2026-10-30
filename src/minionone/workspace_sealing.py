@@ -159,7 +159,12 @@ def _write_projection(workspace,row,events):
         if len(events) != 1 or events[0]['status'] != 'ACCEPTED':
             raise InputRejected('Windows admission projection supports only ACCEPTED')
         from .win32_workspace_sealing import project_admission_log
-        return project_admission_log(workspace,row,payload)
+        # Serialize recovery and replay on the canonical SQLite manager
+        # journal. Concurrent callers must never race to create or open
+        # a partially written native Windows pending log.
+        with workspace.store._connection() as con:
+            con.execute('BEGIN IMMEDIATE')
+            return project_admission_log(workspace,row,payload)
     temp='.joblog-'+secrets.token_hex(12)+'.tmp'
     with _job_directory(workspace,row,'output') as fd:
         handle=os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=fd)

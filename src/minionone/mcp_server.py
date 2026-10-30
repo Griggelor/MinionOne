@@ -133,6 +133,8 @@ class LocalMCP(ThreadingHTTPServer):
         self.pilot=None;self._pilot_lock=None;self.workspace=None;self.workspace_jobs=None
         self.enable_workspace_jobs=enable_workspace_jobs
         self.tools=TOOLS+(PILOT_TOOLS if enable_test_jobs else [])+(WORKSPACE_TOOLS if workspace_projects is not None else [])
+        if enable_workspace_jobs:
+            self.tools.append(DIRECT_DELEGATION_TOOL)
         if not enable_workspace_jobs:
             self.tools=[x for x in self.tools if x['name'] not in (
                 'minionone_start_workspace_job','minionone_workspace_result',

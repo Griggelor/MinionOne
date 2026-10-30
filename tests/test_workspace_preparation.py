@@ -10,6 +10,7 @@ import sqlite3
 import tempfile
 import threading
 import unittest
+from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 
 from minionone.admission import (AdmissionStore, IdempotencyConflict,
@@ -149,7 +150,7 @@ class WorkspaceHTTPTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=4) as pool:
             ids=list(pool.map(call,range(8)))
         self.assertEqual(len(set(ids)),1)
-        with sqlite3.connect(self.database) as con:
+        with closing(sqlite3.connect(self.database)) as con:
             self.assertEqual(con.execute('SELECT count(*) FROM workspace_reservations').fetchone()[0],1)
 
 class WorkspaceDisabledTests(unittest.TestCase):
@@ -188,7 +189,7 @@ class WorkspaceQuotaTests(unittest.TestCase):
             with self.assertRaises(InputRejected):
                 manager.reserve(TOKEN,'thread','demo','reserve-quota-003')
             self.assertEqual(first['job_id'],manager.reserve(TOKEN,'thread','demo','reserve-quota-001')['job_id'])
-            with sqlite3.connect(directory/'jobs.db') as con:
+            with closing(sqlite3.connect(directory/'jobs.db')) as con:
                 self.assertEqual(con.execute('SELECT count(*) FROM workspace_reservations').fetchone()[0],2)
 
 if __name__=='__main__':unittest.main()

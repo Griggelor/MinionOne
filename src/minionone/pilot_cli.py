@@ -16,6 +16,7 @@ from pathlib import Path
 import platform
 import re
 import secrets
+import stat
 import sys
 import time
 import zipfile
@@ -192,8 +193,17 @@ def main(argv=None):
     serve.add_argument('--port',type=int,default=None);serve.add_argument('--min-free-mb',type=int,default=4096)
     serve.add_argument('--model-call-seconds',type=int,default=120)
     serve.add_argument('--ask-api-key',action='store_true')
+    serve.add_argument('--experimental-workspace-jobs',action='store_true',
+        help='Explicit development-only sealed workspace worker; NOT production approval')
+    serve.add_argument('--workspace-project',action='append',default=[],metavar='ID=ABSOLUTE_DIR',
+        help='Trusted local folder approved for synthetic, sealed workspace test only')
     connect=sub.add_parser('connection');connect.add_argument('--show-token',action='store_true')
     check=sub.add_parser('self-test');check.add_argument('--timeout',type=int,default=900)
+    workspace_test=sub.add_parser('workspace-self-test',
+        help='Run a synthetic task end-to-end using the explicit workspace test server')
+    workspace_test.add_argument('--project-id',required=True)
+    workspace_test.add_argument('--project-root',required=True,type=Path)
+    workspace_test.add_argument('--timeout',type=int,default=900)
     export=sub.add_parser('export');export.add_argument('--job',required=True);export.add_argument('--out',type=Path,required=True)
     resolve=sub.add_parser('resolve');resolve.add_argument('--job',required=True);resolve.add_argument('--confirm-provider-stopped',action='store_true',required=True)
     sub.add_parser('facts')
@@ -214,16 +224,31 @@ def main(argv=None):
             if type(port) is not int or not 1024<=port<=65535:raise PilotError('CONFIGURATION_INVALID')
             provider=args.provider_url or previous.get('provider_url','http://127.0.0.1:1234')
             key=getpass.getpass('LM Studio API key (not saved): ') if args.ask_api_key else os.environ.get('MINIONONE_LMSTUDIO_KEY')
+            if bool(args.workspace_project) != args.experimental_workspace_jobs:
+                raise PilotError('CONFIGURATION_INVALID')
+            projects={}
+            for entry in args.workspace_project:
+                if type(entry) is not str or '=' not in entry:
+                    raise PilotError('CONFIGURATION_INVALID')
+                project_id,raw_root=entry.split('=',1)
+                if (not project_id or project_id in projects or not raw_root or
+                        not Path(raw_root).is_absolute()):
+                    raise PilotError('CONFIGURATION_INVALID')
+                projects[project_id]=Path(raw_root)
             config=PilotConfig(model,provider,key,
                                model_call_seconds=args.model_call_seconds,min_free_mb=args.min_free_mb)
             token=_token(state,True)
             server=LocalMCP(('127.0.0.1',port),token=token,database_path=state/'jobs.sqlite',
                 lmstudio_url=config.base_url,enable_test_jobs=True,worker_model=model,worker_api_key=config.api_key,
-                min_free_mb=config.min_free_mb,model_call_seconds=config.model_call_seconds)
+                min_free_mb=config.min_free_mb,model_call_seconds=config.model_call_seconds,
+                workspace_projects=projects or None,
+                enable_workspace_jobs=args.experimental_workspace_jobs)
             try:
                 (state/'settings.json').write_text(json.dumps({'port':port,'model':model,'provider_url':config.base_url}),encoding='utf-8')
                 print('MinionOne SYSTEM TEST '+__version__+' listening at http://127.0.0.1:'+str(port)+'/mcp',flush=True)
                 print('Worker files: isolated manager documents. Use connection and self-test in another window.',flush=True)
+                if args.experimental_workspace_jobs:
+                    print('EXPERIMENTAL WORKSPACE: synthetic files only; NOT G1b/Unsloth identity proof.',flush=True)
                 server.serve_forever(poll_interval=.2)
             except KeyboardInterrupt:pass
             finally:server.server_close()
@@ -242,6 +267,16 @@ def main(argv=None):
             finally:with_lock.close()
             return 0
         client=PilotClient(config['port'],token)
+        if args.command=='workspace-self-test':
+            if not 1<=args.timeout<=1800:raise PilotError('CONFIGURATION_INVALID')
+            report=workspace_exercise(client,project_id=args.project_id,
+                                      project_root=args.project_root,model=config['model'],
+                                      timeout=args.timeout)
+            folder=state/'reports';folder.mkdir(exist_ok=True)
+            path=folder/('workspace-test-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')+'.json')
+            path.write_text(json.dumps(report,indent=2),encoding='utf-8')
+            print(json.dumps(report,indent=2));print('REPORT: '+str(path))
+            return 0 if report['passed'] else 2
         if args.command=='export':
             result=client.tool('minionone_test_result',{'job_id':args.job});export_result(result,args.out)
             print('RESULT_ZIP_CREATED');return 0

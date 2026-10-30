@@ -142,4 +142,48 @@ class SubprocessBridge(unittest.TestCase):
         self.assertNotIn("subprocess test data",proc)
 
 
+    def test_os_kill_after_live_request_fsync_survives_and_restart_is_fenced(self):
+        # Real OS kill, real SQLite WAL and file handles, actual provider HTTP.
+        # No false retry when the model might still be generating.
+        self.model.mode="timeout"
+        self.start()
+        job=self.rpc("minionone_delegate",{
+            "project_id":"demo","goal":"Publish uppercase synthetic input",
+            "context":"Crash integration test with synthetic data",
+            "acceptance_criteria":["Never replay the same external effect"],
+            "files":{"sample.txt":"crash experiment"},
+            "operation_id":"ci-crash-delegate-0001"})
+        outfile=self.project/".minionone"/"jobs"/job["job_id"]/"output"/"worker-io.jsonl"
+        deadline=time.monotonic()+12
+        while time.monotonic()<deadline:
+            if outfile.exists() and "MODEL_REQUEST" in outfile.read_text(encoding="utf-8"):
+                with self.model.synchronizer:
+                    if len(self.model.calls)>=1:break
+            time.sleep(.05)
+        else:self.fail("worker never fsynced the live request before deliberate crash")
+        self.assertEqual(len(self.model.calls),1)
+        self.proc.kill()
+        self.proc.wait(timeout=8)
+        self.proc=None
+        durable=[json.loads(line) for line in outfile.read_text().splitlines()]
+        self.assertEqual(durable[0]["kind"],"MODEL_REQUEST")
+        self.assertIn("crash experiment",(outfile.read_text()))
+        # Restart with the exact same canonical state but a different listener
+        # port; no identical inference may be sent again by recovery.
+        self.port=free_port()
+        self.start()
+        status=self.rpc("minionone_job_status",{"job_id":job["job_id"]})
+        self.assertEqual(status["state"],"NEEDS_RECONCILIATION",status)
+        denial=self.rpc("minionone_delegate",{
+            "project_id":"demo","goal":"New synthetic job",
+            "context":"Must not start while prior generation is uncertain",
+            "acceptance_criteria":["Do not send inference"],
+            "files":{"sample.txt":"second job"},
+            "operation_id":"ci-crash-second-0001"},error=True)
+        self.assertEqual(denial["error"]["code"],"PILOT_JOB_BUSY")
+        with self.model.synchronizer:
+            self.assertEqual(len(self.model.calls),1)
+        self.assertTrue(outfile.exists())
+
+
 if __name__=="__main__":unittest.main()

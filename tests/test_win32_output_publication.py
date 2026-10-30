@@ -172,7 +172,7 @@ class WindowsOutputPublisherTests(unittest.TestCase):
 
     def test_corrupt_sqlite_blob_and_deleted_final_denied(self):
         self.stage()
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db:
             db.execute("UPDATE workspace_publications SET content=?",(b"tampered",))
         with self.assertRaises(InputRejected):
             self.publish()

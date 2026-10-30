@@ -139,7 +139,9 @@ class LocalMCP(ThreadingHTTPServer):
                     from .workspace_jobs import WorkspaceJobs
                     self.workspace_jobs=WorkspaceJobs(self.workspace,self.pilot,token,thread)
                     self.pilot.workspace_execution=self.workspace_jobs
-                self.recovery_summary['worker_jobs_quarantined']=self.pilot.recover()
+                count=self.pilot.recover()
+                if enable_test_jobs:self.recovery_summary['test_jobs_quarantined']=count
+                if enable_workspace_jobs:self.recovery_summary['workspace_jobs_recovery_checked']=True
             self.probe = LMStudioProbe(lmstudio_url,api_key=worker_api_key)
             self._slots=threading.BoundedSemaphore(8)
             super().__init__(address, MCPHandler)

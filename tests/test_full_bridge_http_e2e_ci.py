@@ -280,6 +280,31 @@ class CompleteBridgeE2E(unittest.TestCase):
         self.assertEqual(len(self.model.calls),0)
         self.assertTrue((self.root/"logs"/"minionone-errors.jsonl").is_file())
 
+    def test_same_length_on_disk_corruption_blocks_ready_and_quarantines(self):
+        # Real HTTP provider + real file/DB boundary; inject only a single
+        # native output byte-content deviation (same byte length). A size
+        # comparison would miss this, full pinned content verification must not.
+        from unittest.mock import patch
+        from minionone.live_job_files import LiveJobFiles
+        original=LiveJobFiles.worker_event
+        def corrupt_once(writer,record):
+            if record["kind"]=="MODEL_RESPONSE" and "SYNTHETIC-THINKING-TOOL" in record["body_utf8"]:
+                record={**record,"body_utf8":
+                    record["body_utf8"].replace("SYNTHETIC-THINKING-TOOL",
+                                                "SYNTHETIC-THINKING-FOOL")}
+            return original(writer,record)
+        with patch.object(LiveJobFiles,"worker_event",corrupt_once):
+            job=self.direct("e2e-mutated-live-log-00001")
+            status=self.outcome(job)
+        self.assertEqual(status["state"],"NEEDS_RECONCILIATION",status)
+        root=self.project/".minionone"/"jobs"/job["job_id"]/"output"
+        self.assertTrue((root/"worker-io.jsonl").is_file())
+        self.assertIn("SYNTHETIC-THINKING-FOOL",
+                      (root/"worker-io.jsonl").read_text())
+        self.assertNotIn("SYNTHETIC-THINKING-FOOL",json.dumps(self.transcript(job)))
+        self.assertFalse((root/"result.txt").exists(),
+                         "corrupt content must never be published as accepted result")
+
     def test_deadline_unknown_outcome_quarantines_next_generation(self):
         self.model.mode="timeout"
         job=self.direct("e2e-timeout-00001")

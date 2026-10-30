@@ -14,7 +14,7 @@ import unittest
 
 from minionone.agent_loop import BrokerReply, ModelStep
 from minionone.lmstudio_agent import LMStudioAgentProvider
-from test_flash_delegation_v027 import FlashDelegationHTTP
+from test_flash_delegation_v027 import FlashHTTPFixture
 
 
 class FakeProviderResponse:
@@ -108,7 +108,7 @@ class WireIOFixture:
                                              "data":reply.data},sort_keys=True))
 
 
-class FlashRawWorkerIO(FlashDelegationHTTP):
+class FlashRawWorkerIO(FlashHTTPFixture,unittest.TestCase):
     def test_worker_transcript_is_real_manager_output_file_and_flash_readable(self):
         import time
         with patch("minionone.pilot_jobs.PilotJobs._readiness",return_value=None), \

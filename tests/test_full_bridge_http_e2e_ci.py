@@ -324,6 +324,29 @@ class CompleteBridgeE2E(unittest.TestCase):
         self.assertIn("MCP_AUTH_DENIED",
                       (self.root/"logs"/"minionone-process.jsonl").read_text())
 
+    def test_failure_after_file_fsync_before_sqlite_insert_quarantines(self):
+        # Injection EXACTLY between persisted native file bytes and the
+        # SQLite mirror INSERT. The original request remains readable, but
+        # no provider invocation or completed work may be inferred.
+        from unittest.mock import patch
+        from minionone.live_job_files import LiveJobFiles
+        original=LiveJobFiles.worker_event
+        triggered={"once":False}
+        def break_after_fsync(writer,record):
+            original(writer,record)  # fsync/FlushFileBuffers succeeded.
+            if record["kind"]=="MODEL_REQUEST" and not triggered["once"]:
+                triggered["once"]=True
+                raise OSError("synthetic after-fsync before-SQLite injection")
+        with patch.object(LiveJobFiles,"worker_event",break_after_fsync):
+            job=self.direct("e2e-after-fsync-before-sqlite-001")
+            status=self.outcome(job)
+        self.assertTrue(triggered["once"])
+        self.assertEqual(status["state"],"NEEDS_RECONCILIATION",status)
+        self.assertEqual(self.model.calls,[],"unsafely unlogged network call prohibited")
+        path=self.project/".minionone"/"jobs"/job["job_id"]/"output"
+        self.assertIn("MODEL_REQUEST",(path/"worker-io.jsonl").read_text())
+        self.assertFalse((path/"result.txt").exists())
+
     def test_same_length_on_disk_corruption_blocks_ready_and_quarantines(self):
         # Real HTTP provider + real file/DB boundary; inject only a single
         # native output byte-content deviation (same byte length). A size

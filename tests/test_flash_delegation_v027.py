@@ -148,6 +148,104 @@ class FlashDelegationHTTP(unittest.TestCase):
                 self.call("minionone_delegate",args,error=True)
         self.assertFalse((self.project/".minionone").exists())
 
+    def test_redacted_job_debug_audit_trace_and_support_export(self):
+        from minionone.pilot_cli import PilotClient, export_diagnostics
+        with patch("minionone.pilot_jobs.PilotJobs._readiness",return_value=None), \
+             patch("minionone.pilot_jobs.LMStudioAgentProvider",ScriptedFlint):
+            started=self.call("minionone_delegate",self.arguments())
+            job=started["job_id"]
+            deadline=time.monotonic()+15
+            while time.monotonic()<deadline:
+                status=self.call("minionone_job_status",{"job_id":job})
+                if status["state"] not in ("QUEUED","RESOURCE_CHECK","RUNNING"):
+                    break
+                time.sleep(.1)
+        self.assertEqual(status["state"],"RESULT_READY",status)
+        first=self.call("minionone_job_trace",{"job_id":job,"after_seq":0,"limit":2})
+        self.assertEqual(first["integrity"],"VERIFIED_HASH_CHAIN")
+        self.assertTrue(first["has_more"])
+        all_events=[]
+        after=0
+        for _ in range(40):
+            page=self.call("minionone_job_trace",
+                           {"job_id":job,"after_seq":after,"limit":3})
+            self.assertEqual(page["trace_id"],first["trace_id"])
+            all_events+=page["events"]
+            after=page["next_after_seq"]
+            if not page["has_more"]:break
+        self.assertEqual(len(all_events),page["total_events"])
+        self.assertEqual({e["seq"] for e in all_events},set(range(1,len(all_events)+1)))
+        levels={e["level"] for e in all_events}
+        self.assertEqual(levels,{"JOB","DEBUG","AUDIT"})
+        events={e["event"] for e in all_events}
+        self.assertTrue({"JOB_ACCEPTED","JOB_TRANSITION","MODEL_REQUEST_STARTED",
+                         "MODEL_REQUEST_FINISHED","WORKER_TOOL_COMPLETED"}<=events)
+        text=json.dumps(all_events)
+        for secret in (TOKEN,self.arguments()["goal"],self.arguments()["files"]["source.txt"],
+                       "FLASH FLINT BOUNDED TASK COMPLETE",str(self.project)):
+            self.assertNotIn(secret,text)
+        self.assertIn("create_work",text)
+        self.assertNotIn("source.txt",text)
+        result=self.call("minionone_workspace_result",{"job_id":job})
+        ack=self.call("minionone_accept_workspace_result",{
+            "job_id":job,"expected_version":result["version"],
+            "result_digest":result["result_digest"],
+            "operation_id":"parent-ack-for-trace-20261030"})
+        self.assertEqual(ack["state"],"COMPLETED")
+        saved=self.root/"verified-diagnostic.json"
+        exported=export_diagnostics(PilotClient(self.server.server_port,TOKEN),job,saved)
+        self.assertEqual(exported["event_count"],len(json.loads(saved.read_text())["trace_events"]))
+        self.assertEqual(json.loads(saved.read_text())["job"]["state"],"COMPLETED")
+        with self.assertRaises(FileExistsError):
+            export_diagnostics(PilotClient(self.server.server_port,TOKEN),job,saved)
+        self.assertNotIn(TOKEN,saved.read_text())
+        self.assertNotIn(self.arguments()["files"]["source.txt"],saved.read_text())
+
+    def test_trace_integrity_tampering_fails_closed(self):
+        import sqlite3
+        from contextlib import closing
+        from minionone.pilot_cli import PilotClient
+        with patch("minionone.pilot_jobs.PilotJobs._readiness",return_value=None), \
+             patch("minionone.pilot_jobs.LMStudioAgentProvider",ScriptedFlint):
+            started=self.call("minionone_delegate",self.arguments())
+            job=started["job_id"]
+            deadline=time.monotonic()+15
+            while time.monotonic()<deadline:
+                status=self.call("minionone_job_status",{"job_id":job})
+                if status["state"] not in ("QUEUED","RESOURCE_CHECK","RUNNING"):
+                    break
+                time.sleep(.1)
+        self.assertEqual(status["state"],"RESULT_READY",status)
+        # sqlite3.Connection's context manager commits, but does NOT close.
+        # Windows refuses TemporaryDirectory cleanup with an open DB handle.
+        with closing(sqlite3.connect(self.root/"jobs.sqlite")) as con:
+            with con:
+                with self.assertRaises(sqlite3.IntegrityError):
+                    con.execute("UPDATE job_telemetry SET event='BOGUS' WHERE job_id=?",(job,))
+                con.execute("DROP TRIGGER telemetry_no_update")
+                con.execute("UPDATE job_telemetry SET event='MODEL_REQUEST_FAILED' WHERE job_id=? AND seq=1",(job,))
+        error=self.call("minionone_job_trace",{"job_id":job},error=True)
+        self.assertEqual(error["error"]["code"],"DB_INTEGRITY_ERROR")
+        with self.assertRaises(Exception):
+            export_diagnostics(PilotClient(self.server.server_port,TOKEN),job,self.root/"bad.json")
+        self.assertFalse((self.root/"bad.json").exists())
+
+    def test_workspace_mode_guides_flash_and_hides_legacy_test_tools(self):
+        from minionone.pilot_cli import PilotClient
+        client=PilotClient(self.server.server_port,TOKEN)
+        rsp=client.request("initialize",{"protocolVersion":"2025-06-18",
+            "capabilities":{},"clientInfo":{"name":"flash-fixture","version":"1"}})
+        instructions=rsp["result"]["instructions"]
+        self.assertIn("minionone_delegate",instructions)
+        self.assertIn("minionone_prepare_workspace",instructions)
+        self.assertIn("minionone_job_trace",instructions)
+        self.assertNotIn("minionone_submit_test_job",self.server.tool_map)
+        self.assertIn("minionone_delegate",self.server.tool_map)
+        self.assertIn("minionone_prepare_workspace",self.server.tool_map)
+        self.assertIn("minionone_job_trace",self.server.tool_map)
+        unavailable=client.request("tools/call",{"name":"minionone_submit_test_job","arguments":{"task":"x"}})
+        self.assertEqual(unavailable["error"]["code"],-32602)
+
     def test_delegation_not_advertised_without_operator_opt_in(self):
         other=self.root/"unconfigured";other.mkdir()
         srv=LocalMCP(("127.0.0.1",0),token=TOKEN,

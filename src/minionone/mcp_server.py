@@ -20,7 +20,8 @@ TOOLS = [
  {"name":"minionone_models","description":"Read-only discovery on configured loopback LM Studio.","inputSchema":{"type":"object","properties":{},"additionalProperties":False}},
  {"name":"minionone_admit","description":"Register a durable non-executing job with a previously approved SHA256.","inputSchema":{"type":"object","properties":{"input_digest":{"type":"string"},"operation_id":{"type":"string"}},"required":["input_digest","operation_id"],"additionalProperties":False}},
  {"name":"minionone_job_status","description":"Read an admitted job state.","inputSchema":{"type":"object","properties":{"job_id":{"type":"string"}},"required":["job_id"],"additionalProperties":False}},
- {"name":"minionone_job_events","description":"Read redacted manager event metadata.","inputSchema":{"type":"object","properties":{"job_id":{"type":"string"}},"required":["job_id"],"additionalProperties":False}},
+ {"name":"minionone_job_events","description":"Read canonical job-state journal and parent command rejections; operation IDs may be included. For content-free model/tool diagnostics use minionone_job_trace.","inputSchema":{"type":"object","properties":{"job_id":{"type":"string"}},"required":["job_id"],"additionalProperties":False}},
+ {"name":"minionone_job_trace","description":"Read durable redacted JOB/DEBUG/AUDIT trace for an owned job. Verified append-only hash chain; chronological pages survive worker completion and restart. Never contains model prompts, file contents, credentials or host paths. Use after_seq from previous next_after_seq to paginate.","inputSchema":{"type":"object","properties":{"job_id":{"type":"string"},"after_seq":{"type":"integer","minimum":0,"maximum":2048},"limit":{"type":"integer","minimum":1,"maximum":100}},"required":["job_id"],"additionalProperties":False}},
  {"name":"minionone_abort","description":"Request cancellation of a non-executing job with CAS.","inputSchema":{"type":"object","properties":{"job_id":{"type":"string"},"expected_version":{"type":"integer"},"operation_id":{"type":"string"}},"required":["job_id","expected_version","operation_id"],"additionalProperties":False}},
  {"name":"minionone_resume_request","description":"Record a parent-authorized resume INTENT for a safely interrupted timed-out job. DOES NOT launch a worker.","inputSchema":{"type":"object","properties":{"job_id":{"type":"string"},"expected_version":{"type":"integer"},"operation_id":{"type":"string"}},"required":["job_id","expected_version","operation_id"],"additionalProperties":False}}
 ]
@@ -31,6 +32,10 @@ TOOL_MAP = {t["name"]: t for t in TOOLS}
 DIRECT_DELEGATION_TOOL = {
  'name':'minionone_delegate',
  'description':(
+     'RECOMMENDED quick route for small text-only tasks: '
+     'delegate directly to Flint without touching host files. '
+     'Use the prepared-workspace route instead only when a trusted external '
+     'operator can place TASK.md plus files and manifest.json in input/. '
      'Delegate ONE bounded UTF-8 task from Flash to configured Flint via '
      'the operator-approved sealed workspace. Provide goal, optional context, '
      '1-5 acceptance criteria, 1-4 small input documents, and unique operation_id. '
@@ -56,7 +61,7 @@ DIRECT_DELEGATION_TOOL = {
 
 WORKSPACE_TOOLS = [
  {'name':'minionone_prepare_workspace',
-  'description':'Opt-in manager-only PREPARING workspace in an operator-approved project. Not admitted or executable.',
+  'description':'ALTERNATIVE staged route: reserve input/work/output folders in an operator-approved project. A trusted external operator must place TASK.md, manifest.json and files in input/ BEFORE minionone_seal_workspace then minionone_start_workspace_job; Flash has NO host filesystem tools. Not yet executable.',
   'inputSchema':{'type':'object','properties':{'project_id':{'type':'string'},'operation_id':{'type':'string'}},
                  'required':['project_id','operation_id'],'additionalProperties':False}},
  {'name':'minionone_seal_workspace',
@@ -72,7 +77,7 @@ WORKSPACE_TOOLS = [
   'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'}},
                  'required':['job_id'],'additionalProperties':False}},
  {'name':'minionone_start_workspace_job',
-  'description':'EXPERIMENTAL opt-in: dispatch a sealed UTF-8 workspace to the bounded LM Studio document worker; no host write capability, not target-host approved.',
+  'description':'STAGED route only: start an already sealed job after minionone_seal_workspace, using exactly the configured loaded Flint model. Do not call for minionone_delegate jobs (already started). No host write capability; NO-GO.',
   'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'},'expected_version':{'type':'integer'},'operation_id':{'type':'string'},'model_id':{'type':'string'}},
                  'required':['job_id','expected_version','operation_id','model_id'],'additionalProperties':False}},
  {'name':'minionone_workspace_result',
@@ -134,6 +139,10 @@ class LocalMCP(ThreadingHTTPServer):
         self.enable_workspace_jobs=enable_workspace_jobs
         self.tools=TOOLS+(PILOT_TOOLS if enable_test_jobs else [])+(WORKSPACE_TOOLS if workspace_projects is not None else [])
         if enable_workspace_jobs:
+            # Workspace is the product-facing mode; old isolated test protocol
+            # remains available only on a separate non-workspace server.
+            self.tools=[item for item in self.tools if item['name'] not in
+                        {pilot['name'] for pilot in PILOT_TOOLS}]
             self.tools.append(DIRECT_DELEGATION_TOOL)
         if not enable_workspace_jobs:
             self.tools=[x for x in self.tools if x['name'] not in (
@@ -229,6 +238,9 @@ class LocalMCP(ThreadingHTTPServer):
             return self.store.status(token,thread,args['job_id'],include_timeout=True)
         if name == "minionone_job_events":
             return {"events":self.store.events(token,thread,args["job_id"])}
+        if name == "minionone_job_trace":
+            return self.store.trace(token,thread,args["job_id"],
+                after_seq=args.get('after_seq',0),limit=args.get('limit',100))
         if name == "minionone_abort":
             return self.store.request_abort(token,thread,args["job_id"],
                                             args["expected_version"],args["operation_id"])
@@ -374,8 +386,28 @@ class MCPHandler(BaseHTTPRequestHandler):
             if method=="initialize":
                 if type(params.get("protocolVersion")) is not str:
                     raise InputRejected("protocolVersion missing")
+                instructions=(
+                    "MinionOne is an opt-in local NO-GO development manager. "
+                    "For a small, synthetic text-only task, prefer minionone_delegate "
+                    "(it stages, seals, and starts Flint automatically). "
+                    "Alternatively, call minionone_prepare_workspace, then have "
+                    "an authorized EXTERNAL operator create TASK.md, manifest.json "
+                    "and files in input/, call minionone_seal_workspace and "
+                    "minionone_start_workspace_job. MCP alone cannot write those files. "
+                    "After either path, poll minionone_job_status; at RESULT_READY "
+                    "read minionone_workspace_result; only ACK a reviewed exact "
+                    "result digest with minionone_accept_workspace_result. "
+                    "Use minionone_job_trace for persistent redacted diagnostics. "
+                    "WAITING_FOR_PARENT cannot resume automatically. "
+                    "Never provide secrets, sensitive data or unsupported host paths."
+                ) if self.server.workspace_jobs is not None else (
+                    "No executable workspace delegation is configured. "
+                    "Only use tools actually advertised by tools/list. "
+                    "Use minionone_job_trace for durable redacted diagnostics."
+                )
                 result={"protocolVersion":PROTOCOL,"capabilities":{"tools":{"listChanged":False}},
-                        "serverInfo":{"name":"minionone-pilot","version":__version__}}
+                        "serverInfo":{"name":"minionone-pilot","version":__version__},
+                        "instructions":instructions}
             elif method=="ping":
                 result={}
             elif method=="tools/list":

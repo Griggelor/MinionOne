@@ -201,3 +201,21 @@ native worker writable work/ files and safe resume after `ask_question`
 remain unresolved. All new work is part of the existing MCP manager, not
 another test CLI. Only use synthetic tasks with the development opt-in;
 release gate remains NO-GO.
+
+### v0.28 — Flash tool discovery and durable job diagnostics
+
+The existing workspace-mode MCP server now explains the two delegation
+routes through `initialize.instructions` and clearer `tools/list`
+descriptions. Standalone isolated test tools are hidden in workspace mode.
+Authenticated parents can read `minionone_job_trace` with a paginated,
+fully verified, append-only content-free SQLite JOB / DEBUG / AUDIT trail
+that survives worker completion and restart. The local operator can write
+a create-only, redacted JSON support report via:
+
+```powershell
+.\app\MinionOne.exe diagnostics --job "JOB-..." --out "C:\MinionOneSyntheticWorkspace\minionone-diagnostic.json"
+```
+
+Full guide: [MCP and logging/debugging contract](docs/V028_MCP_LOGGING_DEBUGGING.md).
+This remains a synthetic-data **NO-GO development** path; native worker
+work/ tools and resumed question turns are not yet production ready.

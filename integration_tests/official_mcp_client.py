@@ -47,7 +47,7 @@ async def verify_tools(session):
     names = {t.name for t in tools.tools}
     assert names == {
         "minionone_status", "minionone_models", "minionone_admit",
-        "minionone_job_status", "minionone_job_events", "minionone_abort",
+        "minionone_job_status", "minionone_job_events", "minionone_job_trace", "minionone_abort",
         "minionone_resume_request",
     }, "unexpected MCP capability escalation or missing tool"
     response = await session.call_tool("minionone_status", arguments={})

@@ -158,6 +158,8 @@ class AdmissionStore:
                 UNIQUE(job_id,seq),
                 FOREIGN KEY(job_id,seq) REFERENCES admission_events(job_id,seq)
             )''')
+            from .job_telemetry import install
+            install(con)
 
     def _migrate_legacy_jobs(self, con):
         sqlrow = con.execute(
@@ -312,6 +314,9 @@ class AdmissionStore:
                         (principal,operation_id,request_hash,job_id,json.dumps(receipt,sort_keys=True)))
             con.execute('INSERT INTO admission_events VALUES (?,?,?,?,?,?)',
                         (job_id,1,'ACCEPTED',operation_id,'MANAGER',now))
+            from .job_telemetry import append
+            append(con,job_id,'AUDIT','JOB_ACCEPTED',{'state':'ACCEPTED','version':0})
+            append(con,job_id,'JOB','JOB_ACCEPTED',{'state':'ACCEPTED','version':0})
             return receipt
 
     def status(self, parent_token, thread_id, job_id, *, include_timeout=False):
@@ -350,7 +355,20 @@ class AdmissionStore:
                         (row['job_id'],)).fetchone()[0]
         con.execute('INSERT INTO admission_events VALUES (?,?,?,?,?,?)',
                     (row['job_id'],seq,new,operation_id,actor,now))
+        from .job_telemetry import append
+        append(con,row['job_id'],'AUDIT','JOB_TRANSITION',
+               {'previous_state':row['state'],'state':new,'version':row['version']+1})
+        append(con,row['job_id'],'JOB','JOB_TRANSITION',
+               {'previous_state':row['state'],'state':new,'version':row['version']+1})
         return con.execute('SELECT * FROM jobs WHERE job_id=?',(row['job_id'],)).fetchone()
+
+    def trace(self,parent_token,thread_id,job_id,*,after_seq=0,limit=100):
+        principal=self._principal(parent_token,thread_id)
+        with self._connection() as con:
+            con.execute('BEGIN')
+            self._owned_row(con,principal,thread_id,job_id)
+            from .job_telemetry import read
+            return read(con,job_id,after_seq=after_seq,limit=limit)
 
     def events(self, parent_token, thread_id, job_id):
         principal = self._principal(parent_token, thread_id)

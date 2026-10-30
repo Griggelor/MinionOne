@@ -332,6 +332,64 @@ def workspace_exercise(client, *, project_id, project_root, model, timeout=900):
     return report
 
 
+def diagnostic_report(client,job_id):
+    """Build a bounded support report; NEVER include task text or raw MCP params."""
+    snapshot=client.tool('minionone_job_status',{'job_id':job_id})
+    safe={k:snapshot[k] for k in ('job_id','state','version','created_utc','updated_utc')
+          if k in snapshot}
+    worker=snapshot.get('workspace_job',snapshot.get('test_job',{}))
+    if type(worker) is dict:
+        safe['worker_metrics']={k:worker[k] for k in
+            ('attempt_epoch','model_turns','tool_calls','denials',
+             'tokens_used','progress_percent','provider_state_uncertain')
+             if k in worker}
+        fault=worker.get('error')
+        if type(fault) is dict and type(fault.get('code')) is str:
+            safe['error_code']=safe_tool_fault(PilotError(fault['code'])).code
+    entries=[]
+    after=0
+    previous_trace=None
+    for _ in range(22):  # Up to 2048 durable entries, 100 per MCP page.
+        page=client.tool('minionone_job_trace',
+                         {'job_id':job_id,'after_seq':after,'limit':100})
+        if (page.get('integrity')!='VERIFIED_HASH_CHAIN' or
+                type(page.get('events')) is not list or len(page['events'])>100 or
+                page.get('job_id')!=job_id or
+                (previous_trace is not None and previous_trace!=page.get('trace_id'))):
+            raise PilotError('PILOT_FILE_CHANGED')
+        previous_trace=page['trace_id']
+        for item in page['events']:
+            if type(item) is not dict or item.get('seq')!=after+1:
+                raise PilotError('PILOT_FILE_CHANGED')
+            entries.append(item)
+            after+=1
+        if not page.get('has_more'):
+            if page.get('total_events')!=len(entries):
+                raise PilotError('PILOT_FILE_CHANGED')
+            return {'schema_version':1,'application_version':__version__,
+                'release_gate':'NO_GO','redaction':'SAFE_METADATA_ONLY',
+                'generated_utc':datetime.now(timezone.utc).isoformat(),
+                'job':safe,'trace_id':previous_trace,'trace_events':entries,
+                'verified_events':len(entries)}
+        if not page['events']:raise PilotError('PILOT_FILE_CHANGED')
+    raise PilotError('PILOT_FILE_CHANGED')
+
+
+def export_diagnostics(client,job_id,destination):
+    report=diagnostic_report(client,job_id)
+    payload=json.dumps(report,indent=2,sort_keys=True,ensure_ascii=True).encode('ascii')
+    if len(payload)>1024*1024:raise PilotError('PILOT_FILE_CHANGED')
+    handle=os.open(destination,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+    try:
+        with os.fdopen(handle,'wb',closefd=False) as output:
+            output.write(payload)
+            output.flush()
+            os.fsync(output.fileno())
+    finally:
+        os.close(handle)
+    return {'report':str(destination),'event_count':report['verified_events']}
+
+
 def main(argv=None):
     parser=argparse.ArgumentParser(description='MinionOne complete local-system test pilot')
     parser.add_argument('--state',type=Path,default=None)
@@ -352,6 +410,8 @@ def main(argv=None):
     workspace_test.add_argument('--project-root',required=True,type=Path)
     workspace_test.add_argument('--timeout',type=int,default=900)
     export=sub.add_parser('export');export.add_argument('--job',required=True);export.add_argument('--out',type=Path,required=True)
+    diag=sub.add_parser('diagnostics',help='Export durable redacted job trace as JSON (create-only)')
+    diag.add_argument('--job',required=True);diag.add_argument('--out',type=Path,required=True)
     resolve=sub.add_parser('resolve');resolve.add_argument('--job',required=True);resolve.add_argument('--confirm-provider-stopped',action='store_true',required=True)
     sub.add_parser('facts')
     args=parser.parse_args(argv)
@@ -386,7 +446,7 @@ def main(argv=None):
                                model_call_seconds=args.model_call_seconds,min_free_mb=args.min_free_mb)
             token=_token(state,True)
             server=LocalMCP(('127.0.0.1',port),token=token,database_path=state/'jobs.sqlite',
-                lmstudio_url=config.base_url,enable_test_jobs=True,worker_model=model,worker_api_key=config.api_key,
+                lmstudio_url=config.base_url,enable_test_jobs=not args.experimental_workspace_jobs,worker_model=model,worker_api_key=config.api_key,
                 min_free_mb=config.min_free_mb,model_call_seconds=config.model_call_seconds,
                 workspace_projects=projects or None,
                 enable_workspace_jobs=args.experimental_workspace_jobs)
@@ -424,6 +484,10 @@ def main(argv=None):
             path.write_text(json.dumps(report,indent=2),encoding='utf-8')
             print(json.dumps(report,indent=2));print('REPORT: '+str(path))
             return 0 if report['passed'] else 2
+        if args.command=='diagnostics':
+            receipt=export_diagnostics(client,args.job,args.out)
+            print(json.dumps({'ok':True,'diagnostics':receipt},sort_keys=True))
+            return 0
         if args.command=='export':
             result=client.tool('minionone_test_result',{'job_id':args.job});export_result(result,args.out)
             print('RESULT_ZIP_CREATED');return 0

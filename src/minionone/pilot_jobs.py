@@ -225,6 +225,7 @@ class PilotJobs:
         publication_started=False
         io_published=False
         workspace_job=False
+        live_logs=None
         try:
             with self.owner._connection() as con:
                 configured=con.execute('SELECT model_id FROM pilot_runs WHERE job_id=?',(job,)).fetchone()
@@ -260,6 +261,12 @@ class PilotJobs:
                         raise PilotError('PILOT_FILE_CHANGED')
                 elif _digest({'task':task,'files':sealed})!=row['input_digest']:
                     raise PilotError('PILOT_FILE_CHANGED')
+            if workspace_job:
+                opening=self.workspace_execution.open_live_logs(job)
+                opening.__enter__()
+                live_logs=opening
+            if getattr(self,"process_logs",None) is not None:
+                self.process_logs.event("WORKER_STARTED",attempt=1)
             instructions=task_message(task,names)
             def worker_io_sink(kind,body):
                 # SENSITIVE exact external model JSON request/response bodies
@@ -267,20 +274,27 @@ class PilotJobs:
                 with self.owner._connection() as io_con:
                     io_con.execute('BEGIN IMMEDIATE')
                     self._current(io_con,job,cap)
-                    append_worker_io(io_con,job,kind,body)
+                    append_worker_io(io_con,job,kind,body,live_writer=live_logs)
             provider=LMStudioAgentProvider(self.config.base_url,model_id=self.config.model_id,
                         approved_prompt=instructions,system_prompt=SYSTEM_POLICY,
                         max_output_tokens=2048,api_key=self.config.api_key,
                         io_sink=worker_io_sink if workspace_job else None)
             provider._provider._opener=DeadlineOpener(self.config.base_url,self.config.api_key)
-            observed=ObservedProvider(self,job,cap,provider)
+            observed=ObservedProvider(self,job,cap,provider,live_logs=live_logs)
             broker=DocumentBroker(self,job,cap)
             run=AgentLoop(AgentLimits(wall_seconds=self.config.wall_seconds,
                     model_call_seconds=self.config.model_call_seconds)).run(observed,broker,
                     cancelled=lambda:self._cancelled(job))
             if workspace_job:
-                # Publish the full exact transcript before claiming RESULT_READY.
-                self.workspace_execution.publish_worker_io(job)
+                # Each exact event has already been fsynced into output/;
+                # no end-of-run publication from SQLite is needed.
+                with self.owner._connection() as io_con:
+                    io_con.execute('BEGIN')
+                    from .worker_io import jsonl as verified_io_jsonl
+                    verified=verified_io_jsonl(io_con,job)
+                if not verified or len(verified)!=live_logs._sizes["worker-io.jsonl"]:
+                    raise PilotError('PILOT_FILE_CHANGED')
+                live_logs.job_event('JOB_OUTCOME',{'outcome':run.status})
                 io_published=True
             if run.status=='AWAITING_REVIEW':
                 if row['job_kind']=='WORKSPACE':
@@ -298,19 +312,35 @@ class PilotJobs:
             code=safe_tool_fault(exc).code
             if workspace_job and not io_published:
                 try:
-                    with self.owner._connection() as io_con:
-                        io_con.execute('BEGIN IMMEDIATE')
-                        append_worker_io(io_con,job,'CAPTURE_ERROR',
-                                         json.dumps({'error_code':code},sort_keys=True))
-                    self.workspace_execution.publish_worker_io(job)
+                    if live_logs is not None:
+                        live_logs.job_event('JOB_LOG_ERROR',{'error_code':code})
+                        with self.owner._connection() as io_con:
+                            io_con.execute('BEGIN IMMEDIATE')
+                            append_worker_io(io_con,job,'CAPTURE_ERROR',
+                                json.dumps({'error_code':code},sort_keys=True),
+                                live_writer=live_logs)
+                    else:
+                        # Pre-open failure: old manager-publisher recovery
+                        # handles any absent transcript without clobbering.
+                        with self.owner._connection() as io_con:
+                            io_con.execute('BEGIN IMMEDIATE')
+                            append_worker_io(io_con,job,'CAPTURE_ERROR',
+                                json.dumps({'error_code':code},sort_keys=True))
+                        self.workspace_execution.publish_worker_io(job)
                     io_published=True
                 except Exception:
-                    # A broken SQLite/native transcript boundary is not safe
-                    # to treat as a successful, fully accounted execution.
                     publication_started=True
+            if getattr(self,'process_logs',None) is not None:
+                try:self.process_logs.failure('WORKER_FAILED',exc,error_code=code)
+                except Exception:publication_started=True
             try:self._finish(job,'NEEDS_RECONCILIATION' if publication_started else 'FAILED',code)
             except Exception:pass  # DB outage leaves the durable active intent for restart quarantine.
         finally:
+            if live_logs is not None:
+                try:live_logs.__exit__(None,None,None)
+                except Exception as log_error:
+                    if getattr(self,'process_logs',None) is not None:
+                        self.process_logs.failure('JOB_LOG_CLOSE_FAILED',log_error)
             with self._lock:self._threads.discard(threading.current_thread())
 
     def _cancelled(self,job):
@@ -478,14 +508,17 @@ class DocumentBroker:
             return BrokerReply('ok','OK',data)
 
 class ObservedProvider:
-    def __init__(self,manager,job,cap,provider):
+    def __init__(self,manager,job,cap,provider,live_logs=None):
         self.m=manager;self.job=job;self.cap=cap;self.provider=provider;self.uncertain=False;self.error_code=None
+        self.live_logs=live_logs
     def next_step(self,*,timeout_seconds):
         with self.m.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE');self.m._current(con,self.job,self.cap)
             con.execute('UPDATE pilot_runs SET turns=turns+1,provider_inflight=1 WHERE job_id=?',(self.job,))
             turn=con.execute('SELECT turns FROM pilot_runs WHERE job_id=?',(self.job,)).fetchone()[0]
             log_event(con,self.job,'DEBUG','MODEL_REQUEST_STARTED',{'turn':turn,'attempt':1})
+        if self.live_logs is not None:
+            self.live_logs.job_event('MODEL_REQUEST_STARTED',{'turn':turn,'attempt':1})
         started=time.monotonic_ns()
         try:step=self.provider.next_step(timeout_seconds=timeout_seconds)
         except Exception as exc:
@@ -496,6 +529,9 @@ class ObservedProvider:
                 con.execute('BEGIN IMMEDIATE')
                 log_event(con,self.job,'DEBUG','MODEL_REQUEST_FAILED',
                           {'turn':turn,'duration_ms':elapsed,'error_code':self.error_code,'attempt':1})
+            if self.live_logs is not None:
+                self.live_logs.job_event('MODEL_REQUEST_FAILED',
+                    {'turn':turn,'duration_ms':elapsed,'error_code':self.error_code})
             raise
         elapsed=min(4_000_000_000,max(0,(time.monotonic_ns()-started)//1_000_000))
         with self.m.owner._connection() as con:
@@ -503,6 +539,9 @@ class ObservedProvider:
             con.execute('UPDATE pilot_runs SET provider_inflight=0,tokens=tokens+? WHERE job_id=?',(step.total_tokens,self.job))
             log_event(con,self.job,'DEBUG','MODEL_REQUEST_FINISHED',
                       {'turn':turn,'duration_ms':elapsed,'tokens':step.total_tokens,'attempt':1})
+        if self.live_logs is not None:
+            self.live_logs.job_event('MODEL_REQUEST_FINISHED',
+                {'turn':turn,'duration_ms':elapsed,'tokens':step.total_tokens})
         return step
     def observe_tool(self,name,reply):
         from .agent_loop import ALLOWED_WORKER_TOOLS
@@ -512,4 +551,7 @@ class ObservedProvider:
             con.execute('UPDATE pilot_runs SET tools=tools+1,denials=denials+? WHERE job_id=?',(int(reply.status=='DENIED'),self.job))
             log_event(con,self.job,'DEBUG','WORKER_TOOL_COMPLETED',
                       {'tool':safe_name,'result_code':reply.result_code,'attempt':1})
+        if self.live_logs is not None:
+            self.live_logs.job_event('WORKER_TOOL_COMPLETED',
+                {'tool':safe_name,'result_code':reply.result_code})
         self.provider.observe_tool(name,reply)

@@ -66,17 +66,24 @@ class TimeoutControlStore:
     def status(self, parent_token, thread_id, job_id):
         principal=self.owner._principal(parent_token,thread_id)
         with self.owner._connection() as con:
+            con.execute('BEGIN')
             row=self.owner._owned_row(con,principal,thread_id,job_id)
-            record=con.execute("SELECT * FROM timeout_records WHERE job_id=?",
-                               (job_id,)).fetchone()
-            if record is None:
-                return None
-            fence=con.execute(
-                "SELECT status,attempt_epoch FROM attempt_fences WHERE job_id=?",
-                (job_id,)).fetchone()
-            verified=bool(fence is not None and fence["status"]=="FENCED" and
-                          fence["attempt_epoch"]==record["attempt_epoch"])
-            return self._view(row,record,verified)
+            return self.project(con,row)
+
+    @staticmethod
+    def project(con,row):
+        # Called only after owner authorization, on the same read snapshot.
+        job_id=row['job_id']
+        record=con.execute("SELECT * FROM timeout_records WHERE job_id=?",
+                           (job_id,)).fetchone()
+        if record is None:
+            return None
+        fence=con.execute(
+            "SELECT status,attempt_epoch FROM attempt_fences WHERE job_id=?",
+            (job_id,)).fetchone()
+        verified=bool(fence is not None and fence["status"]=="FENCED" and
+                      fence["attempt_epoch"]==record["attempt_epoch"])
+        return TimeoutControlStore._view(row,record,verified)
 
     def record_timeout(self, job_id, *, expected_version, attempt_epoch,
                        worker_quiescent, checkpoint_sha256, operation_id):

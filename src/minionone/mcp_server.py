@@ -4,6 +4,7 @@ import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import threading
+import time
 from urllib.parse import urlsplit
 from . import __version__
 from .admission import AdmissionStore, InputRejected, PermissionDenied, IdempotencyConflict, VersionConflict
@@ -25,6 +26,21 @@ TOOLS = [
 ]
 TOOL_MAP = {t["name"]: t for t in TOOLS}
 
+PILOT_TOOLS = [
+ {'name':'minionone_wait_test_job','description':'Wait up to 20 seconds for a test-job outcome, then return one consistent status snapshot. Repeat while still running.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'},'wait_seconds':{'type':'integer','minimum':1,'maximum':20}},'required':['job_id'],'additionalProperties':False}},
+ {'name':'minionone_submit_test_job','description':'Submit bounded UTF-8 test documents to the isolated manager document store. Never reads host paths.',
+  'inputSchema':{'type':'object','properties':{'task':{'type':'string','maxLength':3500},'files':{'type':'object','maxProperties':4,'additionalProperties':{'type':'string','maxLength':3500}},'operation_id':{'type':'string'}},'required':['task','files','operation_id'],'additionalProperties':False}},
+ {'name':'minionone_run_test_job','description':'Start one real bounded LM Studio test job. Poll minionone_job_status until RESULT_READY, then read and accept the result.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'},'expected_version':{'type':'integer'},'operation_id':{'type':'string'}},'required':['job_id','expected_version','operation_id'],'additionalProperties':False}},
+ {'name':'minionone_test_result','description':'Read the authorized immutable result files and digest; model output remains untrusted data.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'}},'required':['job_id'],'additionalProperties':False}},
+ {'name':'minionone_accept_test_result','description':'Explicit parent acceptance of the exact delivered test result. Never executes or merges output into project files.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'},'expected_version':{'type':'integer'},'result_digest':{'type':'string'},'operation_id':{'type':'string'}},'required':['job_id','expected_version','result_digest','operation_id'],'additionalProperties':False}},
+ {'name':'minionone_cancel_test_job','description':'Fence test-job tools and request cancellation. Provider uncertainty remains quarantined.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'},'expected_version':{'type':'integer'},'operation_id':{'type':'string'}},'required':['job_id','expected_version','operation_id'],'additionalProperties':False}},
+]
+
 def _error(ident, code, message):
     return {"jsonrpc":"2.0","id":ident,"error":{"code":code,"message":message}}
 
@@ -32,7 +48,9 @@ class LocalMCP(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(self, address, *, token, database_path, principal="local-operator",
-                 thread="configured-pilot", lmstudio_url="http://127.0.0.1:1234"):
+                 thread="configured-pilot", lmstudio_url="http://127.0.0.1:1234",
+                 enable_test_jobs=False,worker_model=None,worker_api_key=None,
+                 min_free_mb=4096,model_call_seconds=60):
         if (type(address) is not tuple or len(address) != 2 or
             address[0] != "127.0.0.1" or type(address[1]) is not int or
             not 0 <= address[1] <= 65535):
@@ -40,23 +58,47 @@ class LocalMCP(ThreadingHTTPServer):
         if (type(token) is not str or not 32 <= len(token) <= 512 or
             not token.isascii() or any(ord(c)<33 or ord(c)>126 for c in token)):
             raise ValueError("strong bearer credential required")
+        if type(enable_test_jobs) is not bool:raise ValueError('invalid test-job switch')
+        self.pilot=None;self._pilot_lock=None
+        self.tools=TOOLS+(PILOT_TOOLS if enable_test_jobs else [])
+        self.tool_map={t['name']:t for t in self.tools}
+        if enable_test_jobs:
+            from .pilot_lock import PilotLock
+            self._pilot_lock=PilotLock(database_path)
         self.credential = token
         self.thread_id = thread
-        self.store = AdmissionStore(database_path, credentials={token:(principal,{thread})})
-        # Recover external-effect uncertainty BEFORE opening the listening socket.
-        # Partial recovery failures propagate; never serve requests in that case.
-        self.outbox = OutboxStore(database_path)
-        self.attempt_fences = AttemptFenceStore(database_path)
-        self.timeout_control = TimeoutControlStore(self.store)
-        outbox_count = self.outbox.quarantine_in_flight()
-        attempt_count = self.attempt_fences.fence_unreconciled()
-        self.recovery_summary = {
-            "outbox_quarantined": outbox_count,
-            "attempts_fenced": attempt_count,
-        }
-        self.probe = LMStudioProbe(lmstudio_url)
-        self._slots=threading.BoundedSemaphore(8)
-        super().__init__(address, MCPHandler)
+        try:
+            self.store = AdmissionStore(database_path, credentials={token:(principal,{thread})})
+            # Recover external-effect uncertainty BEFORE opening the listening socket.
+            # Partial recovery failures propagate; never serve requests in that case.
+            self.outbox = OutboxStore(database_path)
+            self.attempt_fences = AttemptFenceStore(database_path)
+            self.timeout_control = TimeoutControlStore(self.store)
+            outbox_count = self.outbox.quarantine_in_flight()
+            attempt_count = self.attempt_fences.fence_unreconciled()
+            self.recovery_summary = {
+                "outbox_quarantined": outbox_count,
+                "attempts_fenced": attempt_count,
+            }
+            if enable_test_jobs:
+                from .pilot_jobs import PilotJobs,PilotConfig
+                self.pilot=PilotJobs(self.store,PilotConfig(worker_model,lmstudio_url,worker_api_key,
+                                    model_call_seconds=model_call_seconds,min_free_mb=min_free_mb))
+                self.recovery_summary['test_jobs_quarantined']=self.pilot.recover()
+            self.probe = LMStudioProbe(lmstudio_url,api_key=worker_api_key)
+            self._slots=threading.BoundedSemaphore(8)
+            super().__init__(address, MCPHandler)
+        except BaseException:
+            if self._pilot_lock is not None:self._pilot_lock.close()
+            raise
+
+    def server_close(self):
+        try:
+            if self.pilot is not None:self.pilot.close()
+        finally:
+            try:super().server_close()
+            finally:
+                if self._pilot_lock is not None:self._pilot_lock.close()
 
     def process_request(self, request, client_address):
         if not self._slots.acquire(blocking=False):
@@ -75,27 +117,26 @@ class LocalMCP(ThreadingHTTPServer):
             self._slots.release()
 
     def call_tool(self, name, args):
-        if type(args) is not dict or name not in TOOL_MAP:
+        if type(args) is not dict or name not in self.tool_map:
             raise InputRejected("unknown tool or arguments")
-        spec = TOOL_MAP[name]["inputSchema"]
+        spec = self.tool_map[name]["inputSchema"]
         if not set(spec.get("required",())) <= set(args) or set(args) - set(spec["properties"]):
             raise InputRejected("missing or unexpected arguments")
         token, thread = self.credential, self.thread_id
         if name == "minionone_status":
-            return {"phase":"mcp-pilot","release_gate":"NO_GO",
+            return {"phase":"system-test-pilot" if self.pilot else "mcp-pilot","release_gate":"NO_GO",
+                    "test_readiness":"READY_FOR_LOCAL_SYSTEM_TEST" if self.pilot else "CONNECTION_ONLY",
                     "mcp_transport_available":True,"unsloth_live_verified":False,
-                    "parent_thread_attested":False,"worker_execution_enabled":False,
+                    "parent_thread_attested":False,"worker_execution_enabled":self.pilot is not None,
+                    "worker_file_backend":"sqlite_documents" if self.pilot else None,
+                    "host_filesystem_tools_enabled":False,
                     "windows_file_broker_verified":False,"auto_wakeup_enabled":False}
         if name == "minionone_models":
             return {"models":self.probe.models(),"provider_identity_verified":False}
         if name == "minionone_admit":
             return self.store.admit(token,thread,args["input_digest"],args["operation_id"])
         if name == "minionone_job_status":
-            status = self.store.status(token,thread,args["job_id"])
-            timeout = self.timeout_control.status(token,thread,args["job_id"])
-            if timeout is not None:
-                status = {**status,"timeout":timeout}
-            return status
+            return self.store.status(token,thread,args['job_id'],include_timeout=True)
         if name == "minionone_job_events":
             return {"events":self.store.events(token,thread,args["job_id"])}
         if name == "minionone_abort":
@@ -104,6 +145,25 @@ class LocalMCP(ThreadingHTTPServer):
         if name == "minionone_resume_request":
             return self.timeout_control.request_resume(token,thread,args["job_id"],
                                       args["expected_version"],args["operation_id"])
+        if self.pilot is not None:
+            if name=='minionone_wait_test_job':
+                seconds=args.get('wait_seconds',10)
+                if type(seconds) is not int or not 1<=seconds<=20:raise InputRejected('invalid bounded wait')
+                deadline=time.monotonic()+seconds
+                while True:
+                    status=self.store.status(token,thread,args['job_id'],include_timeout=True)
+                    if 'test_job' not in status:raise InputRejected('not a test job')
+                    if status['state'] not in ('QUEUED','RESOURCE_CHECK','RUNNING','CANCEL_REQUESTED') or time.monotonic()>=deadline:return status
+                    time.sleep(min(.25,max(0,deadline-time.monotonic())))
+            if name=='minionone_submit_test_job':
+                return self.pilot.submit(token,thread,args['task'],args['files'],args['operation_id'])
+            if name=='minionone_run_test_job':
+                return self.pilot.start(token,thread,args['job_id'],args['expected_version'],args['operation_id'])
+            if name=='minionone_test_result':return self.pilot.result(token,thread,args['job_id'])
+            if name=='minionone_accept_test_result':
+                return self.pilot.acknowledge(token,thread,args['job_id'],args['expected_version'],args['result_digest'],args['operation_id'])
+            if name=='minionone_cancel_test_job':
+                return self.pilot.cancel(token,thread,args['job_id'],args['expected_version'],args['operation_id'])
         raise InputRejected("unknown tool")
 
 class MCPHandler(BaseHTTPRequestHandler):
@@ -138,7 +198,8 @@ class MCPHandler(BaseHTTPRequestHandler):
         if self.path != "/mcp":
             self._send(404)
             return False
-        if not hmac.compare_digest(self.headers.get("Authorization",""),"Bearer "+self.server.credential):
+        authorization=self.headers.get('Authorization','')
+        if not authorization.isascii() or not hmac.compare_digest(authorization,"Bearer "+self.server.credential):
             self._send(401,{"error":diagnostic("MCP_AUTH_FAILED").to_dict()})
             return False
         return True
@@ -191,10 +252,10 @@ class MCPHandler(BaseHTTPRequestHandler):
                 result={}
             elif method=="tools/list":
                 if params.get("cursor") is not None: raise InputRejected("bad cursor")
-                result={"tools":TOOLS}
+                result={"tools":self.server.tools}
             elif method=="tools/call":
                 name=params.get("name")
-                if type(name) is not str or name not in TOOL_MAP:
+                if type(name) is not str or name not in self.server.tool_map:
                     self._send(200,_error(ident,-32602,"Unknown tool"));return
                 try:
                     value=self.server.call_tool(name,params.get("arguments",{}))

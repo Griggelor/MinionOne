@@ -1,0 +1,12 @@
+ISOLATED_WHEEL_SYSTEM_TEST_IMPORTS_OK
+usage: pilot_cli.py [-h] [--state STATE]
+                    {serve,connection,self-test,export,resolve,facts} ...
+
+MinionOne complete local-system test pilot
+
+positional arguments:
+  {serve,connection,self-test,export,resolve,facts}
+
+options:
+  -h, --help            show this help message and exit
+  --state STATE

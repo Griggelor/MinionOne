@@ -95,7 +95,7 @@ class _PublisherNative(_NativeWriter):
         ctypes.memmove(ctypes.addressof(buffer)+_FileRenameInfo.FileName.offset,
                        encoded, len(encoded))
         if not self.rename(source, _FILE_RENAME_INFO, buffer, total):
-            raise InputRejected("Windows atomic no-replace output rename denied")
+            raise InputRejected("Windows atomic no-replace output rename denied (win32=%d)" % ctypes.get_last_error())
 
     def read_verified(self, handle, digest, size, volume):
         self.validate(handle, directory=False, volume=volume, single_link=True)

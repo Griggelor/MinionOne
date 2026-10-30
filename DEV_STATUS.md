@@ -1,6 +1,6 @@
 # Development status — 2026-10-30
 
-**Version:** 0.23.0.dev0 (GitHub development; release NO-GO)
+**Version:** 0.24.0.dev0 (GitHub development; PRODUCT NO-GO)
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
 
 ## v0.18.0.dev0 — complete test-document job path
@@ -181,8 +181,13 @@ be checked independently; these numbers are commit-specific.
 - 12 native Windows tests passed on GitHub runner (plus 1 POSIX-only skip), separate runner-level feasibility evidence.
 - **Still blocked:** atomic publication, crash recovery, durable quotas/fencing, manager-only output, on-target ACL tests and real workspace worker execution. Product approval remains NO-GO.
 
-## v0.23.0.dev0 – durable POSIX manager-only candidate publication
+## v0.24.0.dev0 – durable POSIX manager-only candidate publication
 
 - Persistent SQLite receipt `PENDING`→`PUBLISHED`, exact idempotency, durable quotas and manager-pinned content.
 - POSIX descriptor-relative `output/` publication, pending-file fsync, no-clobber atomic hardlink, replay on crash, directory locking and strict artifact hashes; 13 POSIX targeted tests.
 - Windows manager output publisher, Flint execution, job start, actual target Windows ACL/fault evidence and parent ACK remain BLOCKED. Product target remains NO-GO.
+
+## v0.24.0.dev0 – native Windows manager-only publication prototype
+
+- SQLite journal shared with POSIX, native output directory handle anchoring, pending-file hash and atomic no-overwrite rename, replay after SQLite/NTFS interruption.
+- Native tests seed ADMITTED status only in fixtures; Windows input seal remains fail-closed, worker filesystem permissions disabled. Real deployment G1b and E2E gates not met.

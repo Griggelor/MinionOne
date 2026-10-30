@@ -156,6 +156,13 @@ def main():
       '', 'Exact per-case details: `PRODUCT_STATUS.json`.','']
     (out/'PRODUCT_STATUS.md').write_text('\n'.join(md),encoding='utf-8')
     print(f"PRODUCT_READY={product_pass} | CASES={len(cases)} | {counts} | WORKSPACE_LOCAL={report['execution']['passed']}/{result.testsRun} | SEAL_LOCAL={report['seal_security_execution']['passed']}/{seal_result.testsRun}")
+    for component, suite_result in (
+        ('workspace_mcp', result), ('posix_seal', seal_result),
+        ('posix_publication', publish_result),
+        ('win32_output', native_result), ('win32_input_seal', winseal_result)):
+        for failed_test, trace in suite_result.failures + suite_result.errors:
+            print('COMPONENT_TEST_FAILURE',component,failed_test.id(),
+                  trace[-1500:],file=sys.stderr)
     if (result.failures or result.errors or seal_result.failures or seal_result.errors or
             publish_result.failures or publish_result.errors or
             native_result.failures or native_result.errors or

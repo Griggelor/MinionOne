@@ -150,8 +150,9 @@ im lokalen State-Verzeichnis:
 Im Standard-Windows-Systemtest liegt `<state>` unter
 `%LOCALAPPDATA%\MinionOne\SystemTest`; bei `--state` gilt der
 angegebene Ordner. Die beiden Dateien werden direkt mit `fsync`
-geschrieben, bei 8 MiB in zeitgestempelte Archivsegmente rotiert und
-nicht automatisch bei Jobabschluss gelöscht. Sie sind ohne SQLite und
+geschrieben, bei 8 MiB in zeitgestempelte Archivsegmente rotiert und bis zu 16
+ältere Segmente pro Logtyp aufbewahrt. Bei Überschreiten werden nur
+die ältesten Archivsegmente gelöscht, **niemals** beim Jobabschluss. Sie sind ohne SQLite und
 ohne MinionOne direkt lesbar.
 
 Prozess- und Fehlerlogs verwenden nur ein streng zugelassenes

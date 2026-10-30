@@ -84,8 +84,8 @@ def main():
     for case in cases:counts[case['verification']]=counts.get(case['verification'],0)+1
     product_pass=all(c['verification']=='PASS_TARGET_E2E' for c in cases)
     report={'schema_version':1,'generated_utc':datetime.now(timezone.utc).isoformat(),
-      'version':'0.20.0.dev0 (unmerged development, not production)',
-      'baseline':'v0.19.0.dev0 (local development WIP; v0.18 upstream main fbe00f2)',
+      'version':'0.21.0.dev0 (native Windows read-only broker WIP; NOT product-approved)',
+      'baseline':'v0.20.0.dev0 (GitHub main baseline PR #35)',
       'environment':{'os':platform.system(),'python':platform.python_version()},
       'execution':{'command':'PYTHONPATH=src python scripts/run_product_status.py',
         'tests_run':result.testsRun,'passed':result.testsRun-len(result.failures)-len(result.errors)-len(result.skipped),

@@ -2,7 +2,7 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.20.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.21.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
 **New v0.19 WIP:** opt-in operator-approved project workspace staging with a durable PREPARING job ID (no seal, no worker file access, no Windows NTFS sandbox). See [target workflow](docs/PRODUCT_TARGET_WORKFLOW.md) and [live status evidence](evidence/product-status/PRODUCT_STATUS.md).
 
@@ -142,3 +142,7 @@ These are **requirements**, not implemented Windows security guarantees. A fail-
 ### New local-only v0.20 development capability
 
 With `--project demo=<trusted-root>` enabled, Flash can reserve a job, write `input/TASK.md`, a flat `manifest.json` of SHA-256 digests and other declared inputs, and call `minionone_seal_workspace`. POSIX-only: creates canonical `ACCEPTED` with same job ID and manager-projected `output/job.log.jsonl`; **no Worker start**. Windows fails closed until secure native handles are verified. See `docs/V020_POSIX_SEAL_SCOPE.md`. Provider roadmap: `docs/MODEL_PROVIDER_ROADMAP.md`.
+
+### v0.21 native Windows input broker (G1b development, not product-ready)
+
+A native read-only handle-rooted `input/` broker prototype is tested on a Windows NTFS runner. There is **no Windows MCP seal or worker filesystem permission**, no work/ writer and no real Flint/Unsloth job. See `docs/V021_WINDOWS_READ_BROKER_SCOPE.md`. Target-product acceptance remains NO-GO.

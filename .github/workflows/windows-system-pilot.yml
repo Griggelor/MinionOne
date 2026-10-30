@@ -31,15 +31,15 @@ jobs:
       - name: Test actual frozen app, child process, credential and result ZIP
         run: python integration_tests/frozen_pilot_e2e.py --exe native-dist/MinionOne/MinionOne.exe --report dist/FROZEN_SYSTEM_TEST.json
       - name: Build install-free Windows test package
-        run: python scripts/build_system_test_bundle.py --wheel dist/minionone-0.20.0.dev0-py3-none-any.whl --app native-dist/MinionOne --evidence dist/FROZEN_SYSTEM_TEST.json --output dist/MinionOne_Windows_SystemTest_0.20.0.dev0.zip
+        run: python scripts/build_system_test_bundle.py --wheel dist/minionone-0.21.0.dev0-py3-none-any.whl --app native-dist/MinionOne --evidence dist/FROZEN_SYSTEM_TEST.json --output dist/MinionOne_Windows_SystemTest_0.21.0.dev0.zip
       - name: Package checksum
-        run: python -c "import hashlib,pathlib; p=pathlib.Path('dist/MinionOne_Windows_SystemTest_0.20.0.dev0.zip'); pathlib.Path('dist/MinionOne_Windows_SystemTest_0.20.0.dev0.sha256').write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n')"
+        run: python -c "import hashlib,pathlib; p=pathlib.Path('dist/MinionOne_Windows_SystemTest_0.21.0.dev0.zip'); pathlib.Path('dist/MinionOne_Windows_SystemTest_0.21.0.dev0.sha256').write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n')"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: MinionOne-Windows-SystemTest-0.20.0.dev0
+          name: MinionOne-Windows-SystemTest-0.21.0.dev0
           path: |
-            dist/MinionOne_Windows_SystemTest_0.20.0.dev0.zip
-            dist/MinionOne_Windows_SystemTest_0.20.0.dev0.sha256
+            dist/MinionOne_Windows_SystemTest_0.21.0.dev0.zip
+            dist/MinionOne_Windows_SystemTest_0.21.0.dev0.sha256
             dist/FROZEN_SYSTEM_TEST.json
           if-no-files-found: error
           retention-days: 30

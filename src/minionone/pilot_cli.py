@@ -446,7 +446,7 @@ def main(argv=None):
                                model_call_seconds=args.model_call_seconds,min_free_mb=args.min_free_mb)
             token=_token(state,True)
             server=LocalMCP(('127.0.0.1',port),token=token,database_path=state/'jobs.sqlite',
-                lmstudio_url=config.base_url,enable_test_jobs=True,worker_model=model,worker_api_key=config.api_key,
+                lmstudio_url=config.base_url,enable_test_jobs=not args.experimental_workspace_jobs,worker_model=model,worker_api_key=config.api_key,
                 min_free_mb=config.min_free_mb,model_call_seconds=config.model_call_seconds,
                 workspace_projects=projects or None,
                 enable_workspace_jobs=args.experimental_workspace_jobs)

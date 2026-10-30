@@ -22,6 +22,7 @@ from .workspace_input_snapshot import SealedWorkspaceInput
 from .workspace_publication import WorkspacePublisher
 from .win32_output_publication import WindowsOutputPublisher
 from .worker_io import page as io_page, jsonl as io_jsonl, append as io_append
+from .live_job_files import LiveJobFiles
 import os
 
 
@@ -213,6 +214,10 @@ class WorkspaceJobs:
     def cancel(self, token, thread, job_id, expected_version, operation_id):
         return self.pilot.cancel(token,thread,job_id,expected_version,
                                  operation_id,kind="WORKSPACE")
+
+    def open_live_logs(self,job_id):
+        """Manager-owned native pinned direct JSONL files, one worker per job."""
+        return LiveJobFiles(self,job_id)
 
     def worker_io(self,token,thread,job_id,after_seq=0,limit=10):
         """Content-bearing sensitive live transcript; authorized parent ONLY."""

@@ -1,4 +1,7 @@
 name: Native Windows manager output publication feasibility (NOT product gate)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 on:
   pull_request:
   push:

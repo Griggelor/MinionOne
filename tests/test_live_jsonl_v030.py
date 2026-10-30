@@ -118,13 +118,14 @@ class ProcessLoggerIndependence(unittest.TestCase):
     def test_rotation_keeps_old_segments_and_append_survives_restart(self):
         with tempfile.TemporaryDirectory() as temp:
             state=Path(temp)/"jobs.sqlite"
-            with patch("minionone.process_logs._LIMIT",300):
+            with patch("minionone.process_logs._LIMIT",300), \
+                 patch("minionone.process_logs._MAX_ARCHIVES",2):
                 logs=ProcessLogs(state)
-                for n in range(6):
+                for n in range(20):
                     logs.event("SAFE_TEST_EVENT",counter=n)
                 logs.close()
             archived=list((state.parent/"logs").glob("minionone-process.*.jsonl"))
-            self.assertTrue(archived)
+            self.assertEqual(len(archived),2)
             logs=ProcessLogs(state)
             logs.event("AFTER_RESTART")
             logs.close()

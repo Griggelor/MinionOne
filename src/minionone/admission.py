@@ -160,6 +160,8 @@ class AdmissionStore:
             )''')
             from .job_telemetry import install
             install(con)
+            from .worker_io import install as install_worker_io
+            install_worker_io(con)
 
     def _migrate_legacy_jobs(self, con):
         sqlrow = con.execute(

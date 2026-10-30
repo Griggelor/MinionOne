@@ -21,6 +21,7 @@ from .lifecycle import Evidence
 from .workspace_input_snapshot import SealedWorkspaceInput
 from .workspace_publication import WorkspacePublisher
 from .win32_output_publication import WindowsOutputPublisher
+from .worker_io import page as io_page, jsonl as io_jsonl, append as io_append
 import os
 
 
@@ -213,6 +214,40 @@ class WorkspaceJobs:
         return self.pilot.cancel(token,thread,job_id,expected_version,
                                  operation_id,kind="WORKSPACE")
 
+    def worker_io(self,token,thread,job_id,after_seq=0,limit=10):
+        """Content-bearing sensitive live transcript; authorized parent ONLY."""
+        principal=self.workspace.store._principal(token,thread)
+        with self.workspace.store._connection() as con:
+            con.execute("BEGIN")
+            row=self.workspace.store._owned_row(con,principal,thread,job_id)
+            if row['job_kind']!='WORKSPACE':
+                raise PermissionDenied("worker IO transcript requires a workspace job")
+            return io_page(con,job_id,after_seq,limit)
+
+    def publish_worker_io(self,job_id):
+        """Project complete verified sensitive transcript as immutable output.
+
+        Run only after the worker's final model/tool exchange has quiesced.
+        DB journal is the durable source, native publisher handles crash replay.
+        """
+        principal=self.workspace.store._principal(self.token,self.thread)
+        with self.workspace.store._connection() as con:
+            con.execute("BEGIN IMMEDIATE")
+            row=self.workspace.store._owned_row(con,principal,self.thread,job_id)
+            if row['job_kind']!='WORKSPACE':
+                raise PermissionDenied("worker IO output is workspace-only")
+            payload=io_jsonl(con,job_id)
+            if not payload:
+                # Even a zero-call worker must have an authenticated, hashed
+                # journal entry; never fabricate an unlinked JSONL line.
+                io_append(con,job_id,'CAPTURE_ERROR',
+                          json.dumps({'error_code':'NO_WORKER_IO'},sort_keys=True))
+                payload=io_jsonl(con,job_id)
+        name="worker-io.jsonl"
+        operation="ws-io-"+sha256((job_id+"\0"+name).encode("ascii")).hexdigest()[:40]
+        self.publisher.stage(self.token,self.thread,job_id,name,payload,operation)
+        return self.publisher.publish(self.token,self.thread,job_id,name,operation)
+
     def publish_finished(self, job_id, cap):
         """Executed only after AgentLoop returns AWAITING_REVIEW.
 
@@ -230,6 +265,8 @@ class WorkspaceJobs:
                 raise InputRejected("workspace worker did not publish an artifact")
             outputs = [(r["name"], r["content"].encode("utf-8"), r["digest"]) for r in rows]
         for name,content,digest in outputs:
+            if name.casefold() in ('worker-io.jsonl','job.log.jsonl'):
+                raise InputRejected("worker cannot publish manager reserved log filename")
             if sha256(content).hexdigest()!=digest:
                 raise InputRejected("workspace output digest invalid")
             operation = "ws-pub-"+sha256((job_id+"\0"+name).encode()).hexdigest()[:40]

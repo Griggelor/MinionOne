@@ -83,7 +83,10 @@ class AgentLimits:
 class ModelStep:
     """Provider output is untrusted. Reasoning tokens are PART of total_tokens.
 
-    Never log chain-of-thought or directly publish text from a model step.
+    The coordinator never publishes untrusted model text as a result. In the
+    explicitly enabled workspace mode, the transport archives the exact
+    provider JSON response (including any returned thinking fields) in a
+    sensitive worker-I/O transcript, separate from redacted audit logs.
     """
     action: str
     name: str | None = None

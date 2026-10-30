@@ -250,6 +250,9 @@ def _commit_captured(workspace,token,thread,job_id,operation_id,principal,row,sn
             con.execute('''INSERT INTO admission_events
                         (job_id,seq,status,operation_id,actor,occurred_utc)
                         VALUES (?,1,'ACCEPTED',?,'MANAGER',?)''',(job_id,operation_id,now))
+            from .job_telemetry import append
+            append(con,job_id,'AUDIT','JOB_ACCEPTED',
+                   {'state':'ACCEPTED','version':1})
     _write_projection(workspace,row,workspace.store.events(token,thread,job_id))
     return receipt
 

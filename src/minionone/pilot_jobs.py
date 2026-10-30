@@ -343,7 +343,7 @@ class PilotJobs:
                             io_con.execute('BEGIN IMMEDIATE')
                             append_worker_io(io_con,job,'CAPTURE_ERROR',
                                 json.dumps({'error_code':code},sort_keys=True))
-                        self.workspace_execution.publish_worker_io(job)
+                        self.workspace_execution.publish_worker_io_fallback(job)
                     io_published=True
                 except Exception:
                     publication_started=True

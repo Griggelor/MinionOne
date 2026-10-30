@@ -138,8 +138,7 @@ class WorkspaceDispatchMCP(unittest.TestCase):
         ready=self.call("minionone_workspace_result",{"job_id":self.job})
         self.assertEqual(ready["files"][0]["text"],"Sandbox result")
         self.assertEqual(ready["job_id"],self.job)
-        with self.assertRaises(AssertionError):
-            self.call("minionone_test_result",{"job_id":self.job})
+        self.assertNotIn("minionone_test_result",self.srv.tool_map)
         acknowledged=self.call("minionone_accept_workspace_result",{
             "job_id":self.job,"expected_version":ready["version"],
             "result_digest":ready["result_digest"],"operation_id":"ack-test-v026-001"})

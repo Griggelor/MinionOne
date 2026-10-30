@@ -62,6 +62,15 @@ class WindowsOutputPublisherTests(unittest.TestCase):
             self.assertEqual(db.execute("SELECT state FROM workspace_publications").fetchone()[0],
                              "PENDING")
 
+    def test_approved_output_directory_stays_pinned_against_rename(self):
+        self.stage()
+        approved=self.publisher._row(TOKEN,"thread",self.job)
+        with _output_directory(self.workspace,approved):
+            with self.assertRaises(OSError):
+                self.out.rename(self.out.with_name("output-escaped"))
+        self.assertTrue(self.out.is_dir())
+        self.assertFalse(self.out.with_name("output-escaped").exists())
+
     def test_atomic_final_and_repeat_after_restart(self):
         self.stage(b"\x00result\xff")
         receipt=self.publish()

@@ -49,8 +49,24 @@ class WorkspaceJobs:
                 if row["job_kind"] != "WORKSPACE":
                     raise IdempotencyConflict("workspace operation kind conflict")
                 return previous
-            if row["job_kind"] != "NON_EXECUTING" or row["state"] != "ACCEPTED" or row["version"] != expected_version:
+            operation_marker = "workspace-queued-"+sha256(operation_id.encode()).hexdigest()[:24]
+            # A crash may occur AFTER the durable queue transition but BEFORE
+            # PilotJobs.start records its START receipt. Only the identical
+            # operation/version may recover that exact queued intent.
+            queued = (row["job_kind"]=="WORKSPACE" and
+                      row["state"]=="QUEUED" and
+                      row["version"]==expected_version+1 and
+                      con.execute("""SELECT 1 FROM admission_events
+                          WHERE job_id=? AND status='QUEUED' AND operation_id=?""",
+                          (job_id,operation_marker)).fetchone() is not None)
+            if not queued and (row["job_kind"] != "NON_EXECUTING" or
+                               row["state"] != "ACCEPTED" or
+                               row["version"] != expected_version):
                 raise VersionConflict("workspace not accepted at expected version")
+        if queued:
+            self.workspace.verify_input(token,thread,job_id)
+            return self.pilot.start(token,thread,job_id,expected_version+1,
+                                    operation_id,kind="WORKSPACE")
         # Refuse a changed on-disk input even when its manifest was also rewritten.
         self.workspace.verify_input(token,thread,job_id)
         with self.workspace.store._connection() as con:

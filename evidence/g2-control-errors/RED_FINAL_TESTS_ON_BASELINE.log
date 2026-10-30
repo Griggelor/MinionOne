@@ -1,0 +1,262 @@
+test_accepted_receipt_still_replays_after_conflicting_payload (test_durable_control_errors.DurableControlErrorTests.test_accepted_receipt_still_replays_after_conflicting_payload) ... FAIL
+test_attempt_metadata_is_observed_without_starting_or_unfencing (test_durable_control_errors.DurableControlErrorTests.test_attempt_metadata_is_observed_without_starting_or_unfencing) ... ERROR
+test_changed_payload_cannot_reuse_rejected_key (test_durable_control_errors.DurableControlErrorTests.test_changed_payload_cannot_reuse_rejected_key) ... ERROR
+test_commit_failure_rolls_back_timeline_and_metadata_together (test_durable_control_errors.DurableControlErrorTests.test_commit_failure_rolls_back_timeline_and_metadata_together) ... FAIL
+test_concurrent_same_error_has_one_committed_event (test_durable_control_errors.DurableControlErrorTests.test_concurrent_same_error_has_one_committed_event) ... FAIL
+test_error_quota_is_durable_but_does_not_block_valid_abort (test_durable_control_errors.DurableControlErrorTests.test_error_quota_is_durable_but_does_not_block_valid_abort) ... FAIL
+test_failure_replay_keeps_original_class_after_job_changes (test_durable_control_errors.DurableControlErrorTests.test_failure_replay_keeps_original_class_after_job_changes) ... FAIL
+test_journal_write_failure_is_visible_and_never_claims_success (test_durable_control_errors.DurableControlErrorTests.test_journal_write_failure_is_visible_and_never_claims_success) ... FAIL
+test_old_rejection_replays_after_another_resume_intent (test_durable_control_errors.DurableControlErrorTests.test_old_rejection_replays_after_another_resume_intent) ... ERROR
+test_partial_control_changes_roll_back_before_error_is_committed (test_durable_control_errors.DurableControlErrorTests.test_partial_control_changes_roll_back_before_error_is_committed) ... FAIL
+test_process_crash_before_and_after_journal_commit (test_durable_control_errors.DurableControlErrorTests.test_process_crash_before_and_after_journal_commit) ...
+  test_process_crash_before_and_after_journal_commit (test_durable_control_errors.DurableControlErrorTests.test_process_crash_before_and_after_journal_commit) (mode='before') ... FAIL
+  test_process_crash_before_and_after_journal_commit (test_durable_control_errors.DurableControlErrorTests.test_process_crash_before_and_after_journal_commit) (mode='after') ... FAIL
+test_rejected_future_abort_never_becomes_a_success_on_replay (test_durable_control_errors.DurableControlErrorTests.test_rejected_future_abort_never_becomes_a_success_on_replay) ... FAIL
+test_rejected_resume_never_becomes_executable_when_checkpoint_arrives (test_durable_control_errors.DurableControlErrorTests.test_rejected_resume_never_becomes_executable_when_checkpoint_arrives) ... FAIL
+test_replay_survives_restart_and_does_not_duplicate (test_durable_control_errors.DurableControlErrorTests.test_replay_survives_restart_and_does_not_duplicate) ... FAIL
+test_stale_abort_records_exact_observed_state_and_version (test_durable_control_errors.DurableControlErrorTests.test_stale_abort_records_exact_observed_state_and_version) ... ERROR
+test_status_projects_historical_error_without_changing_job_state (test_durable_control_errors.DurableControlErrorTests.test_status_projects_historical_error_without_changing_job_state) ... ERROR
+test_unowned_wrong_thread_and_wrong_token_cannot_inject_or_read (test_durable_control_errors.DurableControlErrorTests.test_unowned_wrong_thread_and_wrong_token_cannot_inject_or_read) ... FAIL
+test_untrusted_exception_text_and_operation_key_are_not_persisted (test_durable_control_errors.DurableControlErrorTests.test_untrusted_exception_text_and_operation_key_are_not_persisted) ... FAIL
+test_v015_database_gets_additive_journal_without_losing_existing_receipts (test_durable_control_errors.DurableControlErrorTests.test_v015_database_gets_additive_journal_without_losing_existing_receipts) ... ERROR
+test_wire_error_is_visible_after_actual_server_restart (test_durable_control_errors.DurableControlErrorTests.test_wire_error_is_visible_after_actual_server_restart) ... FAIL
+
+======================================================================
+ERROR: test_attempt_metadata_is_observed_without_starting_or_unfencing (test_durable_control_errors.DurableControlErrorTests.test_attempt_metadata_is_observed_without_starting_or_unfencing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 182, in test_attempt_metadata_is_observed_without_starting_or_unfencing
+    error = self.errors()[0]
+            ~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+======================================================================
+ERROR: test_changed_payload_cannot_reuse_rejected_key (test_durable_control_errors.DurableControlErrorTests.test_changed_payload_cannot_reuse_rejected_key)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 126, in test_changed_payload_cannot_reuse_rejected_key
+    self.server.call_tool("minionone_resume_request", self.args(version=1))
+  File "<baseline-checkout>/src/minionone/mcp_server.py", line 105, in call_tool
+    return self.timeout_control.request_resume(token,thread,args["job_id"],
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-checkout>/src/minionone/timeout_control.py", line 171, in request_resume
+    raise TimeoutControlDenied("job has no timeout")
+minionone.timeout_control.TimeoutControlDenied: job has no timeout
+
+======================================================================
+ERROR: test_old_rejection_replays_after_another_resume_intent (test_durable_control_errors.DurableControlErrorTests.test_old_rejection_replays_after_another_resume_intent)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 152, in test_old_rejection_replays_after_another_resume_intent
+    self.reject_resume()
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 54, in reject_resume
+    (server or self.server).call_tool("minionone_resume_request",
+  File "<baseline-checkout>/src/minionone/mcp_server.py", line 105, in call_tool
+    return self.timeout_control.request_resume(token,thread,args["job_id"],
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-checkout>/src/minionone/timeout_control.py", line 177, in request_resume
+    raise VersionConflict("resume already requested")
+minionone.admission.VersionConflict: resume already requested
+
+======================================================================
+ERROR: test_stale_abort_records_exact_observed_state_and_version (test_durable_control_errors.DurableControlErrorTests.test_stale_abort_records_exact_observed_state_and_version)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 199, in test_stale_abort_records_exact_observed_state_and_version
+    error = self.errors()[0]
+            ~~~~~~~~~~~~~^^^
+IndexError: list index out of range
+
+======================================================================
+ERROR: test_status_projects_historical_error_without_changing_job_state (test_durable_control_errors.DurableControlErrorTests.test_status_projects_historical_error_without_changing_job_state)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 111, in test_status_projects_historical_error_without_changing_job_state
+    error = status["latest_control_error"]
+            ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'latest_control_error'
+
+======================================================================
+ERROR: test_v015_database_gets_additive_journal_without_losing_existing_receipts (test_durable_control_errors.DurableControlErrorTests.test_v015_database_gets_additive_journal_without_losing_existing_receipts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 317, in test_v015_database_gets_additive_journal_without_losing_existing_receipts
+    con.execute("DROP TABLE control_errors")
+sqlite3.OperationalError: no such table: control_errors
+
+======================================================================
+FAIL: test_accepted_receipt_still_replays_after_conflicting_payload (test_durable_control_errors.DurableControlErrorTests.test_accepted_receipt_still_replays_after_conflicting_payload)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 193, in test_accepted_receipt_still_replays_after_conflicting_payload
+    self.assertEqual(len(self.errors()), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_commit_failure_rolls_back_timeline_and_metadata_together (test_durable_control_errors.DurableControlErrorTests.test_commit_failure_rolls_back_timeline_and_metadata_together)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 304, in test_commit_failure_rolls_back_timeline_and_metadata_together
+    self.server.call_tool("minionone_resume_request", self.args())
+  File "<baseline-checkout>/src/minionone/mcp_server.py", line 105, in call_tool
+    return self.timeout_control.request_resume(token,thread,args["job_id"],
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-checkout>/src/minionone/timeout_control.py", line 171, in request_resume
+    raise TimeoutControlDenied("job has no timeout")
+minionone.timeout_control.TimeoutControlDenied: job has no timeout
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 306, in test_commit_failure_rolls_back_timeline_and_metadata_together
+    self.assertEqual(safe_tool_fault(exc).code, "ERROR_JOURNAL_UNAVAILABLE")
+AssertionError: 'RESUME_NOT_READY' != 'ERROR_JOURNAL_UNAVAILABLE'
+- RESUME_NOT_READY
++ ERROR_JOURNAL_UNAVAILABLE
+
+
+======================================================================
+FAIL: test_concurrent_same_error_has_one_committed_event (test_durable_control_errors.DurableControlErrorTests.test_concurrent_same_error_has_one_committed_event)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 234, in test_concurrent_same_error_has_one_committed_event
+    self.assertEqual(len(self.errors()), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_error_quota_is_durable_but_does_not_block_valid_abort (test_durable_control_errors.DurableControlErrorTests.test_error_quota_is_durable_but_does_not_block_valid_abort)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 282, in test_error_quota_is_durable_but_does_not_block_valid_abort
+    restarted.call_tool("minionone_resume_request", self.args("over-quota-0001"))
+  File "<baseline-checkout>/src/minionone/mcp_server.py", line 105, in call_tool
+    return self.timeout_control.request_resume(token,thread,args["job_id"],
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-checkout>/src/minionone/timeout_control.py", line 171, in request_resume
+    raise TimeoutControlDenied("job has no timeout")
+minionone.timeout_control.TimeoutControlDenied: job has no timeout
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 284, in test_error_quota_is_durable_but_does_not_block_valid_abort
+    self.assertEqual(safe_tool_fault(exc).code, "ERROR_JOURNAL_UNAVAILABLE")
+AssertionError: 'RESUME_NOT_READY' != 'ERROR_JOURNAL_UNAVAILABLE'
+- RESUME_NOT_READY
++ ERROR_JOURNAL_UNAVAILABLE
+
+
+======================================================================
+FAIL: test_failure_replay_keeps_original_class_after_job_changes (test_durable_control_errors.DurableControlErrorTests.test_failure_replay_keeps_original_class_after_job_changes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 133, in test_failure_replay_keeps_original_class_after_job_changes
+    self.assertEqual(len(self.errors()), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_journal_write_failure_is_visible_and_never_claims_success (test_durable_control_errors.DurableControlErrorTests.test_journal_write_failure_is_visible_and_never_claims_success)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 268, in test_journal_write_failure_is_visible_and_never_claims_success
+    self.server.call_tool("minionone_resume_request", self.args())
+  File "<baseline-checkout>/src/minionone/mcp_server.py", line 105, in call_tool
+    return self.timeout_control.request_resume(token,thread,args["job_id"],
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-checkout>/src/minionone/timeout_control.py", line 171, in request_resume
+    raise TimeoutControlDenied("job has no timeout")
+minionone.timeout_control.TimeoutControlDenied: job has no timeout
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 270, in test_journal_write_failure_is_visible_and_never_claims_success
+    self.assertEqual(safe_tool_fault(exc).code, "ERROR_JOURNAL_UNAVAILABLE")
+AssertionError: 'RESUME_NOT_READY' != 'ERROR_JOURNAL_UNAVAILABLE'
+- RESUME_NOT_READY
++ ERROR_JOURNAL_UNAVAILABLE
+
+
+======================================================================
+FAIL: test_partial_control_changes_roll_back_before_error_is_committed (test_durable_control_errors.DurableControlErrorTests.test_partial_control_changes_roll_back_before_error_is_committed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 253, in test_partial_control_changes_roll_back_before_error_is_committed
+    self.assertEqual(len(self.errors()), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_process_crash_before_and_after_journal_commit (test_durable_control_errors.DurableControlErrorTests.test_process_crash_before_and_after_journal_commit) (mode='before')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 353, in test_process_crash_before_and_after_journal_commit
+    self.assertEqual(result.returncode, exit_code, result.stderr)
+AssertionError: 1 != 23 : Traceback (most recent call last):
+  File "<string>", line 10, in <module>
+AttributeError: type object 'AdmissionStore' has no attribute '_record_control_error'
+
+
+======================================================================
+FAIL: test_process_crash_before_and_after_journal_commit (test_durable_control_errors.DurableControlErrorTests.test_process_crash_before_and_after_journal_commit) (mode='after')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 355, in test_process_crash_before_and_after_journal_commit
+    self.assertEqual(len(self.errors(restarted)), expected_count)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_rejected_future_abort_never_becomes_a_success_on_replay (test_durable_control_errors.DurableControlErrorTests.test_rejected_future_abort_never_becomes_a_success_on_replay)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 162, in test_rejected_future_abort_never_becomes_a_success_on_replay
+    with self.assertRaises(VersionConflict):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: VersionConflict not raised
+
+======================================================================
+FAIL: test_rejected_resume_never_becomes_executable_when_checkpoint_arrives (test_durable_control_errors.DurableControlErrorTests.test_rejected_resume_never_becomes_executable_when_checkpoint_arrives)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 171, in test_rejected_resume_never_becomes_executable_when_checkpoint_arrives
+    self.reject_resume(version=3, server=self.open_server())
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 53, in reject_resume
+    with self.assertRaises(TimeoutControlDenied):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: TimeoutControlDenied not raised
+
+======================================================================
+FAIL: test_replay_survives_restart_and_does_not_duplicate (test_durable_control_errors.DurableControlErrorTests.test_replay_survives_restart_and_does_not_duplicate)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 121, in test_replay_survives_restart_and_does_not_duplicate
+    self.assertEqual(len(first), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_unowned_wrong_thread_and_wrong_token_cannot_inject_or_read (test_durable_control_errors.DurableControlErrorTests.test_unowned_wrong_thread_and_wrong_token_cannot_inject_or_read)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 216, in test_unowned_wrong_thread_and_wrong_token_cannot_inject_or_read
+    self.assertEqual(len(self.errors()), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_untrusted_exception_text_and_operation_key_are_not_persisted (test_durable_control_errors.DurableControlErrorTests.test_untrusted_exception_text_and_operation_key_are_not_persisted)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 222, in test_untrusted_exception_text_and_operation_key_are_not_persisted
+    self.assertEqual(len(self.errors()), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_wire_error_is_visible_after_actual_server_restart (test_durable_control_errors.DurableControlErrorTests.test_wire_error_is_visible_after_actual_server_restart)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-checkout>/tests/test_durable_control_errors.py", line 94, in test_wire_error_is_visible_after_actual_server_restart
+    self.assertEqual(len(errors), 1)
+AssertionError: 0 != 1
+
+----------------------------------------------------------------------
+Ran 20 tests in 2.698s
+
+FAILED (failures=15, errors=6)

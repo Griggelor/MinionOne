@@ -1,7 +1,16 @@
-# Development status — 2026-10-29
+# Development status — 2026-10-30
 
-**Version:** 0.15.0.dev0  
+**Version:** 0.16.0.dev0
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
+
+## v0.16.0.dev0 — durable parent-control rejection journal
+
+- Implemented the next scoped increment of issue #29: authorized ABORT/RESUME_REQUEST failures persist on the canonical timeline and project through events/status after restart.
+- One AdmissionStore transaction owns command outcome, savepoint rollback and error persistence. No job-state reinterpretation, worker start or automatic retry.
+- Local Linux/Python 3.12: **213/213 PASS**, including 20 new challenge tests. Exact commands, red baseline and durations are in evidence/g2-control-errors/TEST_RUN_SUMMARY.json. Windows/Linux remote CI is a separate checkpoint, not inferred from this local result.
+- Error capacity is bounded at 128 distinct keys/job; accepted cancellation is not blocked by capacity. Store/commit failure reports ERROR_JOURNAL_UNAVAILABLE without claiming durability.
+- Additive schema migration and stopped-process backup/restore guidance documented. Same-assistant critical review is not an independent external audit.
+- G1a/G1b/G1c, live worker dispatch, actual multi-attempt Resume, full G2/G3 and real parent notifications remain open. **Issue #29 remains open; beta NO-GO.**
 
 ## v0.15.0.dev0 – first structured safe error diagnostics (NOT full error handling)
 

@@ -1,0 +1,10 @@
+CLEAN_WHEEL_IMPORT_AND_VERSION_OK
+usage: mcp_cli.py [-h] [--port PORT] [--db DB] [--lmstudio-url LMSTUDIO_URL]
+
+MinionOne local MCP transport pilot (NOT production-ready)
+
+options:
+  -h, --help            show this help message and exit
+  --port PORT
+  --db DB               Private state database (operator-controlled path)
+  --lmstudio-url LMSTUDIO_URL

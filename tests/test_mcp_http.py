@@ -79,7 +79,11 @@ class TestMCPHTTP(unittest.TestCase):
         self.assertEqual(cancelled["state"],"CANCEL_REQUESTED")
         self.assertTrue(self.tool("minionone_abort",dict(abort,operation_id="abort-0002"))["isError"])
         events=json.loads(self.tool("minionone_job_events",{"job_id":receipt["job_id"]})["content"][0]["text"])
-        self.assertEqual(len(events["events"]),2)
+        self.assertEqual(len(events["events"]),3)
+        error=events["events"][-1]
+        self.assertEqual(error["type"],"CONTROL_REJECTED")
+        self.assertEqual(error["error"]["code"],"STALE_VERSION")
+        self.assertEqual((error["status"],error["state_version"]),("CANCEL_REQUESTED",1))
 
     def test_forbidden_tools_and_wrong_params(self):
         _,resp=self.rpc("tools/call",{"name":"shell","arguments":{"command":"dir"}})

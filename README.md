@@ -2,11 +2,19 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.15.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.16.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
 MinionOne aims to delegate bounded tasks from a primary local assistant to specialist workers (initially via LM Studio), while keeping authorization, state, resource budgets, files and final integration under the trusted manager's control. It is **not** an official Unsloth project or an endorsed Unsloth extension.
 
 **New in v0.15:** The local MCP pilot reports fixed, safe error codes and corrective actions rather than an undifferentiated "Operation denied or unavailable": incorrect MCP token, LM Studio API credentials, refused connection, timeout, unexpected HTTP status, stale job state and unavailable resume. A `retryable` hint NEVER authorizes blind retry of an ambiguous side effect. See [diagnostic taxonomy](docs/G2_ACTIONABLE_ERRORS.md) and [full release-gate issue #29](https://github.com/Griggelor/MinionOne/issues/29). The complete error handling and real-chat delivery are NOT finished.
+
+**New in v0.16:** Valid, authorized abort/resume requests that are rejected now leave a
+bounded, durable error event on the canonical job timeline. Errors survive
+restart and are visible through job events and `latest_control_error` in job
+status. Failed-command replay preserves its outcome; the error is historical
+metadata, not a new job state. See [transaction and recovery contract](docs/ADR_G2_DURABLE_CONTROL_ERRORS.md).
+Issue #29 remains open: provider/worker/storage-wide error journaling and real
+Unsloth notification are not implemented by this slice.
 
 ## New: opt-in local MCP transport pilot
 

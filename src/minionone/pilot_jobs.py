@@ -71,6 +71,7 @@ class PilotConfig:
 class PilotJobs:
     def __init__(self,owner,config):
         self.owner=owner;self.config=config;self._threads=set();self._lock=threading.Lock()
+        self.workspace_execution=None  # Explicit opt-in manager-side attachment, never model-supplied.
         with owner._connection() as con:
             con.executescript('''
             CREATE TABLE IF NOT EXISTS pilot_runs(
@@ -177,7 +178,7 @@ class PilotJobs:
             con.execute('INSERT INTO admissions VALUES(?,?,?,?,?)',(principal,operation_id,request_hash,job,json.dumps(receipt,sort_keys=True)))
             return receipt
 
-    def start(self,token,thread,job_id,expected_version,operation_id):
+    def start(self,token,thread,job_id,expected_version,operation_id,*,kind='ISOLATED_TEST'):
         principal=self.owner._principal(token,thread);_field(_OP,operation_id,'operation')
         if type(expected_version) is not int or expected_version<0:raise InputRejected('invalid expected version')
         cap=secrets.token_hex(32)
@@ -185,7 +186,7 @@ class PilotJobs:
             con.execute('BEGIN IMMEDIATE');row=self.owner._owned_row(con,principal,thread,job_id)
             old=self._receipt(con,job_id,'START',operation_id,[expected_version])
             if old is not None:return old
-            if row['job_kind']!='ISOLATED_TEST' or row['state']!='QUEUED' or row['version']!=expected_version:
+            if row['job_kind']!=kind or kind not in ('ISOLATED_TEST','WORKSPACE') or row['state']!='QUEUED' or row['version']!=expected_version:
                 raise VersionConflict('test job not queued at expected version')
             if con.execute('SELECT 1 FROM pilot_runs WHERE active=1 OR provider_inflight=1').fetchone():raise PilotError('PILOT_JOB_BUSY')
             con.execute('UPDATE pilot_runs SET active=1,capability=? WHERE job_id=?',(sha256(cap.encode()).hexdigest(),job_id))
@@ -215,11 +216,18 @@ class PilotJobs:
         if len(matches)!=1 or matches[0].get('state')!='loaded':raise PilotError('PILOT_MODEL_NOT_LOADED')
 
     def _run(self,job,cap):
+        publication_started=False
         try:
             with self.owner._connection() as con:
                 configured=con.execute('SELECT model_id FROM pilot_runs WHERE job_id=?',(job,)).fetchone()
                 if configured['model_id']!=self.config.model_id:raise PilotError('PILOT_MODEL_NOT_LOADED')
             self._readiness()
+            if self.workspace_execution is not None:
+                with self.owner._connection() as con:
+                    kind=con.execute('SELECT job_kind FROM jobs WHERE job_id=?',(job,)).fetchone()
+                if kind is not None and kind['job_kind']=='WORKSPACE':
+                    self.workspace_execution.workspace.verify_input(
+                        self.workspace_execution.token,self.workspace_execution.thread,job)
             with self.owner._connection() as con:
                 con.execute('BEGIN IMMEDIATE');row=con.execute('SELECT * FROM jobs WHERE job_id=?',(job,)).fetchone()
                 if row['state']=='CANCEL_REQUESTED':
@@ -229,7 +237,19 @@ class PilotJobs:
                 task=con.execute('SELECT task FROM pilot_runs WHERE job_id=?',(job,)).fetchone()[0]
                 names=[r[0] for r in con.execute("SELECT name FROM pilot_files WHERE job_id=? AND zone='input' ORDER BY name",(job,))]
                 sealed={r['name']:r['content'] for r in con.execute("SELECT name,content FROM pilot_files WHERE job_id=? AND zone='input'",(job,))}
-                if sealed.pop('task.md',None)!=task or _digest({'task':task,'files':sealed})!=row['input_digest']:
+                if sealed.pop('task.md',None)!=task:
+                    raise PilotError('PILOT_FILE_CHANGED')
+                if row['job_kind']=='WORKSPACE':
+                    manager=self.workspace_execution
+                    if manager is None:raise PilotError('PILOT_STATE_INVALID')
+                    # Read source snapshot using manager identity; compare actual
+                    # admitted document text, not the pilot's different digest format.
+                    _, original=manager.reader._load(con,manager.token,manager.thread,job)
+                    canonical={_name(k):v.decode('utf-8') for k,v in original.items()
+                               if k not in ('TASK.md','manifest.json')}
+                    if (canonical!=sealed or original['TASK.md'].decode('utf-8')!=task):
+                        raise PilotError('PILOT_FILE_CHANGED')
+                elif _digest({'task':task,'files':sealed})!=row['input_digest']:
                     raise PilotError('PILOT_FILE_CHANGED')
             instructions=("You are a bounded test worker. Only the six provided tools are available. "
                 "Make exactly ONE tool call per assistant response. Read the input documents, create the requested result using create_work(name,content), "
@@ -245,7 +265,12 @@ class PilotJobs:
             run=AgentLoop(AgentLimits(wall_seconds=self.config.wall_seconds,
                     model_call_seconds=self.config.model_call_seconds)).run(observed,broker,
                     cancelled=lambda:self._cancelled(job))
-            if run.status=='AWAITING_REVIEW':self._finish(job,'RESULT_READY',None)
+            if run.status=='AWAITING_REVIEW':
+                if row['job_kind']=='WORKSPACE':
+                    if self.workspace_execution is None:raise PilotError('PILOT_STATE_INVALID')
+                    publication_started=True
+                    self.workspace_execution.publish_finished(job,cap)
+                self._finish(job,'RESULT_READY',None)
             elif run.status=='CANCELLED':self._finish(job,'CANCELLED',None)
             elif run.status=='WAITING_FOR_PARENT':self._finish(job,'WAITING_FOR_PARENT',None)
             else:
@@ -254,7 +279,7 @@ class PilotJobs:
                 self._finish(job,'NEEDS_RECONCILIATION' if uncertain else 'FAILED',code)
         except Exception as exc:
             code=safe_tool_fault(exc).code
-            try:self._finish(job,'FAILED',code)
+            try:self._finish(job,'NEEDS_RECONCILIATION' if publication_started else 'FAILED',code)
             except Exception:pass  # DB outage leaves the durable active intent for restart quarantine.
         finally:
             with self._lock:self._threads.discard(threading.current_thread())
@@ -315,11 +340,11 @@ class PilotJobs:
                   'FAILED':Evidence(worker_outcome='FAILED',error_code=code or 'PILOT_JOB_FAILED')}[state]
         self.owner._transition(con,row,state,evidence,'pilot-outcome-'+secrets.token_hex(8))
 
-    def result(self,token,thread,job_id):
+    def result(self,token,thread,job_id,*,kind='ISOLATED_TEST'):
         principal=self.owner._principal(token,thread)
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE');row=self.owner._owned_row(con,principal,thread,job_id)
-            if row['job_kind']!='ISOLATED_TEST' or row['state'] not in ('RESULT_READY','COMPLETED'):raise PilotError('PILOT_RESULT_NOT_READY')
+            if row['job_kind']!=kind or row['state'] not in ('RESULT_READY','COMPLETED'):raise PilotError('PILOT_RESULT_NOT_READY')
             files,digest=self._outputs(con,job_id)
             meta=con.execute('SELECT result_digest FROM pilot_runs WHERE job_id=?',(job_id,)).fetchone()
             if meta['result_digest']!=digest:raise PilotError('PILOT_FILE_CHANGED')
@@ -328,7 +353,7 @@ class PilotJobs:
                     'result_digest':digest,'untrusted_model_output':True,
                     'files':[{'name':r['name'],'text':r['content'],'sha256':r['digest']} for r in files]}
 
-    def acknowledge(self,token,thread,job_id,expected_version,result_digest,operation_id):
+    def acknowledge(self,token,thread,job_id,expected_version,result_digest,operation_id,*,kind='ISOLATED_TEST'):
         principal=self.owner._principal(token,thread);_field(_OP,operation_id,'operation')
         if type(expected_version) is not int or expected_version<0:raise InputRejected('invalid expected version')
         with self.owner._connection() as con:
@@ -337,7 +362,7 @@ class PilotJobs:
             old=self._receipt(con,job_id,'ACK',operation_id,request)
             if old is not None:return old
             p=con.execute('SELECT * FROM pilot_runs WHERE job_id=?',(job_id,)).fetchone()
-            if p is None or row['state']!='RESULT_READY' or row['version']!=expected_version:raise VersionConflict('result no longer ready at expected version')
+            if p is None or row['job_kind']!=kind or row['state']!='RESULT_READY' or row['version']!=expected_version:raise VersionConflict('result no longer ready at expected version')
             _,verified=self._outputs(con,job_id)
             if result_digest!=verified or p['issued_digest']!=verified or p['result_digest']!=verified:
                 raise PilotError('PILOT_RESULT_NOT_DELIVERED')
@@ -348,14 +373,14 @@ class PilotJobs:
             self._receipt(con,job_id,'ACK',operation_id,request,receipt)
             return receipt
 
-    def cancel(self,token,thread,job_id,expected_version,operation_id):
+    def cancel(self,token,thread,job_id,expected_version,operation_id,*,kind='ISOLATED_TEST'):
         principal=self.owner._principal(token,thread);_field(_OP,operation_id,'operation')
         if type(expected_version) is not int or expected_version<0:raise InputRejected('invalid expected version')
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE');row=self.owner._owned_row(con,principal,thread,job_id)
             old=self._receipt(con,job_id,'CANCEL',operation_id,[expected_version])
             if old is not None:return old
-            if row['job_kind']!='ISOLATED_TEST' or row['version']!=expected_version or row['state'] not in ('QUEUED','RESOURCE_CHECK','RUNNING','WAITING_FOR_PARENT'):
+            if row['job_kind']!=kind or row['version']!=expected_version or row['state'] not in ('QUEUED','RESOURCE_CHECK','RUNNING','WAITING_FOR_PARENT'):
                 raise VersionConflict('test job cannot be cancelled at expected version')
             previous=row['state']
             row=self.owner._transition(con,row,'CANCEL_REQUESTED',Evidence(),'pilot-cancel-'+_digest(operation_id),actor='AUTHENTICATED_PARENT')

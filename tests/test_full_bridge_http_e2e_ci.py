@@ -53,6 +53,11 @@ class ModelOverHTTP(BaseHTTPRequestHandler):
         if self.server.mode=="malformed":
             self.respond({"choices":[],"usage":{"total_tokens":4}})
             return
+        if self.server.mode=="premature_finish":
+            self.respond({"choices":[{"finish_reason":"stop",
+                "message":{"role":"assistant","content":"I am done without files."}}],
+                "usage":{"total_tokens":10}})
+            return
         if self.server.mode=="timeout":
             time.sleep(3)
         messages=data["messages"]
@@ -279,6 +284,45 @@ class CompleteBridgeE2E(unittest.TestCase):
         self.assertEqual(status["state"],"FAILED",status)
         self.assertEqual(len(self.model.calls),0)
         self.assertTrue((self.root/"logs"/"minionone-errors.jsonl").is_file())
+
+    def test_unpublished_model_finish_is_not_a_verified_result(self):
+        self.model.mode="premature_finish"
+        job=self.direct("e2e-finish-without-artifact-00001")
+        status=self.outcome(job)
+        self.assertEqual(status["state"],"FAILED",status)
+        self.assertIn("I am done without files.",json.dumps(self.transcript(job)))
+        output=self.project/".minionone"/"jobs"/job["job_id"]/"output"
+        self.assertFalse((output/"result.txt").exists())
+        self.rpc("minionone_workspace_result",{"job_id":job["job_id"]},error=True)
+
+    def test_wrong_ack_digest_is_rejected_without_state_change(self):
+        job=self.direct("e2e-bad-digest-00001")
+        ready=self.outcome(job)
+        self.assertEqual(ready["state"],"RESULT_READY",ready)
+        result=self.rpc("minionone_workspace_result",{"job_id":job["job_id"]})
+        bad=self.rpc("minionone_accept_workspace_result",{
+            "job_id":job["job_id"],"expected_version":result["version"],
+            "result_digest":"0"*64,"operation_id":"e2e-bad-ack-00001"},error=True)
+        self.assertEqual(bad["error"]["code"],"PILOT_RESULT_NOT_DELIVERED")
+        self.assertEqual(self.rpc("minionone_job_status",{"job_id":job["job_id"]})["state"],
+                         "RESULT_READY")
+
+    def test_mcp_rejects_foreign_bearer_without_touching_worker(self):
+        body=json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call",
+                         "params":{"name":"minionone_delegate",
+                         "arguments":{"project_id":"demo"}}})
+        with closing(http.client.HTTPConnection("127.0.0.1",
+                    self.manager.server_port,timeout=10)) as conn:
+            conn.request("POST","/mcp",body,headers={
+                "Authorization":"Bearer NOT-THE-APPROVED-PARENT",
+                "Accept":"application/json, text/event-stream",
+                "Content-Type":"application/json"})
+            response=conn.getresponse()
+            self.assertEqual(response.status,401)
+            response.read()
+        self.assertEqual(self.model.calls,[])
+        self.assertIn("MCP_AUTH_DENIED",
+                      (self.root/"logs"/"minionone-process.jsonl").read_text())
 
     def test_same_length_on_disk_corruption_blocks_ready_and_quarantines(self):
         # Real HTTP provider + real file/DB boundary; inject only a single

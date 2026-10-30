@@ -10,6 +10,11 @@ from __future__ import annotations
 from hashlib import sha256
 import json
 
+from .worker_contract import delegation_task
+from .workspace_input_staging import stage_sealed_input
+from .admission import _digest
+from .workspace_sealing import _name as _seal_name
+
 from .admission import InputRejected, VersionConflict, IdempotencyConflict, PermissionDenied, _field, _OP
 from .pilot_jobs import _name, _text
 from .lifecycle import Evidence
@@ -27,6 +32,72 @@ class WorkspaceJobs:
         self.thread = thread
         self.reader = SealedWorkspaceInput(workspace)
         self.publisher = (WindowsOutputPublisher if os.name == "nt" else WorkspacePublisher)(workspace)
+        with self.workspace.store._connection() as con:
+            con.execute("""CREATE TABLE IF NOT EXISTS workspace_delegations(
+                job_id TEXT PRIMARY KEY,
+                request_sha256 TEXT NOT NULL,
+                schema TEXT NOT NULL CHECK(schema='minionone.delegation.v1'),
+                FOREIGN KEY(job_id) REFERENCES workspace_reservations(job_id))""")
+
+    def delegate(self, token, thread, project_id, goal, context, acceptance_criteria,
+                 files, operation_id):
+        """One parent MCP operation: stage -> seal -> execute on SAME job ID.
+
+        Only operator-configured project IDs, UTF-8 documents and the already
+        configured LM Studio worker model are allowed. Never accepts host paths,
+        external URLs, arbitrary resource policy or a second model selection.
+        """
+        _field(_OP, operation_id, "operation")
+        task=delegation_task(goal,context,acceptance_criteria)
+        if type(files) is not dict or not 1<=len(files)<=4:
+            raise InputRejected("delegation needs one to four input documents")
+        documents={}
+        for name,content in files.items():
+            if type(name) is not str or type(content) is not str:
+                raise InputRejected("invalid delegated document")
+            _seal_name(name)
+            key=_name(name)
+            if key in ("task.md","manifest.json") or key in documents:
+                raise InputRejected("reserved or duplicate delegation filename")
+            documents[key]=_text(content,4096)
+        if sum(len(data.encode('utf-8')) for data in documents.values())>8192:
+            raise InputRejected("delegation document quota exhausted")
+        document_bytes={"TASK.md":task.encode("utf-8")}
+        document_bytes.update({n:content.encode("utf-8") for n,content in documents.items()})
+        manifest={"files":{n:sha256(b).hexdigest() for n,b in document_bytes.items()}}
+        document_bytes["manifest.json"]=json.dumps(
+            manifest,sort_keys=True,separators=(",",":")).encode("ascii")
+        # Bind all request fields and exact bytes durably before ANY stage write.
+        request_sha=_digest([project_id,task,documents])
+        op_base="delegate-"+sha256(operation_id.encode('ascii')).hexdigest()
+        prepared=self.workspace.reserve(token,thread,project_id,op_base+"-reserve")
+        job_id=prepared["job_id"]
+        with self.workspace.store._connection() as con:
+            con.execute("BEGIN IMMEDIATE")
+            existing=con.execute("SELECT request_sha256 FROM workspace_delegations WHERE job_id=?",
+                                 (job_id,)).fetchone()
+            if existing is None:
+                con.execute("INSERT INTO workspace_delegations VALUES(?,?,?)",
+                            (job_id,request_sha,"minionone.delegation.v1"))
+            elif existing["request_sha256"]!=request_sha:
+                raise IdempotencyConflict("delegation operation reused with different contents")
+        if prepared["state"]=="PREPARING":
+            stage_sealed_input(self.workspace,project_id,job_id,document_bytes)
+            sealed=self.workspace.seal(token,thread,job_id,0,op_base+"-seal")
+        else:
+            # A replay cannot write to the already-sealed input.
+            sealed=self.workspace.status(token,thread,job_id)
+            if not sealed.get("input_sealed"):
+                raise InputRejected("delegation seal is not complete")
+        # A crash after START receipt is an idempotent replay, never a second
+        # model attempt. Queued-start recovery uses the SAME operation marker.
+        if sealed["state"]=="ACCEPTED":
+            return self.start(token,thread,job_id,sealed["version"],
+                              op_base+"-start",self.pilot.config.model_id)
+        if sealed["state"] in ("QUEUED","RESOURCE_CHECK","RUNNING",
+                               "RESULT_READY","COMPLETED","WAITING_FOR_PARENT"):
+            return self.workspace.store.status(token,thread,job_id)
+        raise InputRejected("delegation job unavailable for automatic retry")
 
     def start(self, token, thread, job_id, expected_version, operation_id, model_id):
         """Start on SAME sealed job ID, with per-job CAS and retry safety.

@@ -162,3 +162,23 @@ A separate manager-only Windows implementation can stage immutable SQLite journa
 ### v0.25 Windows manager input sealing (admission development)
 
 Windows MCP `prepare_workspace → seal_workspace → verify_workspace_input` now uses pinned native NTFS file handles to validate the manifest and admit the same job ID into SQLite, with manager-only redacted admission logging. The native Windows runner tests cover attacks and restarts. **This does not enable worker file tools or any Flint/Unsloth folder job**. Target-host G1b, parent ACK and product release stay NO-GO; see `docs/V025_WIN32_SEAL_ADMISSION.md`.
+
+### v0.26 — expliziter synthetischer Workspace-Systemtest
+
+The experimental same-job-ID workspace execution path is now reachable through
+the packaged `MinionOne.exe serve` launcher, **only** when both
+`--experimental-workspace-jobs` and `--workspace-project ID=ABSOLUTE_DIR`
+are explicitly supplied by the local operator. The default server remains
+non-executing for project workspaces.
+
+A dedicated `workspace-self-test --project-id ID --project-root ABSOLUTE_DIR`
+performs a bounded synthetic end-to-end test: prepare, create-only input,
+seal, start the loaded LM Studio worker, verify the native manager's output,
+and issue parent ACK only for the exact expected result. It stores a
+non-sensitive report. It never reads arbitrary project sources or enables
+worker host filesystem access. See
+[synthetic Windows instructions](docs/V026_WORKSPACE_SYSTEMTEST_CLI.md).
+
+**PRODUCT GATE REMAINS NO-GO** until the target-host Unsloth+Flint
+end-to-end run, native work/ handle broker and parent residency proofs are
+completed. Do not run with actual confidential projects or data.

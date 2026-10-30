@@ -36,9 +36,11 @@ Unter dem bereits genehmigten Projektordner und derselben Job-ID:
         result.txt        # Beispiel einer geprüften Worker-Veröffentlichung
 \`\`\`
 
-\`worker-io.jsonl\` wird **ausschließlich vom Manager** über die
-bestehende Windows-NTFS-/POSIX-Publikationsschnittstelle erzeugt,
-no-replace und durch SQLite-Receipts abgesichert. Der Worker kann
+\`worker-io.jsonl\` wird **ausschließlich vom Manager** geschrieben. Im
+aktuellen Live-Modus nutzt er native, geprüfte CREATE-ONLY-Output-Handles und
+synchronisiert jeden einzelnen Eintrag. Nur bei einem Fehler **vor** dem
+Öffnen des Live-Handles bleibt die ältere SQLite-gestützte
+No-Replace-Publikation als ausdrücklich markierter Notfallpfad bestehen. Der Worker kann
 den Namen weder als Work-Dokument erzeugen noch als Artefakt fälschen.
 
 **Seit v0.30:** Der Manager legt `output/worker-io.jsonl` direkt

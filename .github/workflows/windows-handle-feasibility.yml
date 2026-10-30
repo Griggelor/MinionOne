@@ -28,3 +28,6 @@ jobs:
 # cannot create symlinks explicitly skip and leave G1b BLOCKED. There is
 # no security claim about concurrent rename races, hardlink escape control,
 # ACL isolation, volume replacement, filter drivers, or target Windows hardware.
+
+      - name: Native NTFS root-relative read-only broker adversarial tests (runner evidence only)
+        run: python -m unittest discover -s tests -p test_win32_input_broker.py -v

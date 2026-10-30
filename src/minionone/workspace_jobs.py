@@ -16,7 +16,7 @@ from .admission import _digest
 from .workspace_sealing import _name as _seal_name
 
 from .admission import InputRejected, VersionConflict, IdempotencyConflict, PermissionDenied, _field, _OP
-from .pilot_jobs import _name, _text
+from .pilot_jobs import _name, _text, PilotError
 from .lifecycle import Evidence
 from .workspace_input_snapshot import SealedWorkspaceInput
 from .workspace_publication import WorkspacePublisher
@@ -188,7 +188,7 @@ class WorkspaceJobs:
                 raise InputRejected("workspace document quota exhausted")
             active = con.execute("SELECT 1 FROM pilot_runs WHERE active=1 OR provider_inflight=1").fetchone()
             if active is not None:
-                raise InputRejected("another worker has exclusive provider lease")
+                raise PilotError("PILOT_JOB_BUSY")
             con.execute("UPDATE jobs SET job_kind='WORKSPACE' WHERE job_id=? AND version=?",
                         (job_id, expected_version))
             con.execute("INSERT INTO pilot_runs(job_id,task,model_id) VALUES(?,?,?)",

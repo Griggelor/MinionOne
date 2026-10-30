@@ -253,6 +253,7 @@ def _commit_captured(workspace,token,thread,job_id,operation_id,principal,row,sn
             from .job_telemetry import append
             append(con,job_id,'AUDIT','JOB_ACCEPTED',
                    {'state':'ACCEPTED','version':1})
+            append(con,job_id,'JOB','JOB_ACCEPTED',{'state':'ACCEPTED','version':1})
     _write_projection(workspace,row,workspace.store.events(token,thread,job_id))
     return receipt
 

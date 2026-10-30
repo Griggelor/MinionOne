@@ -458,9 +458,23 @@ class MCPHandler(BaseHTTPRequestHandler):
                 if type(name) is not str or name not in self.server.tool_map:
                     self._send(200,_error(ident,-32602,"Unknown tool"));return
                 try:
-                    self.server.logs.event("MCP_TOOL_STARTED",tool=name)
-                    value=self.server.call_tool(name,params.get("arguments",{}))
-                    self.server.logs.event("MCP_TOOL_FINISHED",tool=name)
+                    arguments=params.get("arguments",{})
+                    from .workspace_preparation import _JOB
+                    selected=arguments.get("job_id") if type(arguments) is dict else None
+                    safe_fields={"tool":name}
+                    if type(selected) is str and _JOB.fullmatch(selected):
+                        safe_fields["job_id"]=selected
+                    self.server.logs.event("MCP_TOOL_STARTED",**safe_fields)
+                    value=self.server.call_tool(name,arguments)
+                    if type(value) is dict and type(value.get("job_id")) is str and _JOB.fullmatch(value["job_id"]):
+                        safe_fields["job_id"]=value["job_id"]
+                    if type(value) is dict and type(value.get("state")) is str:
+                        state=value["state"]
+                        if state in ("ACCEPTED","QUEUED","RESOURCE_CHECK","RUNNING",
+                                     "RESULT_READY","COMPLETED","FAILED","CANCELLED",
+                                     "WAITING_FOR_PARENT","NEEDS_RECONCILIATION"):
+                            safe_fields["state"]=state
+                    self.server.logs.event("MCP_TOOL_FINISHED",**safe_fields)
                     result={"content":[{"type":"text","text":json.dumps(value,sort_keys=True)}]}
                 except Exception as exc:
                     self.server.logs.failure("MCP_TOOL_FAILED",exc,tool=name,

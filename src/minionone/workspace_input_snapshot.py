@@ -96,7 +96,7 @@ class SealedWorkspaceInput:
     def metadata(self, token, thread, job_id):
         """Only hashes/names; does not imply on-disk re-verification or a lease."""
         with self.workspace.store._connection() as con:
-            con.execute("BEGIN IMMEDIATE")
+            con.execute("BEGIN")  # read-only WAL snapshot; do not block admission writers
             row, files = self._load(con, token, thread, job_id)
             return {
                 "job_id": row["job_id"],
@@ -120,7 +120,7 @@ class SealedWorkspaceInput:
         if name == "manifest.json":
             raise InputRejected("manager manifest is not a worker input document")
         with self.workspace.store._connection() as con:
-            con.execute("BEGIN IMMEDIATE")
+            con.execute("BEGIN")  # read-only WAL snapshot; do not block admission writers
             _, files = self._load(con, token, thread, job_id)
             if name not in files:
                 raise InputRejected("input document not in sealed snapshot")

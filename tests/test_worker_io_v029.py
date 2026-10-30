@@ -4,10 +4,7 @@ The external LM Studio call below is a local fake socket opener; no claim of
 live Flint or real Unsloth is made. Windows CI uses the production NTFS
 output publisher, not an invented direct filesystem path.
 """
-import contextlib
-import hashlib
 import json
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 import unittest

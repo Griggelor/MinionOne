@@ -88,8 +88,8 @@ def main():
     for case in cases:counts[case['verification']]=counts.get(case['verification'],0)+1
     product_pass=all(c['verification']=='PASS_TARGET_E2E' for c in cases)
     report={'schema_version':1,'generated_utc':datetime.now(timezone.utc).isoformat(),
-      'version':'0.23.0.dev0 (native Windows read-only broker WIP; NOT product-approved)',
-      'baseline':'v0.20.0.dev0 (GitHub main baseline PR #35)',
+      'version':'0.23.0.dev0 (durable POSIX manager output, Windows worker blocked; NO-GO)',
+      'baseline':'v0.22.0.dev0 (GitHub main baseline, PR #37)',
       'environment':{'os':platform.system(),'python':platform.python_version()},
       'execution':{'command':'PYTHONPATH=src python scripts/run_product_status.py',
         'tests_run':result.testsRun,'passed':result.testsRun-len(result.failures)-len(result.errors)-len(result.skipped),
@@ -131,7 +131,7 @@ def main():
       '- Portable/Windows manager seal with verified Win32 handles (POSIX-only local seal exists).',
       '- Admission and selected model bound to the same durable job_id.',
       '- Secure native Windows NTFS handle-based broker; adversarial host tests.',
-      '- Flint tool execution through that broker, immutable publish and redacted log projection.',
+      '- Flint tool execution through a verified broker, native Windows manager publication, redacted log and parent ACK.',
       '- Parent Unsloth ownership, polling/wakeup verification, ACK and crash/restart E2E.',
       '', 'Exact per-case details: `PRODUCT_STATUS.json`.','']
     (out/'PRODUCT_STATUS.md').write_text('\n'.join(md),encoding='utf-8')

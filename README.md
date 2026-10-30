@@ -255,8 +255,7 @@ during the run, rather than containing only the sealed admission snapshot.
 Separate `<state>/logs/minionone-process.jsonl` and
 `<state>/logs/minionone-errors.jsonl` are opened **before SQLite** so startup,
 MCP and worker failures remain readable even if the database is unavailable.
-Each safe-metadata entry is synced directly; size rotation archives old files
-without deleting them. No model payload is ever written into global process
+Each safe-metadata entry is synced directly; 8 MiB segments rotate with a maximum of 16 historical archives per file. No model payload is ever written into global process
 logs. SQLite remains authoritative for transactional state, authorization,
 leases, idempotency and parent ACK. See
 [ADR-029 (v0.30 update)](docs/ADR_029_EXACT_WORKER_IO_OUTPUT.md).

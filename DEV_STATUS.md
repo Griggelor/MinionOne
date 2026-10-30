@@ -1,6 +1,6 @@
 # Development status — 2026-10-30
 
-**Version:** 0.19.0.dev0 (unmerged development, no target beta)
+**Version:** 0.22.0.dev0 (GitHub development; no target beta)
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
 
 ## v0.18.0.dev0 — complete test-document job path
@@ -174,3 +174,9 @@ be checked independently; these numbers are commit-specific.
 - 8/8 native Windows NTFS broker tests passed on GitHub Actions runner (plus 6 existing feasibility probes); no native runner test is a target-host acceptance.
 - Windows MCP seal, worker read/write tools, CREATE-ONLY publication and full system-test remain blocked.
 - Next: native `work/` CREATE-ONLY boundary, manager-only `output/`, mutation/fault injection on real target.
+
+## v0.22.0.dev0 – Win32 native `work/` create-only proof
+
+- Native NtCreateFile(FILE_CREATE) under pinned Windows `work/` handle, exclusive creation and bounded direct writes; no existing-file overwrite.
+- 12 native Windows tests passed on GitHub runner (plus 1 POSIX-only skip), separate runner-level feasibility evidence.
+- **Still blocked:** atomic publication, crash recovery, durable quotas/fencing, manager-only output, on-target ACL tests and real workspace worker execution. Product approval remains NO-GO.

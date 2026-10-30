@@ -105,3 +105,9 @@ Authenticated loopback Streamable HTTP endpoint, non-executing SQLite admission,
 - Added native root-relative, read-only Win32 input broker with FileId, reparse, hardlink, quota and pinning defenses.
 - Added Windows adversarial tests to G1b CI; native runner evidence only, **not** host approval or worker access.
 - Preserved disabled Windows sealing and worker folder tools. Target-product status stays NO-GO.
+
+## v0.22.0.dev0 – Win32 create-only work-file feasibility
+
+- Add isolated handle-rooted, CREATE_NEW-only NTFS `work/` proof; no worker tool or API exposed.
+- Add Windows native tests for new-file writes, collisions, links, invalid paths, directory pinning and quota checks.
+- Preserve NO-GO for full Windows file broker, atomic publication, parent workflow and target-host validation.

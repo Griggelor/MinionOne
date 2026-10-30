@@ -43,6 +43,22 @@ WORKSPACE_TOOLS = [
   'description':'Authenticated manager metadata for sealed SQLite input (names, hashes, sizes). No content, worker access or on-disk recheck.',
   'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'}},
                  'required':['job_id'],'additionalProperties':False}},
+ {'name':'minionone_start_workspace_job',
+  'description':'EXPERIMENTAL opt-in: dispatch a sealed UTF-8 workspace to the bounded LM Studio document worker; no host write capability, not target-host approved.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'},'expected_version':{'type':'integer'},'operation_id':{'type':'string'},'model_id':{'type':'string'}},
+                 'required':['job_id','expected_version','operation_id','model_id'],'additionalProperties':False}},
+ {'name':'minionone_workspace_result',
+  'description':'Read verified bounded worker document results, only after manager publication.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'}},
+                 'required':['job_id'],'additionalProperties':False}},
+ {'name':'minionone_accept_workspace_result',
+  'description':'Explicit parent acknowledgement of an exact delivered workspace result digest.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'},'expected_version':{'type':'integer'},'result_digest':{'type':'string'},'operation_id':{'type':'string'}},
+                 'required':['job_id','expected_version','result_digest','operation_id'],'additionalProperties':False}},
+ {'name':'minionone_cancel_workspace_job',
+  'description':'Fence an experimental running workspace worker by authenticated CAS.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'},'expected_version':{'type':'integer'},'operation_id':{'type':'string'}},
+                 'required':['job_id','expected_version','operation_id'],'additionalProperties':False}},
  {'name':'minionone_workspace_status',
   'description':'Read an owned PREPARING or admitted workspace; never launches worker execution.',
   'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'}},
@@ -73,7 +89,8 @@ class LocalMCP(ThreadingHTTPServer):
     def __init__(self, address, *, token, database_path, principal="local-operator",
                  thread="configured-pilot", lmstudio_url="http://127.0.0.1:1234",
                  enable_test_jobs=False,worker_model=None,worker_api_key=None,
-                 min_free_mb=4096,model_call_seconds=60,workspace_projects=None):
+                 min_free_mb=4096,model_call_seconds=60,workspace_projects=None,
+                 enable_workspace_jobs=False):
         if (type(address) is not tuple or len(address) != 2 or
             address[0] != "127.0.0.1" or type(address[1]) is not int or
             not 0 <= address[1] <= 65535):
@@ -82,10 +99,18 @@ class LocalMCP(ThreadingHTTPServer):
             not token.isascii() or any(ord(c)<33 or ord(c)>126 for c in token)):
             raise ValueError("strong bearer credential required")
         if type(enable_test_jobs) is not bool:raise ValueError('invalid test-job switch')
-        self.pilot=None;self._pilot_lock=None;self.workspace=None
+        if type(enable_workspace_jobs) is not bool:raise ValueError('invalid workspace execution switch')
+        if enable_workspace_jobs and workspace_projects is None:
+            raise ValueError('workspace execution requires configured projects')
+        self.pilot=None;self._pilot_lock=None;self.workspace=None;self.workspace_jobs=None
+        self.enable_workspace_jobs=enable_workspace_jobs
         self.tools=TOOLS+(PILOT_TOOLS if enable_test_jobs else [])+(WORKSPACE_TOOLS if workspace_projects is not None else [])
+        if not enable_workspace_jobs:
+            self.tools=[x for x in self.tools if x['name'] not in (
+                'minionone_start_workspace_job','minionone_workspace_result',
+                'minionone_accept_workspace_result','minionone_cancel_workspace_job')]
         self.tool_map={t['name']:t for t in self.tools}
-        if enable_test_jobs:
+        if enable_test_jobs or enable_workspace_jobs:
             from .pilot_lock import PilotLock
             self._pilot_lock=PilotLock(database_path)
         self.credential = token
@@ -106,11 +131,15 @@ class LocalMCP(ThreadingHTTPServer):
                 "outbox_quarantined": outbox_count,
                 "attempts_fenced": attempt_count,
             }
-            if enable_test_jobs:
+            if enable_test_jobs or enable_workspace_jobs:
                 from .pilot_jobs import PilotJobs,PilotConfig
                 self.pilot=PilotJobs(self.store,PilotConfig(worker_model,lmstudio_url,worker_api_key,
                                     model_call_seconds=model_call_seconds,min_free_mb=min_free_mb))
-                self.recovery_summary['test_jobs_quarantined']=self.pilot.recover()
+                if enable_workspace_jobs:
+                    from .workspace_jobs import WorkspaceJobs
+                    self.workspace_jobs=WorkspaceJobs(self.workspace,self.pilot,token,thread)
+                    self.pilot.workspace_execution=self.workspace_jobs
+                self.recovery_summary['worker_jobs_quarantined']=self.pilot.recover()
             self.probe = LMStudioProbe(lmstudio_url,api_key=worker_api_key)
             self._slots=threading.BoundedSemaphore(8)
             super().__init__(address, MCPHandler)
@@ -158,7 +187,8 @@ class LocalMCP(ThreadingHTTPServer):
                     "host_filesystem_tools_enabled":False,
                     "windows_file_broker_verified":False,"auto_wakeup_enabled":False,
                     "workspace_preparation_enabled":self.workspace is not None,
-                    "workspace_execution_enabled":False}
+                    "workspace_execution_enabled":self.workspace_jobs is not None,
+                    "workspace_execution_mode":"OPT_IN_DEV_SQLITE_SANDBOX" if self.workspace_jobs else None}
         if name == "minionone_models":
             return {"models":self.probe.models(),"provider_identity_verified":False}
         if name == "minionone_admit":
@@ -195,6 +225,18 @@ class LocalMCP(ThreadingHTTPServer):
                 return SealedWorkspaceInput(self.workspace).metadata(token,thread,args['job_id'])
             if name == 'minionone_workspace_status':
                 return self.workspace.status(token,thread,args['job_id'])
+            if self.workspace_jobs is not None:
+                if name == 'minionone_start_workspace_job':
+                    return self.workspace_jobs.start(token,thread,args['job_id'],
+                        args['expected_version'],args['operation_id'],args['model_id'])
+                if name == 'minionone_workspace_result':
+                    return self.workspace_jobs.result(token,thread,args['job_id'])
+                if name == 'minionone_accept_workspace_result':
+                    return self.workspace_jobs.acknowledge(token,thread,args['job_id'],
+                        args['expected_version'],args['result_digest'],args['operation_id'])
+                if name == 'minionone_cancel_workspace_job':
+                    return self.workspace_jobs.cancel(token,thread,args['job_id'],
+                        args['expected_version'],args['operation_id'])
         if self.pilot is not None:
             if name=='minionone_wait_test_job':
                 seconds=args.get('wait_seconds',10)

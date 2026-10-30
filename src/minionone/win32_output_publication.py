@@ -21,7 +21,7 @@ from .win32_input_broker import (
     _Native, _UnicodeString, _ObjectAttributes, _IoStatusBlock,
     _OBJ_CASE_INSENSITIVE, _SYNC, _OPEN_REPARSE, _NON_DIRECTORY,
     _READ_ATTRIBUTES, _SYNCHRONIZE, _FILE_STANDARD, _FileStandardInfo,
-    _component,
+    _component, _DIRECTORY,
 )
 from .win32_work_create_probe import _NativeWriter, _FILE_WRITE_DATA
 
@@ -97,6 +97,27 @@ class _PublisherNative(_NativeWriter):
         if not self.rename(source, _FILE_RENAME_INFO, buffer, total):
             raise InputRejected("Windows atomic no-replace output rename denied (win32=%d)" % ctypes.get_last_error())
 
+    def open_output_directory(self, parent):
+        # The target directory must authorize creating the new directory entry
+        # during rename; FILE_LIST_DIRECTORY alone is insufficient on NTFS.
+        name = "output"
+        encoded = name.encode("utf-16-le")
+        buf = ctypes.create_unicode_buffer(name)
+        uni = _UnicodeString(len(encoded), len(encoded)+2,
+                             ctypes.cast(buf, wintypes.LPWSTR))
+        obj = _ObjectAttributes(ctypes.sizeof(_ObjectAttributes), parent,
+                                ctypes.pointer(uni), _OBJ_CASE_INSENSITIVE, None, None)
+        ios = _IoStatusBlock()
+        out = wintypes.HANDLE()
+        FILE_ADD_FILE = 0x0002
+        status = self.open_relative(ctypes.byref(out),
+                    _READ_ATTRIBUTES | _SYNCHRONIZE | _FILE_READ_DATA | FILE_ADD_FILE,
+                    ctypes.byref(obj), ctypes.byref(ios), None, 0x80, _SHARE_READ,
+                    _FILE_OPEN, _SYNC | _OPEN_REPARSE | _DIRECTORY, None, 0)
+        if status != 0 or not out.value:
+            raise InputRejected("Windows manager output directory lacks create authority")
+        return out.value
+
     def read_verified(self, handle, digest, size, volume):
         self.validate(handle, directory=False, volume=volume, single_link=True)
         value = self.read_regular(handle, max_bytes=size)
@@ -125,7 +146,8 @@ def _output_directory(workspace, row):
             raise InputRejected("Windows project root identity changed")
         parent = root
         for part in (".minionone", "jobs", row["job_id"], "output"):
-            child = api.child(parent, part, directory=True)
+            child = (api.open_output_directory(parent) if part == "output"
+                     else api.child(parent, part, directory=True))
             stack.callback(api.close, child)
             api.validate(child, directory=True, volume=ident[0])
             parent = child

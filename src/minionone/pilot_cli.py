@@ -185,6 +185,145 @@ def exercise(client,*,timeout=900):
             except Exception:pass
     report['finished_utc']=datetime.now(timezone.utc).isoformat();return report
 
+
+def _synthetic_workspace_folder(project_root, job):
+    """Operator-side path check; never trust an arbitrary MCP-returned path."""
+    from .workspace_preparation import _JOB
+    root=Path(project_root)
+    if not root.is_absolute() or not root.is_dir():
+        raise PilotError('CONFIGURATION_INVALID')
+    # Reject symlink/junction redirection of user-configured root.
+    if os.path.normcase(str(root.absolute())) != os.path.normcase(str(root.resolve(strict=True))):
+        raise PilotError('PILOT_FILE_CHANGED')
+    if type(job) is not str or _JOB.fullmatch(job) is None:
+        raise PilotError('PILOT_FILE_CHANGED')
+    folder=root/'.minionone'/'jobs'/job
+    for p in (root,root/'.minionone',root/'.minionone'/'jobs',folder,
+              folder/'input',folder/'output'):
+        item=p.lstat()
+        if not stat.S_ISDIR(item.st_mode) or p.is_symlink():
+            raise PilotError('PILOT_FILE_CHANGED')
+        if os.name=='nt' and item.st_file_attributes & getattr(stat,'FILE_ATTRIBUTE_REPARSE_POINT',0x400):
+            raise PilotError('PILOT_FILE_CHANGED')
+    return folder
+
+
+def _create_synthetic_file(folder,name,blob):
+    """Create one fixed test document, never overwrite existing job input."""
+    if type(blob) is not bytes or name not in ('TASK.md','sample.txt','manifest.json'):
+        raise PilotError('CONFIGURATION_INVALID')
+    flags=os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,'O_NOFOLLOW',0)
+    fd=os.open(folder/name,flags,0o600)
+    with os.fdopen(fd,'wb') as handle:
+        handle.write(blob)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def workspace_exercise(client, *, project_id, project_root, model, timeout=900):
+    """Synthetic parent-side end-to-end run with real sealed project folders.
+
+    Does not certify native worker handle confinement or true Unsloth identity.
+    No project data is submitted, and the output is never executed/merged.
+    """
+    from .workspace_preparation import _PROJECT
+    report={'schema_version':1,
+            'started_utc':datetime.now(timezone.utc).isoformat(),
+            'passed':False,'release_gate':'NO_GO',
+            'test':'synthetic_sealed_workspace',
+            'provider_identity_verified':False,
+            'target_parent_attested':False,
+            'steps':[]}
+    try:
+        if (type(project_id) is not str or _PROJECT.fullmatch(project_id) is None or
+                type(model) is not str or not model or
+                type(timeout) is not int or not 1<=timeout<=1800):
+            raise PilotError('CONFIGURATION_INVALID')
+        # Check the trusted operator-selected directory BEFORE reserving a job.
+        root=Path(project_root)
+        if (not root.is_absolute() or not root.is_dir() or root.is_symlink() or
+                os.path.normcase(str(root.absolute())) !=
+                os.path.normcase(str(root.resolve(strict=True)))):
+            raise PilotError('CONFIGURATION_INVALID')
+        gate=client.tool('minionone_status',{})
+        if (gate.get('release_gate')!='NO_GO' or
+                gate.get('workspace_execution_enabled') is not True or
+                gate.get('workspace_execution_mode')!='OPT_IN_DEV_SQLITE_SANDBOX' or
+                gate.get('host_filesystem_tools_enabled') is not False):
+            raise PilotError('PILOT_TEST_MODE_DISABLED')
+        report['steps'].append({'step':'opt_in_server_gate','passed':True})
+        operation='ws-synthetic-'+secrets.token_hex(12)
+        prepared=client.tool('minionone_prepare_workspace',{
+            'project_id':project_id,'operation_id':operation+'-prepare'})
+        job=prepared.get('job_id')
+        folder=_synthetic_workspace_folder(root,job)
+        actual=Path(prepared.get('input_dir',''))
+        if (os.path.normcase(str(actual.absolute())) !=
+                os.path.normcase(str((folder/'input').absolute())) or
+                prepared.get('state')!='PREPARING' or prepared.get('version')!=0):
+            raise PilotError('PILOT_FILE_CHANGED')
+        report['job_id']=job
+        task=(b'Read input/sample.txt and create output/result.txt with exactly '
+              b'the uppercase version of the input text, no extra text. '
+              b'Use create_work, publish_artifact, and finish.')
+        sample=b'minionone workspace ok'
+        manifest=json.dumps({'files':{
+            'TASK.md':sha256(task).hexdigest(),
+            'sample.txt':sha256(sample).hexdigest()}},
+            sort_keys=True,separators=(',',':')).encode('utf-8')
+        for name,blob in (('TASK.md',task),('sample.txt',sample),
+                          ('manifest.json',manifest)):
+            _create_synthetic_file(folder/'input',name,blob)
+        sealed=client.tool('minionone_seal_workspace',{
+            'job_id':job,'expected_version':0,'operation_id':operation+'-seal'})
+        if sealed.get('job_id')!=job or sealed.get('state')!='ACCEPTED' or sealed.get('input_sealed') is not True:
+            raise PilotError('PILOT_STATE_INVALID')
+        report['steps'].append({'step':'real_manager_input_seal','passed':True})
+        client.tool('minionone_start_workspace_job',{
+            'job_id':job,'expected_version':sealed['version'],
+            'operation_id':operation+'-start','model_id':model})
+        deadline=time.monotonic()+timeout
+        while time.monotonic()<deadline:
+            snapshot=client.tool('minionone_job_status',{'job_id':job})
+            state=snapshot.get('state')
+            if state=='RESULT_READY':break
+            if state in ('FAILED','CANCELLED','NEEDS_RECONCILIATION','WAITING_FOR_PARENT'):
+                raise PilotError('PILOT_JOB_FAILED')
+            if state not in ('QUEUED','RESOURCE_CHECK','RUNNING'):
+                raise PilotError('PILOT_STATE_INVALID')
+            time.sleep(min(0.5,max(0,deadline-time.monotonic())))
+        else:raise PilotError('PROVIDER_TIMEOUT')
+        report['steps'].append({'step':'bounded_worker_result_ready','passed':True})
+        result=verify_result(client.tool('minionone_workspace_result',{'job_id':job}))
+        if result.get('job_id') != job or len(result['files'])!=1:
+            raise PilotError('PILOT_RESULT_UNEXPECTED')
+        record=result['files'][0]
+        expected=b'MINIONONE WORKSPACE OK'
+        if record['name']!='result.txt' or record['text'].encode('utf-8')!=expected:
+            raise PilotError('PILOT_RESULT_UNEXPECTED')
+        artifact=folder/'output'/'result.txt'
+        details=artifact.lstat()
+        if (not stat.S_ISREG(details.st_mode) or artifact.is_symlink() or
+                (os.name=='nt' and details.st_file_attributes &
+                getattr(stat,'FILE_ATTRIBUTE_REPARSE_POINT',0x400)) or
+                sha256(artifact.read_bytes()).hexdigest()!=record['sha256']):
+            raise PilotError('PILOT_FILE_CHANGED')
+        report['result_digest']=result['result_digest']
+        report['steps'].append({'step':'published_file_and_digest_verified','passed':True})
+        accepted=client.tool('minionone_accept_workspace_result',{
+            'job_id':job,'expected_version':result['version'],
+            'result_digest':result['result_digest'],
+            'operation_id':operation+'-ack'})
+        if accepted.get('state')!='COMPLETED' or accepted.get('job_id')!=job:
+            raise PilotError('PILOT_STATE_INVALID')
+        report['steps'].append({'step':'exact_parent_ack','passed':True})
+        report['passed']=True
+    except Exception as exc:
+        report['error']=safe_tool_fault(exc).to_dict()
+    report['finished_utc']=datetime.now(timezone.utc).isoformat()
+    return report
+
+
 def main(argv=None):
     parser=argparse.ArgumentParser(description='MinionOne complete local-system test pilot')
     parser.add_argument('--state',type=Path,default=None)

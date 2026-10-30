@@ -168,3 +168,9 @@ be checked independently; these numbers are commit-specific.
 - No Windows filesystem-seal approval and no worker NTFS access; security `NO-GO` remains.
 - T-082/T-102 local contract successful; T-163 worker-start contract still failing.
 - Model backends from spec: LM Studio partially implemented; Unsloth-native and OpenAI cloud not implemented (`docs/MODEL_PROVIDER_ROADMAP.md`).
+
+## v0.21.0.dev0 – GitHub-native Win32 read-only broker WIP
+
+- 8/8 native Windows NTFS broker tests passed on GitHub Actions runner (plus 6 existing feasibility probes); no native runner test is a target-host acceptance.
+- Windows MCP seal, worker read/write tools, CREATE-ONLY publication and full system-test remain blocked.
+- Next: native `work/` CREATE-ONLY boundary, manager-only `output/`, mutation/fault injection on real target.

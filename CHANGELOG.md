@@ -99,3 +99,9 @@ Authenticated loopback Streamable HTTP endpoint, non-executing SQLite admission,
 - Manager-only redacted `output/job.log.jsonl` from canonical admission events; replay through idempotent seal retry.
 - Added 14 independent POSIX integrity/negative tests, extended local MCP target contract (2 locally green, one intentional fail), and provider roadmap (LM Studio, Unsloth native, OpenAI optional).
 - **Still NO-GO:** native Windows secure handle broker, real worker start, real Unsloth and OpenAI adapters, same-chat parent integration.
+
+## v0.21.0.dev0 – Win32 native input-reader evidence
+
+- Added native root-relative, read-only Win32 input broker with FileId, reparse, hardlink, quota and pinning defenses.
+- Added Windows adversarial tests to G1b CI; native runner evidence only, **not** host approval or worker access.
+- Preserved disabled Windows sealing and worker folder tools. Target-product status stays NO-GO.

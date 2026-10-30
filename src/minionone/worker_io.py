@@ -45,7 +45,7 @@ def _serialize(seq,utc,kind,body,previous):
                       sort_keys=True,separators=(",",":"),ensure_ascii=True).encode("ascii")
 
 
-def append(con,job_id,kind,body):
+def append(con,job_id,kind,body,*,live_writer=None):
     if (kind not in _KINDS or type(body) is not str or
             not con.in_transaction or len(body.encode("utf-8"))>_MAX_RECORD):
         raise InputRejected("worker IO log event invalid or too large")
@@ -63,6 +63,13 @@ def append(con,job_id,kind,body):
         FROM workspace_worker_io WHERE job_id=?""",(job_id,)).fetchone()[0]
     if used+len(canonical)+_RESERVED >_MAX_FILE:
         raise InputRejected("worker IO log byte budget exhausted; refusing further work")
+    # Commit the independently readable JSONL line to its native output file
+    # before advancing the canonical journal or running any next worker step.
+    # If the SQLite commit fails, the file still contains forensic evidence;
+    # restart reconciliation will fence the incomplete job rather than replay it.
+    if live_writer is not None:
+        live_writer.worker_event(json.loads(canonical.decode("ascii"))|
+                                 {"entry_hash":digest})
     con.execute("""INSERT INTO workspace_worker_io
         (job_id,seq,utc,kind,body,previous_hash,entry_hash)
         VALUES(?,?,?,?,?,?,?)""",(job_id,number,utc,kind,body,previous,digest))

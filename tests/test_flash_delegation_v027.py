@@ -53,7 +53,8 @@ class ScriptedFlint:
         if reply.status!="ok":raise RuntimeError("synthetic worker broker denial")
 
 
-class FlashDelegationHTTP(unittest.TestCase):
+class FlashHTTPFixture:
+    """Only setup and MCP helpers; deliberately NO inherited test methods."""
     def setUp(self):
         tmp=tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -96,6 +97,7 @@ class FlashDelegationHTTP(unittest.TestCase):
             "operation_id":"direct-flash-bridge-20261030",
         }
 
+class FlashDelegationHTTP(FlashHTTPFixture,unittest.TestCase):
     def test_flash_delegates_one_call_seals_same_job_worker_publishes_and_parent_acks(self):
         self.assertIn("minionone_delegate",self.server.tool_map)
         with patch("minionone.pilot_jobs.PilotJobs._readiness",return_value=None), \

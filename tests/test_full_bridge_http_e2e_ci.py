@@ -283,9 +283,13 @@ class CompleteBridgeE2E(unittest.TestCase):
         job=self.direct("e2e-timeout-00001")
         status=self.outcome(job)
         self.assertEqual(status["state"],"NEEDS_RECONCILIATION",status)
-        second=self.direct("e2e-second-after-timeout-00001")
-        self.assertTrue(second)
-        self.assertEqual(self.outcome(second)["state"],"FAILED")
+        second=self.rpc("minionone_delegate",{
+            "project_id":"demo","goal":"New synthetic job",
+            "context":"Should be blocked until reconciliation",
+            "acceptance_criteria":["Do not start a second inference"],
+            "files":{"sample.txt":"second synthetic document"},
+            "operation_id":"e2e-second-after-timeout-00001"},error=True)
+        self.assertEqual(second["error"]["code"],"PILOT_JOB_BUSY")
         self.assertEqual(len(self.model.calls),1)
 
 

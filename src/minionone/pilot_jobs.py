@@ -266,7 +266,7 @@ class PilotJobs:
                 opening.__enter__()
                 live_logs=opening
             if getattr(self,"process_logs",None) is not None:
-                self.process_logs.event("WORKER_STARTED",attempt=1)
+                self.process_logs.event("WORKER_STARTED",job_id=job,attempt=1)
             instructions=task_message(task,names)
             def worker_io_sink(kind,body):
                 # SENSITIVE exact external model JSON request/response bodies
@@ -308,6 +308,8 @@ class PilotJobs:
                 uncertain=observed.uncertain or run.status=='TIMEOUT'
                 code=observed.error_code or broker.error_code or ('PILOT_TOOL_DENIED' if run.status=='SECURITY_ABORT' else 'PILOT_JOB_FAILED')
                 self._finish(job,'NEEDS_RECONCILIATION' if uncertain else 'FAILED',code)
+            if getattr(self,'process_logs',None) is not None:
+                self.process_logs.event("WORKER_LOOP_FINISHED",job_id=job,outcome=run.status)
         except Exception as exc:
             code=safe_tool_fault(exc).code
             if workspace_job and not io_published:
@@ -331,7 +333,7 @@ class PilotJobs:
                 except Exception:
                     publication_started=True
             if getattr(self,'process_logs',None) is not None:
-                try:self.process_logs.failure('WORKER_FAILED',exc,error_code=code)
+                try:self.process_logs.failure('WORKER_FAILED',exc,job_id=job,error_code=code)
                 except Exception:publication_started=True
             try:self._finish(job,'NEEDS_RECONCILIATION' if publication_started else 'FAILED',code)
             except Exception:pass  # DB outage leaves the durable active intent for restart quarantine.

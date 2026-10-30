@@ -203,6 +203,7 @@ class FlashDelegationHTTP(unittest.TestCase):
 
     def test_trace_integrity_tampering_fails_closed(self):
         import sqlite3
+        from contextlib import closing
         from minionone.pilot_cli import PilotClient
         with patch("minionone.pilot_jobs.PilotJobs._readiness",return_value=None), \
              patch("minionone.pilot_jobs.LMStudioAgentProvider",ScriptedFlint):
@@ -215,11 +216,14 @@ class FlashDelegationHTTP(unittest.TestCase):
                     break
                 time.sleep(.1)
         self.assertEqual(status["state"],"RESULT_READY",status)
-        with sqlite3.connect(self.root/"jobs.sqlite") as con:
-            with self.assertRaises(sqlite3.IntegrityError):
-                con.execute("UPDATE job_telemetry SET event='BOGUS' WHERE job_id=?",(job,))
-            con.execute("DROP TRIGGER telemetry_no_update")
-            con.execute("UPDATE job_telemetry SET event='MODEL_REQUEST_FAILED' WHERE job_id=? AND seq=1",(job,))
+        # sqlite3.Connection's context manager commits, but does NOT close.
+        # Windows refuses TemporaryDirectory cleanup with an open DB handle.
+        with closing(sqlite3.connect(self.root/"jobs.sqlite")) as con:
+            with con:
+                with self.assertRaises(sqlite3.IntegrityError):
+                    con.execute("UPDATE job_telemetry SET event='BOGUS' WHERE job_id=?",(job,))
+                con.execute("DROP TRIGGER telemetry_no_update")
+                con.execute("UPDATE job_telemetry SET event='MODEL_REQUEST_FAILED' WHERE job_id=? AND seq=1",(job,))
         error=self.call("minionone_job_trace",{"job_id":job},error=True)
         self.assertEqual(error["error"]["code"],"DB_INTEGRITY_ERROR")
         with self.assertRaises(Exception):

@@ -188,10 +188,14 @@ class WorkspacePreparation:
             raise PermissionDenied('reservation unavailable')
         if row['state'] == 'ADMITTED':
             snapshot=self.store.status(token,thread,job_id)
+            executing='workspace_job' in snapshot
             return {**self._view(row,self._folder(row)),
                 'state':snapshot['state'],'version':snapshot['version'],
                 'input_digest':snapshot['input_digest'],'input_sealed':True,
-                'next_action':'WAIT_FOR_VERIFIED_WORKER_FILE_BROKER'}
+                'worker_execution_enabled':executing,
+                'workspace_job':snapshot.get('workspace_job'),
+                'next_action':('POLL_WORKSPACE_RESULT_AND_ACK' if executing
+                               else 'WAIT_FOR_VERIFIED_WORKER_FILE_BROKER')}
         if row['state'] != 'PREPARING':
             # A partially allocated job must never be reported as ready.
             raise InputRejected('workspace allocation incomplete')

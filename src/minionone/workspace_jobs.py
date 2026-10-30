@@ -229,11 +229,12 @@ class WorkspaceJobs:
                 raise PermissionDenied("worker IO transcript requires a workspace job")
             return io_page(con,job_id,after_seq,limit)
 
-    def publish_worker_io(self,job_id):
-        """Project complete verified sensitive transcript as immutable output.
+    def publish_worker_io_fallback(self,job_id):
+        """Emergency pre-open failure projection for a job WITHOUT live handles.
 
-        Run only after the worker's final model/tool exchange has quiesced.
-        DB journal is the durable source, native publisher handles crash replay.
+        Normal v0.30 worker execution fsyncs output/worker-io.jsonl per event.
+        This separate legacy publisher is retained only when the native live
+        output could not be opened, and is never used to replace a live file.
         """
         principal=self.workspace.store._principal(self.token,self.thread)
         with self.workspace.store._connection() as con:

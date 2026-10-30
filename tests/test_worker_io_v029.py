@@ -126,7 +126,12 @@ class FlashRawWorkerIO(FlashDelegationHTTP):
         transcript=self.call("minionone_worker_io",{"job_id":job,"after_seq":0,"limit":10})
         self.assertTrue(transcript["sensitive"])
         self.assertEqual(transcript["integrity"],"VERIFIED_HASH_CHAIN")
-        events=transcript["events"]
+        events=list(transcript["events"])
+        while transcript["has_more"]:
+            transcript=self.call("minionone_worker_io",{
+                "job_id":job,"after_seq":transcript["next_after_seq"],"limit":10})
+            events.extend(transcript["events"])
+        self.assertEqual(len(events),transcript["total_events"])
         self.assertTrue(events)
         kinds=[x["kind"] for x in events]
         self.assertIn("MODEL_REQUEST",kinds)
@@ -145,7 +150,7 @@ class FlashRawWorkerIO(FlashDelegationHTTP):
             "job_id":job,"expected_version":result["version"],
             "result_digest":result["result_digest"],"operation_id":"raw-io-ack-001"})
         self.assertEqual(ack["state"],"COMPLETED")
-        self.assertEqual(self.call("minionone_worker_io",{"job_id":job})["events"],events)
+        self.assertEqual(self.call("minionone_worker_io",{"job_id":job})["events"],events[:10])
 
     def test_worker_cannot_publish_manager_reserved_log_name(self):
         from minionone.agent_loop import ModelStep

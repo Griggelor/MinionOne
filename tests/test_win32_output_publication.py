@@ -4,6 +4,7 @@ Synthetic ADMITTED rows are seeded explicitly because Windows input sealing and
 worker dispatch MUST remain unavailable. Not a real product end-to-end test.
 """
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from datetime import datetime, timezone
 import hashlib
 import os
@@ -57,7 +58,7 @@ class WindowsOutputPublisherTests(unittest.TestCase):
         result=self.stage()
         self.assertEqual(result["state"],"PENDING")
         self.assertFalse((self.out/"result.txt").exists())
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db:
             self.assertEqual(db.execute("SELECT state FROM workspace_publications").fetchone()[0],
                              "PENDING")
 
@@ -163,7 +164,7 @@ class WindowsOutputPublisherTests(unittest.TestCase):
         with self.assertRaises(IdempotencyConflict):
             self.stage(b"different")
         for i in range(1,16):
-            self.stage(b"x",f"part-{i}.txt",f"output-operation-{i:04d}")
+            self.stage(b"x",f"part-{i}.txt",f"output-new-{i:04d}")
         with self.assertRaises(InputRejected):
             self.stage(b"x","extra.txt","output-extra-0001")
         with self.assertRaises(InputRejected):

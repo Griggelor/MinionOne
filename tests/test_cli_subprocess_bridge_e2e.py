@@ -167,7 +167,9 @@ class SubprocessBridge(unittest.TestCase):
         self.proc=None
         durable=[json.loads(line) for line in outfile.read_text().splitlines()]
         self.assertEqual(durable[0]["kind"],"MODEL_REQUEST")
-        self.assertIn("crash experiment",(outfile.read_text()))
+        # The request contains the bounded TASK goal and sealed filename
+        # inventory, NOT arbitrary source-file contents before read_file.
+        self.assertIn("Publish uppercase synthetic input",outfile.read_text())
         # Restart with the exact same canonical state but a different listener
         # port; no identical inference may be sent again by recovery.
         self.port=free_port()

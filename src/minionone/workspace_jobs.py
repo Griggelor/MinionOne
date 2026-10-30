@@ -12,6 +12,7 @@ import json
 
 from .admission import InputRejected, VersionConflict, IdempotencyConflict, PermissionDenied, _field, _OP
 from .pilot_jobs import _name, _text
+from .lifecycle import Evidence
 from .workspace_input_snapshot import SealedWorkspaceInput
 from .workspace_publication import WorkspacePublisher
 from .win32_output_publication import WindowsOutputPublisher
@@ -67,7 +68,10 @@ class WorkspaceJobs:
                 raise InputRejected("sealed workspace digest changed")
             # Reuse the existing bounded document tool protocol. Binary files,
             # large sources and ambiguous casefold names fail CLOSED.
-            task = _text(files["TASK.md"].decode("utf-8"),4096)
+            try:
+                task = _text(files["TASK.md"].decode("utf-8"),4096)
+            except UnicodeError as exc:
+                raise InputRejected("workspace task must be UTF-8") from exc
             others = {}
             for name, blob in files.items():
                 if name in ("TASK.md","manifest.json"):
@@ -95,7 +99,7 @@ class WorkspaceJobs:
                             (job_id,"input",name,content,sha256(content.encode("utf-8")).hexdigest()))
             refreshed = con.execute("SELECT * FROM jobs WHERE job_id=?", (job_id,)).fetchone()
             row = self.workspace.store._transition(con,refreshed,"QUEUED",
-                    __import__("minionone.lifecycle",fromlist=["Evidence"]).Evidence(),
+                    Evidence(),
                     "workspace-queued-"+sha256(operation_id.encode()).hexdigest()[:24])
             queued_version = row["version"]
         return self.pilot.start(token,thread,job_id,queued_version,operation_id,

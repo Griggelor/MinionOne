@@ -13,6 +13,7 @@ from .outbox import OutboxStore
 from .attempt_fence import AttemptFenceStore
 from .timeout_control import TimeoutControlStore, TimeoutControlDenied
 from .diagnostics import diagnostic, safe_tool_fault
+from .process_logs import ProcessLogs
 
 PROTOCOL = "2025-06-18"
 TOOLS = [
@@ -149,6 +150,10 @@ class LocalMCP(ThreadingHTTPServer):
         if type(enable_workspace_jobs) is not bool:raise ValueError('invalid workspace execution switch')
         if enable_workspace_jobs and workspace_projects is None:
             raise ValueError('workspace execution requires configured projects')
+        # Establish independent process/error files before SQLite, leases,
+        # schema migration or network bind. A DB failure is still observable.
+        self.logs=ProcessLogs(database_path)
+        self.logs.event("PROCESS_START",workspace_enabled=int(enable_workspace_jobs))
         self.pilot=None;self._pilot_lock=None;self.workspace=None;self.workspace_jobs=None
         self.enable_workspace_jobs=enable_workspace_jobs
         self.tools=TOOLS+(PILOT_TOOLS if enable_test_jobs else [])+(WORKSPACE_TOOLS if workspace_projects is not None else [])
@@ -199,8 +204,12 @@ class LocalMCP(ThreadingHTTPServer):
             self.probe = LMStudioProbe(lmstudio_url,api_key=worker_api_key)
             self._slots=threading.BoundedSemaphore(8)
             super().__init__(address, MCPHandler)
-        except BaseException:
-            if self._pilot_lock is not None:self._pilot_lock.close()
+            self.logs.event("MCP_READY",port=self.server_port)
+        except BaseException as exc:
+            try:self.logs.failure("STARTUP_FAILED",exc)
+            finally:
+                if self._pilot_lock is not None:self._pilot_lock.close()
+                self.logs.close()
             raise
 
     def server_close(self):
@@ -210,6 +219,8 @@ class LocalMCP(ThreadingHTTPServer):
             try:super().server_close()
             finally:
                 if self._pilot_lock is not None:self._pilot_lock.close()
+                try:self.logs.event("PROCESS_STOP")
+                finally:self.logs.close()
 
     def process_request(self, request, client_address):
         if not self._slots.acquire(blocking=False):
@@ -358,6 +369,7 @@ class MCPHandler(BaseHTTPRequestHandler):
             return False
         authorization=self.headers.get('Authorization','')
         if not authorization.isascii() or not hmac.compare_digest(authorization,"Bearer "+self.server.credential):
+            self.server.logs.event("MCP_AUTH_DENIED")
             self._send(401,{"error":diagnostic("MCP_AUTH_FAILED").to_dict()})
             return False
         return True
@@ -440,9 +452,13 @@ class MCPHandler(BaseHTTPRequestHandler):
                 if type(name) is not str or name not in self.server.tool_map:
                     self._send(200,_error(ident,-32602,"Unknown tool"));return
                 try:
+                    self.server.logs.event("MCP_TOOL_STARTED",tool=name)
                     value=self.server.call_tool(name,params.get("arguments",{}))
+                    self.server.logs.event("MCP_TOOL_FINISHED",tool=name)
                     result={"content":[{"type":"text","text":json.dumps(value,sort_keys=True)}]}
                 except Exception as exc:
+                    self.server.logs.failure("MCP_TOOL_FAILED",exc,tool=name,
+                                             error_code=safe_tool_fault(exc).code)
                     # Fixed taxonomy only: never reflect raw provider responses,
                     # client content, credentials or paths in the MCP result.
                     fault=safe_tool_fault(exc)

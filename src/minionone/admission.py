@@ -34,8 +34,23 @@ class VersionConflict(ValueError):
     pass
 
 
+class StateSchemaRejected(InputRejected):
+    """Manager-owned database compatibility failure, not a client input error."""
+
+
+class StateIntegrityRejected(InputRejected):
+    """Detected inconsistent stored references; no automatic repair."""
+
+
 class ControlJournalUnavailable(RuntimeError):
     """A rejected control could not be durably recorded. Never report success."""
+
+    def __init__(self, message, *, storage_error=None):
+        super().__init__(message)
+        # Preserve only a catalog code, never the raw storage exception/cause.
+        from .diagnostics import classify_storage_failure
+        self.storage_code = (None if storage_error is None else
+                             classify_storage_failure(storage_error).code)
 
 
 _ID = re.compile(r'[A-Za-z0-9_.:-]{1,128}\Z', re.ASCII)
@@ -143,16 +158,16 @@ class AdmissionStore:
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='jobs'"
         ).fetchone()
         if sqlrow is None:
-            raise InputRejected('canonical jobs schema unavailable')
+            raise StateSchemaRejected('canonical jobs schema unavailable')
         definition = sqlrow[0]
         normalized = ''.join(definition.split())
         if (all(("'" + state + "'") in definition for state in (
                 "VALIDATING","RESOURCE_CHECK","RUNNING","INTERRUPTED",
                 "RESUMING","NEEDS_RECONCILIATION"))):
             if 'CHECK(worker_started=0)' not in normalized:
-                raise InputRejected('worker execution must remain database-disabled')
+                raise StateSchemaRejected('worker execution must remain database-disabled')
             if con.execute('PRAGMA foreign_key_check').fetchone() is not None:
-                raise InputRejected('broken canonical foreign keys')
+                raise StateIntegrityRejected('broken canonical foreign keys')
             return
         # Support exactly the known historical 3-state and 6-state schemas.
         old_three="('ACCEPTED','CANCEL_REQUESTED','CANCELLED')"
@@ -164,7 +179,7 @@ class AdmissionStore:
                 not all(term in normalized for term in (
                     'CHECK(worker_started=0)', 'PRIMARYKEY', 'input_digest',
                     'thread_id', 'created_utc', 'updated_utc'))):
-            raise InputRejected('unexpected historical jobs schema')
+            raise StateSchemaRejected('unexpected historical jobs schema')
         # Changing CHECK requires a table rebuild in SQLite. Disable FK
         # enforcement only for the duration of this manager-owned migration;
         # verify ALL existing references BEFORE committing. BEGIN IMMEDIATE
@@ -189,7 +204,7 @@ class AdmissionStore:
             con.execute('DROP TABLE jobs')
             con.execute('ALTER TABLE jobs__g2_preflight RENAME TO jobs')
             if con.execute('PRAGMA foreign_key_check').fetchone() is not None:
-                raise InputRejected('legacy migration foreign-key integrity failure')
+                raise StateIntegrityRejected('legacy migration foreign-key integrity failure')
             con.commit()
         except BaseException:
             if con.in_transaction:
@@ -362,14 +377,14 @@ class AdmissionStore:
                     try:
                         self._record_control_error(con, row, operation, operation_id,
                                                    expected_version, code)
-                    except sqlite3.Error:
-                        raise ControlJournalUnavailable('error journal write failed') from None
+                    except sqlite3.Error as exc:
+                        raise ControlJournalUnavailable('error journal write failed',storage_error=exc) from None
                     failure = types[code]('control rejected; inspect job events')
                 else:
                     con.execute('RELEASE parent_control')
-        except sqlite3.Error:
+        except sqlite3.Error as exc:
             if failure is not None:
-                raise ControlJournalUnavailable('error journal commit failed') from None
+                raise ControlJournalUnavailable('error journal commit failed',storage_error=exc) from None
             raise
         if failure is not None:
             raise failure

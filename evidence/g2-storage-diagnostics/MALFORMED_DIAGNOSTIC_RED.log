@@ -1,0 +1,55 @@
+test_corrupt_runtime_file_reports_error_instead_of_successful_status (test_storage_diagnostics.MCPStorageBoundaryTests.test_corrupt_runtime_file_reports_error_instead_of_successful_status) ... ok
+test_journal_failure_keeps_primary_code_but_gives_specific_storage_action (test_storage_diagnostics.MCPStorageBoundaryTests.test_journal_failure_keeps_primary_code_but_gives_specific_storage_action) ... ok
+test_numeric_storage_failures_cross_real_http_boundary (test_storage_diagnostics.MCPStorageBoundaryTests.test_numeric_storage_failures_cross_real_http_boundary) ... ok
+test_real_writer_lock_reports_busy_without_retry_or_partial_admission (test_storage_diagnostics.MCPStorageBoundaryTests.test_real_writer_lock_reports_busy_without_retry_or_partial_admission) ... ok
+test_default_state_directory_failure_is_inside_safe_startup_boundary (test_storage_diagnostics.StartupStorageTests.test_default_state_directory_failure_is_inside_safe_startup_boundary) ... ok
+test_explicit_db_does_not_require_or_create_default_home_state (test_storage_diagnostics.StartupStorageTests.test_explicit_db_does_not_require_or_create_default_home_state) ... ok
+test_foreign_key_damage_is_distinct_from_physical_corruption (test_storage_diagnostics.StartupStorageTests.test_foreign_key_damage_is_distinct_from_physical_corruption) ... ok
+test_known_startup_os_faults_and_unexpected_errors_are_redacted (test_storage_diagnostics.StartupStorageTests.test_known_startup_os_faults_and_unexpected_errors_are_redacted) ... ok
+test_real_cannot_open_directory_is_typed_and_not_deleted (test_storage_diagnostics.StartupStorageTests.test_real_cannot_open_directory_is_typed_and_not_deleted) ... ok
+test_real_corrupt_database_is_preserved_and_listener_never_binds (test_storage_diagnostics.StartupStorageTests.test_real_corrupt_database_is_preserved_and_listener_never_binds) ... ok
+test_unexpected_existing_schema_is_not_reported_as_client_input (test_storage_diagnostics.StartupStorageTests.test_unexpected_existing_schema_is_not_reported_as_client_input) ... ok
+test_attached_diagnostics_cannot_spoof_storage_cause_or_leak_text (test_storage_diagnostics.StorageTaxonomyTests.test_attached_diagnostics_cannot_spoof_storage_cause_or_leak_text) ... ok
+test_extended_codes_use_the_primary_low_byte (test_storage_diagnostics.StorageTaxonomyTests.test_extended_codes_use_the_primary_low_byte) ... ok
+test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) ...
+  test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='list') ... ERROR
+  test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='dict') ... ERROR
+test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes) ... ok
+test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) ... ok
+test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) ... ok
+test_real_sqlite_readonly_and_size_cap (test_storage_diagnostics.StorageTaxonomyTests.test_real_sqlite_readonly_and_size_cap) ... ok
+
+======================================================================
+ERROR: test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='list')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<checkout>/tests/test_storage_diagnostics.py", line 108, in test_malformed_attached_catalog_key_stays_a_safe_internal_error
+    fault = safe_tool_fault(exc)
+            ^^^^^^^^^^^^^^^^^^^^
+  File "<checkout>/src/minionone/diagnostics.py", line 203, in safe_tool_fault
+    return diagnostic(attached.code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<checkout>/src/minionone/diagnostics.py", line 99, in diagnostic
+    message,action,retryable=_CATALOG.get(code,_CATALOG["INTERNAL_ERROR"])
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: unhashable type: 'list'
+
+======================================================================
+ERROR: test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='dict')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<checkout>/tests/test_storage_diagnostics.py", line 108, in test_malformed_attached_catalog_key_stays_a_safe_internal_error
+    fault = safe_tool_fault(exc)
+            ^^^^^^^^^^^^^^^^^^^^
+  File "<checkout>/src/minionone/diagnostics.py", line 203, in safe_tool_fault
+    return diagnostic(attached.code)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<checkout>/src/minionone/diagnostics.py", line 99, in diagnostic
+    message,action,retryable=_CATALOG.get(code,_CATALOG["INTERNAL_ERROR"])
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: unhashable type: 'dict'
+
+----------------------------------------------------------------------
+Ran 18 tests in 2.361s
+
+FAILED (errors=2)

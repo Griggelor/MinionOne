@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.17.0.dev0 — 2026-10-30 (PUBLIC PRE-ALPHA, NOT BETA)
+
+- Distinct fixed SQLite/OS diagnostics for busy/locked, corrupt, cannot-open, full, read-only, I/O, permissions, schema/integrity and database-memory failures. Numeric codes only; no raw-message guessing.
+- MCP startup now returns redacted JSON plus exit code 2 for state-directory, database, configuration and bind failures. Explicit --db does not require the default home state directory.
+- Journal failures retain ERROR_JOURNAL_UNAVAILABLE and add a safe cause-specific action. Attached diagnostics are rebuilt from the fixed catalog, including malformed-key handling.
+- 18 new tests, including actual SQLite lock/corruption/read-only/size-cap failures and real MCP HTTP/startup boundaries. Local clean-environment suite: 231/231 PASS (24.463s).
+- PR #32 (v0.16) merged. Owner instruction: direct implementation, tests, CI, merge; separate review gate #9 canceled as not planned. Existing capability/target-evidence boundaries remain.
+- Full error UX under #29 and live worker/provider/Unsloth integration remain unfinished. Worker execution stays disabled; beta NO-GO.
+
+
 ## 0.16.0.dev0 — 2026-10-30 (PUBLIC PRE-ALPHA, NOT BETA)
 
 - Durable, authorized ABORT/RESUME_REQUEST rejection events on the canonical job timeline; historical error projection in job status, fixed safe diagnostic snapshots and observed state/version/attempt metadata.

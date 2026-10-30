@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
+import errno
 import socket
+import sqlite3
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,16 +62,92 @@ _CATALOG = {
                          "Check the timeout status, checkpoint and reconciliation requirements.", False),
     "ERROR_JOURNAL_UNAVAILABLE": ("The rejected request could not be recorded in the job error journal.",
                                   "Check local storage and journal capacity; read job status before choosing a new operation. Do not blindly replay.", False),
+    "DB_BUSY": ("The local state database is busy or locked.",
+                "Resolve the conflicting database connection or transaction and wait for active writes to finish. Read job status and reconcile any previous operation before choosing a retry; no automatic retry is performed.", True),
+    "DB_CORRUPT": ("The local state file is damaged or is not a SQLite database.",
+                   "Stop MinionOne, preserve the database and recovery files, and restore a verified backup. Do not delete or recreate the state automatically.", False),
+    "DB_UNAVAILABLE": ("The local state database cannot be opened.",
+                        "Check that the configured database location and its parent directory are available and accessible. Preserve existing state before making changes.", False),
+    "DB_SCHEMA_ERROR": ("The local state schema is incompatible or unsafe for this MinionOne version.",
+                         "Stop MinionOne and check database/version compatibility. Use the documented backup and migration procedure; do not recreate state automatically.", False),
+    "DB_INTEGRITY_ERROR": ("The local state violates a database integrity rule.",
+                            "Stop the affected operation, preserve the database and inspect redacted manager diagnostics or a verified backup. Do not bypass integrity checks or blindly retry.", False),
+    "DB_RESOURCE_EXHAUSTED": ("The local database could not allocate required memory.",
+                              "Reduce local resource pressure and inspect manager health before choosing another operation. Do not unload the parent model automatically.", False),
+    "DB_ERROR": ("The local state database reported an unclassified error.",
+                  "Preserve local state and inspect redacted manager diagnostics and database/version compatibility. Do not infer the cause from raw error text or blindly retry.", False),
+    "STORAGE_FULL": ("Local storage or its configured capacity is exhausted.",
+                      "Free space or review the local storage quota without deleting the job database or recovery files. Check job state before choosing another operation.", False),
+    "STORAGE_READ_ONLY": ("A required local resource is read-only.",
+                           "Check the read-only setting and intended write permissions for local state. Preserve the database and recovery files before changing storage configuration.", False),
+    "STORAGE_ACCESS_DENIED": ("Access to required local state or resources was denied.",
+                               "Check the operator account and intended filesystem permissions. Do not weaken worker isolation or expose credentials to resolve this error.", False),
+    "STORAGE_IO_ERROR": ("An input/output operation on local state failed.",
+                          "Stop affected writes, preserve state and check local storage health. Reconcile the operation before attempting another write.", False),
+    "STORAGE_UNAVAILABLE": ("A required local state location is missing or incompatible.",
+                             "Check that the configured parent location exists and the state path has the expected file or directory type. Do not delete existing state automatically.", False),
+    "CONFIGURATION_INVALID": ("MinionOne could not start with the supplied configuration.",
+                               "Check the local MCP configuration and supported parameter values without sharing credentials or private paths.", False),
+    "MCP_ADDRESS_IN_USE": ("The configured local MCP address is already in use.",
+                           "Check for another MinionOne instance or deliberately select an unused local port. Do not terminate unrelated processes automatically.", False),
     "INTERNAL_ERROR": ("MinionOne encountered an internal error.",
                        "Check the local manager's redacted diagnostics and job state; do not blindly repeat operations.", False),
 }
 
 
 def diagnostic(code: str) -> Diagnostic:
+    if type(code) is not str:
+        code='INTERNAL_ERROR'
     message,action,retryable=_CATALOG.get(code,_CATALOG["INTERNAL_ERROR"])
     if code not in _CATALOG:
         code="INTERNAL_ERROR"
     return Diagnostic(code,message,action,retryable)
+
+
+_SQLITE_DIAGNOSTICS = {
+    sqlite3.SQLITE_BUSY:'DB_BUSY', sqlite3.SQLITE_LOCKED:'DB_BUSY',
+    sqlite3.SQLITE_CORRUPT:'DB_CORRUPT', sqlite3.SQLITE_NOTADB:'DB_CORRUPT',
+    sqlite3.SQLITE_CANTOPEN:'DB_UNAVAILABLE', sqlite3.SQLITE_FULL:'STORAGE_FULL',
+    sqlite3.SQLITE_READONLY:'STORAGE_READ_ONLY', sqlite3.SQLITE_IOERR:'STORAGE_IO_ERROR',
+    sqlite3.SQLITE_PERM:'STORAGE_ACCESS_DENIED', sqlite3.SQLITE_AUTH:'STORAGE_ACCESS_DENIED',
+    sqlite3.SQLITE_SCHEMA:'DB_SCHEMA_ERROR', sqlite3.SQLITE_CONSTRAINT:'DB_INTEGRITY_ERROR',
+    sqlite3.SQLITE_NOMEM:'DB_RESOURCE_EXHAUSTED',
+}
+_STORAGE_CODES = frozenset(_SQLITE_DIAGNOSTICS.values()) | {
+    'DB_ERROR', 'STORAGE_UNAVAILABLE',
+}
+
+
+def classify_storage_failure(exc) -> Diagnostic:
+    """Numeric result codes and known exception types only; never text guessing.
+
+    Python 3.11+ exposes sqlite_errorcode for exceptions from SQLite. Extended
+    result codes retain the primary category in their low byte. A hand-built
+    exception without a usable code is DB_ERROR, not a guessed corruption/full.
+    """
+    if isinstance(exc, sqlite3.Error):
+        value = getattr(exc, 'sqlite_errorcode', None)
+        if type(value) is int and 0 < value <= 0x7fffffff:
+            return diagnostic(_SQLITE_DIAGNOSTICS.get(value & 0xff, 'DB_ERROR'))
+        return diagnostic('DB_ERROR')
+    if isinstance(exc, OSError):
+        value = exc.errno
+        if type(value) is int:
+            if value in (errno.ENOSPC, getattr(errno, 'EDQUOT', errno.ENOSPC)):
+                return diagnostic('STORAGE_FULL')
+            if value in (errno.EACCES, errno.EPERM):
+                return diagnostic('STORAGE_ACCESS_DENIED')
+            if value == errno.EROFS:
+                return diagnostic('STORAGE_READ_ONLY')
+            if value == errno.EIO:
+                return diagnostic('STORAGE_IO_ERROR')
+            if value in (errno.ENOENT, errno.ENOTDIR, errno.EISDIR, errno.EEXIST):
+                return diagnostic('STORAGE_UNAVAILABLE')
+        if isinstance(exc, PermissionError):
+            return diagnostic('STORAGE_ACCESS_DENIED')
+        if isinstance(exc, (FileNotFoundError, NotADirectoryError, IsADirectoryError)):
+            return diagnostic('STORAGE_UNAVAILABLE')
+    return diagnostic('INTERNAL_ERROR')
 
 
 def classify_provider_failure(exc) -> Diagnostic:
@@ -102,15 +180,27 @@ def safe_tool_fault(exc) -> Diagnostic:
     """Map known manager exception *types* to safe stable public codes."""
     from .admission import (
         PermissionDenied, InputRejected, VersionConflict, IdempotencyConflict,
-        ControlJournalUnavailable,
+        ControlJournalUnavailable, StateSchemaRejected, StateIntegrityRejected,
     )
     from .timeout_control import TimeoutControlDenied
-    if hasattr(exc,"diagnostic") and type(exc.diagnostic) is Diagnostic:
-        return exc.diagnostic
+    if isinstance(exc,StateSchemaRejected): return diagnostic('DB_SCHEMA_ERROR')
+    if isinstance(exc,StateIntegrityRejected): return diagnostic('DB_INTEGRITY_ERROR')
     if isinstance(exc,PermissionDenied): return diagnostic("ACCESS_DENIED")
     if isinstance(exc,InputRejected): return diagnostic("INVALID_INPUT")
     if isinstance(exc,VersionConflict): return diagnostic("STALE_VERSION")
     if isinstance(exc,IdempotencyConflict): return diagnostic("IDEMPOTENCY_CONFLICT")
     if isinstance(exc,TimeoutControlDenied): return diagnostic("RESUME_NOT_READY")
-    if isinstance(exc,ControlJournalUnavailable): return diagnostic("ERROR_JOURNAL_UNAVAILABLE")
+    if isinstance(exc,ControlJournalUnavailable):
+        fault = diagnostic('ERROR_JOURNAL_UNAVAILABLE')
+        if type(exc.storage_code) is str and exc.storage_code in _STORAGE_CODES:
+            return Diagnostic(fault.code,fault.message,
+                              fault.action+' '+diagnostic(exc.storage_code).action,False)
+        return fault
+    if isinstance(exc,(sqlite3.Error,OSError)):
+        return classify_storage_failure(exc)
+    attached = getattr(exc,'diagnostic',None)
+    if type(attached) is Diagnostic:
+        # Even a Diagnostic instance may contain fabricated message/action text.
+        # Rebuild from the fixed catalog rather than trusting attached content.
+        return diagnostic(attached.code)
     return diagnostic("INTERNAL_ERROR")

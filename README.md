@@ -182,3 +182,22 @@ worker host filesystem access. See
 **PRODUCT GATE REMAINS NO-GO** until the target-host Unsloth+Flint
 end-to-end run, native work/ handle broker and parent residency proofs are
 completed. Do not run with actual confidential projects or data.
+
+### v0.27 — Flash can delegate directly over the existing MCP endpoint
+
+The explicitly enabled workspace server now advertises a single
+`minionone_delegate` tool. Flash supplies a bounded goal, context,
+acceptance criteria and 1–4 synthetic UTF-8 documents under an
+**operator-configured project ID** (no host paths). The manager creates
+pinned input files, seals the manifest, starts the same canonical workspace
+job with the already loaded Flint model, and publishes result files for
+verified parent ACK. A separate trusted LM Studio system policy is now
+used rather than mixing permissions with task prose.
+
+See [direct Flash-to-Flint workflow and German chat prompt](docs/V027_FLASH_DIRECT_DELEGATION.md).
+
+**Not production-ready:** real Unsloth live tests, parent model residency,
+native worker writable work/ files and safe resume after `ask_question`
+remain unresolved. All new work is part of the existing MCP manager, not
+another test CLI. Only use synthetic tasks with the development opt-in;
+release gate remains NO-GO.

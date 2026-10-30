@@ -199,8 +199,19 @@ class NativeWindowsSealTests(unittest.TestCase):
             self.assertNotIn("minionone_start_workspace_job",server.tool_map)
             self.assertFalse(server.call_tool("minionone_status",{})
                              ["workspace_execution_enabled"])
-            receipt=server.call_tool("minionone_verify_workspace_input",
-                                     {"job_id":self.job})
+            fresh=server.call_tool("minionone_prepare_workspace",{
+                "project_id":"demo","operation_id":"prepare-mcp-winseal-0001"})
+            native_input=Path(fresh["input_dir"])
+            (native_input/"TASK.md").write_bytes(self.task)
+            (native_input/"manifest.json").write_text(json.dumps({"files":{
+                "TASK.md":hashlib.sha256(self.task).hexdigest()}}),encoding="utf-8")
+            accepted=server.call_tool("minionone_seal_workspace",{
+                "job_id":fresh["job_id"],"expected_version":0,
+                "operation_id":"seal-mcp-winseal-0001"})
+            self.assertEqual(accepted["job_id"],fresh["job_id"])
+            self.assertEqual(accepted["state"],"ACCEPTED")
+            receipt=server.call_tool("minionone_verify_workspace_input",{
+                "job_id":fresh["job_id"]})
             self.assertEqual(receipt["input_integrity"],"VERIFIED")
         finally:
             server.server_close()

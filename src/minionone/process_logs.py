@@ -19,6 +19,7 @@ import traceback
 _SAFE=re.compile(r"[A-Za-z0-9_.:-]{1,96}\Z",re.ASCII)
 _EVENT=re.compile(r"[A-Z][A-Z0-9_]{1,63}\Z",re.ASCII)
 _LIMIT=8*1024*1024
+_MAX_ARCHIVES=16  # Keep at most 128 MiB historical segments per log type.
 
 
 class ProcessLogs:
@@ -73,6 +74,17 @@ class ProcessLogs:
             raise OSError("manager log rotation name exists")
         os.rename(self.root/name,self.root/backup)
         self._handles[name]=self._open(name)
+        # Limit disk growth, but never delete the active log or unrelated
+        # operator files. Archive names are internally generated only.
+        prefix=name[:-6]+"."
+        archives=sorted(
+            path for path in self.root.glob(name[:-6]+".*.jsonl")
+            if path.name.startswith(prefix) and
+               re.fullmatch(re.escape(prefix)+r"\d{8}T\d{12}Z-\d+\.jsonl",
+                            path.name) is not None and not path.is_symlink()
+        )
+        for obsolete in archives[:-_MAX_ARCHIVES]:
+            obsolete.unlink()
 
     @staticmethod
     def _value(value):

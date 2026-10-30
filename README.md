@@ -2,7 +2,7 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.23.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.24.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
 **New v0.19 WIP:** opt-in operator-approved project workspace staging with a durable PREPARING job ID (no seal, no worker file access, no Windows NTFS sandbox). See [target workflow](docs/PRODUCT_TARGET_WORKFLOW.md) and [live status evidence](evidence/product-status/PRODUCT_STATUS.md).
 
@@ -154,3 +154,7 @@ The isolated native `WindowsWorkCreateProbe` can create new flat files under a h
 ### v0.23 – durable manager-only POSIX output publication
 
 An admitted job can have trusted-manager candidate bytes pinned in SQLite and atomically published to POSIX `output/` with crash-replay and no-clobber checks. This is **not a Windows publisher or worker tool**. A full end-to-end Flint/Unsloth task is still NOT available. See `docs/V023_DURABLE_OUTPUT_PUBLICATION.md`. PRODUCT_READY remains false.
+
+### v0.24 native Windows manager output publisher (NOT worker-enabled)
+
+A separate manager-only Windows implementation can stage immutable SQLite journal receipts and publish output artifact bytes using handle-relative NTFS access and an atomic no-replace rename. Crash/restart tests run on Windows CI with synthetically admitted jobs. No Windows input sealing, Flint worker file rights or target-host attestation are enabled. See `docs/V024_WINDOWS_OUTPUT_PUBLICATION.md`; release remains NO-GO.

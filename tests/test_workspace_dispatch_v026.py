@@ -173,6 +173,26 @@ class WorkspaceDispatchMCP(unittest.TestCase):
             self.assertEqual(self.start(),receipt)
             self.start_error("competing-v026-001")
 
+    def test_crash_between_durable_queue_and_dispatch_retries_only_same_operation(self):
+        with patch("minionone.pilot_jobs.PilotJobs.start",
+                   side_effect=RuntimeError("synthetic process interruption")):
+            self.start_error("crash-gap-v026-001")
+        queued=self.call("minionone_job_status",{"job_id":self.job})
+        self.assertEqual(queued["state"],"QUEUED")
+        self.start_error("different-operation-v026-001")
+        with patch("minionone.pilot_jobs.PilotJobs._readiness",return_value=None), \
+             patch("minionone.pilot_jobs.LMStudioAgentProvider",DeterministicProvider):
+            first=self.start("crash-gap-v026-001")
+            replay=self.start("crash-gap-v026-001")
+            self.assertEqual(first,replay)
+            deadline=time.monotonic()+12
+            while time.monotonic()<deadline:
+                state=self.call("minionone_job_status",{"job_id":self.job})
+                if state["state"] not in ("QUEUED","RESOURCE_CHECK","RUNNING"):
+                    break
+                time.sleep(.05)
+            self.assertEqual(state["state"],"RESULT_READY",state)
+
     def test_raw_workspace_input_not_exposed_by_mcp(self):
         meta=self.call("minionone_workspace_snapshot",{"job_id":self.job})
         self.assertNotIn("Synthetic example only",json.dumps(meta))

@@ -66,9 +66,9 @@ _JOB_TABLE = """CREATE TABLE IF NOT EXISTS {name}(
   'RESULT_READY','COMPLETED','FAILED','WAITING_FOR_PARENT')),
  version INTEGER NOT NULL CHECK(version>=0),
  job_kind TEXT NOT NULL DEFAULT 'NON_EXECUTING'
-   CHECK(job_kind IN ('NON_EXECUTING','ISOLATED_TEST')),
+   CHECK(job_kind IN ('NON_EXECUTING','ISOLATED_TEST','WORKSPACE')),
  worker_started INTEGER NOT NULL DEFAULT 0 CHECK(worker_started IN (0,1))
-   CHECK(worker_started=0 OR job_kind='ISOLATED_TEST'),
+   CHECK(worker_started=0 OR job_kind IN ('ISOLATED_TEST','WORKSPACE')),
  created_utc TEXT NOT NULL, updated_utc TEXT NOT NULL)"""
 
 
@@ -168,13 +168,36 @@ class AdmissionStore:
         definition = sqlrow[0]
         normalized = ''.join(definition.split())
         if 'job_kind' in normalized:
-            required = ("CHECK(worker_startedIN(0,1))",
-                        "CHECK(worker_started=0ORjob_kind='ISOLATED_TEST')",
-                        "'RESULT_READY'", "'COMPLETED'", "'FAILED'")
-            if not all(x in normalized for x in required):
-                raise StateSchemaRejected('unsafe isolated-test jobs schema')
+            allowed_guard = ("CHECK(worker_started=0ORjob_kind='ISOLATED_TEST')" in normalized or
+                "CHECK(worker_started=0ORjob_kindIN('ISOLATED_TEST','WORKSPACE'))" in normalized)
+            if (not allowed_guard or "CHECK(worker_startedIN(0,1))" not in normalized or
+                    not all(x in normalized for x in ("'RESULT_READY'","'COMPLETED'","'FAILED'"))):
+                raise StateSchemaRejected('unsafe executable jobs schema')
             if con.execute('PRAGMA foreign_key_check').fetchone() is not None:
                 raise StateIntegrityRejected('broken canonical foreign keys')
+            if "'WORKSPACE'" not in normalized:
+                # Exact v0.25 constraint expansion for the first executable
+                # workspace slice. The canonical row/ID and all child FKs
+                # survive the single atomic table replacement.
+                con.execute("PRAGMA foreign_keys=OFF")
+                try:
+                    con.execute("BEGIN IMMEDIATE")
+                    con.execute(_JOB_TABLE.format(name="jobs__v026_rebuilt"))
+                    con.execute("""INSERT INTO jobs__v026_rebuilt
+                      (job_id,principal,thread_id,input_digest,state,version,
+                       job_kind,worker_started,created_utc,updated_utc)
+                      SELECT job_id,principal,thread_id,input_digest,state,version,
+                             job_kind,worker_started,created_utc,updated_utc FROM jobs""")
+                    con.execute("DROP TABLE jobs")
+                    con.execute("ALTER TABLE jobs__v026_rebuilt RENAME TO jobs")
+                    if con.execute("PRAGMA foreign_key_check").fetchone() is not None:
+                        raise StateIntegrityRejected('workspace migration foreign-key integrity failure')
+                    con.commit()
+                except BaseException:
+                    if con.in_transaction: con.rollback()
+                    raise
+                finally:
+                    con.execute("PRAGMA foreign_keys=ON")
             return
         # Support exactly the known historical 3-state and 6-state schemas.
         old_three="('ACCEPTED','CANCEL_REQUESTED','CANCELLED')"
@@ -308,9 +331,9 @@ class AdmissionStore:
                 timeout = TimeoutControlStore.project(con,row)
                 if timeout is not None:
                     snapshot['timeout'] = timeout
-            if row['job_kind'] == 'ISOLATED_TEST':
+            if row['job_kind'] in ('ISOLATED_TEST','WORKSPACE'):
                 from .pilot_jobs import PilotJobs
-                snapshot['test_job'] = PilotJobs.project(con,row)
+                snapshot['test_job' if row['job_kind']=='ISOLATED_TEST' else 'workspace_job'] = PilotJobs.project(con,row)
             return snapshot
 
     def _transition(self, con, row, new, evidence, operation_id, *, actor='MANAGER'):

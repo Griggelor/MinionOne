@@ -111,3 +111,9 @@ Authenticated loopback Streamable HTTP endpoint, non-executing SQLite admission,
 - Add isolated handle-rooted, CREATE_NEW-only NTFS `work/` proof; no worker tool or API exposed.
 - Add Windows native tests for new-file writes, collisions, links, invalid paths, directory pinning and quota checks.
 - Preserve NO-GO for full Windows file broker, atomic publication, parent workflow and target-host validation.
+
+## 0.23.0.dev0 – durable POSIX manager output publication
+
+- Add a manager-only, durable candidate-artifact journal with immutable hash-pinned bytes and job-scoped quotas.
+- Atomically publish POSIX output without overwriting existing files; replay idempotently after interruptions, refuse partial/tampered state.
+- Add crash-injection, concurrency, restart, quota and symlink/collision tests; Windows and workers remain fail-closed.

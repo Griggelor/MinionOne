@@ -56,6 +56,10 @@ def main():
     seal_output=io.StringIO()
     seal_result=unittest.TextTestRunner(stream=seal_output,verbosity=2).run(seal_suite)
     (out/'LOCAL_SEAL_SECURITY_TESTS.log').write_text(seal_output.getvalue(),encoding='utf-8')
+    publish_suite=unittest.defaultTestLoader.discover(str(ROOT/'tests'),pattern='test_workspace_publication.py')
+    publish_output=io.StringIO()
+    publish_result=unittest.TextTestRunner(stream=publish_output,verbosity=2).run(publish_suite)
+    (out/'LOCAL_PUBLICATION_SECURITY_TESTS.log').write_text(publish_output.getvalue(),encoding='utf-8')
     # Run RED target contract tests separately. These tests must not be hidden
     # by the green pilot suite or marked successful without execution evidence.
     target_suite=unittest.defaultTestLoader.discover(str(ROOT/'product_acceptance'),
@@ -84,8 +88,8 @@ def main():
     for case in cases:counts[case['verification']]=counts.get(case['verification'],0)+1
     product_pass=all(c['verification']=='PASS_TARGET_E2E' for c in cases)
     report={'schema_version':1,'generated_utc':datetime.now(timezone.utc).isoformat(),
-      'version':'0.22.0.dev0 (native Windows read-only broker WIP; NOT product-approved)',
-      'baseline':'v0.20.0.dev0 (GitHub main baseline PR #35)',
+      'version':'0.23.0.dev0 (durable POSIX manager output, Windows worker blocked; NO-GO)',
+      'baseline':'v0.22.0.dev0 (GitHub main baseline, PR #37)',
       'environment':{'os':platform.system(),'python':platform.python_version()},
       'execution':{'command':'PYTHONPATH=src python scripts/run_product_status.py',
         'tests_run':result.testsRun,'passed':result.testsRun-len(result.failures)-len(result.errors)-len(result.skipped),
@@ -98,6 +102,11 @@ def main():
                                    'failed':len(seal_result.failures)+len(seal_result.errors),
                                    'skipped':len(seal_result.skipped),
                                    'type':'local POSIX descriptor-relative; Windows not verified'},
+      'publication_security_execution':{'tests_run':publish_result.testsRun,
+            'passed':publish_result.testsRun-len(publish_result.failures)-len(publish_result.errors)-len(publish_result.skipped),
+            'failed':len(publish_result.failures)+len(publish_result.errors),
+            'skipped':len(publish_result.skipped),
+            'type':'manager-only POSIX staged output publication; Windows worker not enabled'},
       'catalog':{'cases_total':len(cases),'counts':counts,'known_baseline_test_ids':169,
                  'historical_undefined_test_ids':0},
       'release_gate':{'product_ready':product_pass,'reason':('ALL_TARGET_GATES_VERIFIED' if product_pass else
@@ -111,6 +120,7 @@ def main():
       f"Original 13 workspace tests: **{report['execution']['passed']} passed, {report['execution']['failed']} failed, {report['execution']['skipped']} skipped**.",
       f"New local input-seal/security tests: **{report['seal_security_execution']['passed']} passed, {report['seal_security_execution']['failed']} failed, {report['seal_security_execution']['skipped']} skipped**.",
       f"Target MCP contract (local only): **{report['target_contract_execution']['passed']} passed, {report['target_contract_execution']['failed']} failed**.",
+      f"New manager publication tests: **{report['publication_security_execution']['passed']} passed, {report['publication_security_execution']['failed']} failed, {report['publication_security_execution']['skipped']} skipped** (NOT target product approval).",
       '', '| Verification | Cases |', '|---|---:|']
     for status,n in sorted(counts.items()):md.append(f'| `{status}` | {n} |')
     md+=['','**Crucial:** `PASS_LOCAL_ONLY` does NOT count as production/target acceptance.',
@@ -121,12 +131,13 @@ def main():
       '- Portable/Windows manager seal with verified Win32 handles (POSIX-only local seal exists).',
       '- Admission and selected model bound to the same durable job_id.',
       '- Secure native Windows NTFS handle-based broker; adversarial host tests.',
-      '- Flint tool execution through that broker, immutable publish and redacted log projection.',
+      '- Flint tool execution through a verified broker, native Windows manager publication, redacted log and parent ACK.',
       '- Parent Unsloth ownership, polling/wakeup verification, ACK and crash/restart E2E.',
       '', 'Exact per-case details: `PRODUCT_STATUS.json`.','']
     (out/'PRODUCT_STATUS.md').write_text('\n'.join(md),encoding='utf-8')
     print(f"PRODUCT_READY={product_pass} | CASES={len(cases)} | {counts} | WORKSPACE_LOCAL={report['execution']['passed']}/{result.testsRun} | SEAL_LOCAL={report['seal_security_execution']['passed']}/{seal_result.testsRun}")
-    if result.failures or result.errors or seal_result.failures or seal_result.errors:return 1
+    if (result.failures or result.errors or seal_result.failures or seal_result.errors or
+            publish_result.failures or publish_result.errors):return 1
     # Target failures are expected during development, but strict mode fails.
     if args.strict and not product_pass:return 2
     return 0

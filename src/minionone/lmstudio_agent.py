@@ -90,7 +90,8 @@ class LMStudioAgentProvider:
     """
 
     def __init__(self, base_url, *, model_id, approved_prompt,
-                 max_output_tokens=1024, api_key=None, system_prompt=None):
+                 max_output_tokens=1024, api_key=None, system_prompt=None,
+                 io_sink=None):
         if type(model_id) is not str or _MODEL.fullmatch(model_id) is None:
             raise PlannerRejected("invalid model identifier")
         if type(approved_prompt) is not str or not 1 <= len(approved_prompt) <= 8000:
@@ -108,6 +109,9 @@ class LMStudioAgentProvider:
             [{"role":"system","content":system_prompt}] if system_prompt is not None else []
         ) + [{"role":"user","content":approved_prompt}]
         self._pending=None
+        if io_sink is not None and not callable(io_sink):
+            raise PlannerRejected("invalid manager worker IO sink")
+        self._io_sink=io_sink
 
     def next_step(self, *, timeout_seconds):
         if (type(timeout_seconds) not in (int,float) or
@@ -130,6 +134,11 @@ class LMStudioAgentProvider:
                         ensure_ascii=True,separators=(",",":")).encode("ascii")
         if len(data)>_MAX_BODY_BYTES:
             raise PlannerRejected("model history byte limit reached")
+        # Exact serialized OpenAI-compatible request BODY, before any network
+        # side effect. The sensitive body contains task/input-derived text.
+        # HTTP credentials are carried only in headers, never in this record.
+        if self._io_sink is not None:
+            self._io_sink("MODEL_REQUEST",data.decode("ascii"))
         headers={"Accept":"application/json","Content-Type":"application/json"}
         if self._provider.api_key is not None:
             headers["Authorization"]="Bearer "+self._provider.api_key
@@ -145,6 +154,15 @@ class LMStudioAgentProvider:
                                   diagnostic=classify_provider_failure(exc)) from exc
         if len(raw)>_MAX_RESPONSE_BYTES:
             raise PlannerRejected("response exceeds byte budget")
+        # Record the exact response bytes as UTF-8 JSON before parsing or
+        # accepting untrusted tool calls. A malformed UTF-8 response cannot be
+        # represented faithfully and makes the worker fail closed.
+        if self._io_sink is not None:
+            try:
+                decoded=raw.decode("utf-8")
+            except UnicodeDecodeError:
+                raise PlannerRejected("non-UTF8 provider response cannot be logged") from None
+            self._io_sink("MODEL_RESPONSE",decoded)
         try:
             obj=json.loads(raw.decode("utf-8"))
             if type(obj) is not dict:
@@ -233,12 +251,17 @@ class LMStudioAgentProvider:
         if reply.data is not None and (type(reply.data) is not dict or not _safe_arguments(reply.data)):
             raise PlannerRejected('invalid scoped tool data')
         _,call_id=self._pending
-        self._messages.append({
+        actual={
             "role":"tool",
             "tool_call_id":call_id,
             "content":json.dumps({"status":reply.status,
                                   "result_code":reply.result_code,
                                   **({'data':reply.data} if reply.data is not None else {})},
                                  sort_keys=True,separators=(",",":")),
-        })
+        }
+        if self._io_sink is not None:
+            self._io_sink("TOOL_RESPONSE",
+                          json.dumps(actual,sort_keys=True,
+                                     ensure_ascii=True,separators=(",",":")))
+        self._messages.append(actual)
         self._pending=None

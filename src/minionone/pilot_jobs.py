@@ -292,7 +292,7 @@ class PilotJobs:
                     io_con.execute('BEGIN')
                     from .worker_io import jsonl as verified_io_jsonl
                     verified=verified_io_jsonl(io_con,job)
-                if not verified or len(verified)!=live_logs._sizes["worker-io.jsonl"]:
+                if not verified or not live_logs.verify_worker_bytes(verified):
                     raise PilotError('PILOT_FILE_CHANGED')
                 live_logs.job_event('JOB_OUTCOME',{'outcome':run.status})
                 io_published=True

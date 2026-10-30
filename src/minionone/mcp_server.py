@@ -153,6 +153,7 @@ class LocalMCP(ThreadingHTTPServer):
         # Establish independent process/error files before SQLite, leases,
         # schema migration or network bind. A DB failure is still observable.
         self.logs=ProcessLogs(database_path)
+        self._logs_closed=False
         self.logs.event("PROCESS_START",workspace_enabled=int(enable_workspace_jobs))
         self.pilot=None;self._pilot_lock=None;self.workspace=None;self.workspace_jobs=None
         self.enable_workspace_jobs=enable_workspace_jobs
@@ -220,8 +221,10 @@ class LocalMCP(ThreadingHTTPServer):
             try:super().server_close()
             finally:
                 if self._pilot_lock is not None:self._pilot_lock.close()
-                try:self.logs.event("PROCESS_STOP")
-                finally:self.logs.close()
+                if not self._logs_closed:
+                    self._logs_closed=True
+                    try:self.logs.event("PROCESS_STOP")
+                    finally:self.logs.close()
 
     def process_request(self, request, client_address):
         if not self._slots.acquire(blocking=False):

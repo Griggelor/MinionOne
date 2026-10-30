@@ -292,8 +292,11 @@ class PilotJobs:
                     io_con.execute('BEGIN')
                     from .worker_io import jsonl as verified_io_jsonl
                     verified=verified_io_jsonl(io_con,job)
-                if not verified or not live_logs.verify_worker_bytes(verified):
-                    raise PilotError('PILOT_FILE_CHANGED')
+                try:
+                    if not verified or not live_logs.verify_worker_bytes(verified):
+                        raise PilotError('PILOT_FILE_CHANGED')
+                except InputRejected as exc:
+                    raise PilotError('PILOT_FILE_CHANGED') from exc
                 live_logs.job_event('JOB_OUTCOME',{'outcome':run.status})
                 io_published=True
                 # On Windows, a terminal job state MUST NOT become visible
@@ -317,6 +320,13 @@ class PilotJobs:
                 self.process_logs.event("WORKER_LOOP_FINISHED",job_id=job,outcome=run.status)
         except Exception as exc:
             code=safe_tool_fault(exc).code
+            # A mismatched / corrupted exact transcript cannot be a clean
+            # worker failure. Its on-disk side effects need operator
+            # reconciliation even if the SQLite state itself remains valid.
+            if workspace_job and code in (
+                    'PILOT_FILE_CHANGED','DB_INTEGRITY_ERROR',
+                    'STORAGE_IO_ERROR','DB_CORRUPT'):
+                publication_started=True
             if workspace_job and not io_published:
                 try:
                     if live_logs is not None:

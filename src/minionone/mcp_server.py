@@ -26,6 +26,34 @@ TOOLS = [
 ]
 TOOL_MAP = {t["name"]: t for t in TOOLS}
 
+# Flash-facing direct job delegation, only advertised with explicit
+# operator-approved workspace execution. No parent-supplied host paths.
+DIRECT_DELEGATION_TOOL = {
+ 'name':'minionone_delegate',
+ 'description':(
+     'Delegate ONE bounded UTF-8 task from Flash to configured Flint via '
+     'the operator-approved sealed workspace. Provide goal, optional context, '
+     '1-5 acceptance criteria, 1-4 small input documents, and unique operation_id. '
+     'MinionOne stages/seals/starts the SAME job ID. Model cannot access host paths. '
+     'Poll minionone_job_status; retrieve verified result with '
+     'minionone_workspace_result; explicitly acknowledge using '
+     'minionone_accept_workspace_result. This development path remains NO-GO '
+     'for confidential tasks or real project code.'
+ ),
+ 'inputSchema':{'type':'object','properties':{
+     'project_id':{'type':'string'},
+     'goal':{'type':'string','maxLength':1200},
+     'context':{'type':'string','maxLength':1000},
+     'acceptance_criteria':{'type':'array','minItems':1,'maxItems':5,
+                            'items':{'type':'string','maxLength':250}},
+     'files':{'type':'object','minProperties':1,'maxProperties':4,
+              'additionalProperties':{'type':'string','maxLength':3500}},
+     'operation_id':{'type':'string'},
+ },'required':['project_id','goal','context','acceptance_criteria','files','operation_id'],
+    'additionalProperties':False}
+}
+
+
 WORKSPACE_TOOLS = [
  {'name':'minionone_prepare_workspace',
   'description':'Opt-in manager-only PREPARING workspace in an operator-approved project. Not admitted or executable.',
@@ -228,6 +256,10 @@ class LocalMCP(ThreadingHTTPServer):
             if name == 'minionone_workspace_status':
                 return self.workspace.status(token,thread,args['job_id'])
             if self.workspace_jobs is not None:
+                if name == 'minionone_delegate':
+                    return self.workspace_jobs.delegate(token,thread,
+                        args['project_id'],args['goal'],args['context'],
+                        args['acceptance_criteria'],args['files'],args['operation_id'])
                 if name == 'minionone_start_workspace_job':
                     return self.workspace_jobs.start(token,thread,args['job_id'],
                         args['expected_version'],args['operation_id'],args['model_id'])

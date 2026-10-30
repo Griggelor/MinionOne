@@ -174,6 +174,7 @@ class PilotJobs:
             con.execute('INSERT INTO admission_events VALUES(?,?,?,?,?,?)',(job,1,'ACCEPTED','pilot-submit-'+_digest(operation_id),'AUTHENTICATED_PARENT',now))
             con.execute('INSERT INTO pilot_runs(job_id,task,model_id) VALUES(?,?,?)',(job,task,self.config.model_id))
             log_event(con,job,'AUDIT','JOB_ACCEPTED',{'state':'ACCEPTED','version':0})
+            log_event(con,job,'JOB','JOB_ACCEPTED',{'state':'ACCEPTED','version':0})
             for name,content in {'task.md':task,**clean}.items():
                 con.execute('INSERT INTO pilot_files VALUES(?,?,?,?,?)',(job,'input',name,content,sha256(content.encode()).hexdigest()))
             row=self.owner._owned_row(con,principal,thread,job)

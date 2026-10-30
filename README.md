@@ -2,7 +2,7 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.21.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.22.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
 **New v0.19 WIP:** opt-in operator-approved project workspace staging with a durable PREPARING job ID (no seal, no worker file access, no Windows NTFS sandbox). See [target workflow](docs/PRODUCT_TARGET_WORKFLOW.md) and [live status evidence](evidence/product-status/PRODUCT_STATUS.md).
 
@@ -146,3 +146,7 @@ With `--project demo=<trusted-root>` enabled, Flash can reserve a job, write `in
 ### v0.21 native Windows input broker (G1b development, not product-ready)
 
 A native read-only handle-rooted `input/` broker prototype is tested on a Windows NTFS runner. There is **no Windows MCP seal or worker filesystem permission**, no work/ writer and no real Flint/Unsloth job. See `docs/V021_WINDOWS_READ_BROKER_SCOPE.md`. Target-product acceptance remains NO-GO.
+
+### v0.22 Windows `work/` CREATE-ONLY proof (not enabled)
+
+The isolated native `WindowsWorkCreateProbe` can create new flat files under a held NTFS `work/` directory handle without overwriting an existing name. Native Windows CI tests cover collisions, links, disallowed paths and basic quotas. **It is not wired to the MCP service or any worker**, and partial-file recovery, durable quotas, atomic publication and target-host ACL checks remain open. See `docs/V022_WINDOWS_WORK_CREATE_SCOPE.md`. Target product remains NO-GO.

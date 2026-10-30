@@ -30,7 +30,7 @@ _DELETE = 0x00010000
 _FILE_CREATE = 2
 _FILE_OPEN = 1
 _NORMAL = 0x80
-_FILE_RENAME_INFO = 3
+_FILE_RENAME_INFO = 10  # NtSetInformationFile: FileRenameInformation
 _NOT_FOUND = {0xC0000034, 0xC000003A}
 _SHARE_READ = 1
 
@@ -47,11 +47,11 @@ class _FileRenameInfo(ctypes.Structure):
 class _PublisherNative(_NativeWriter):
     def __init__(self):
         super().__init__()
-        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-        self.rename = kernel.SetFileInformationByHandle
-        self.rename.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
-                                wintypes.DWORD]
-        self.rename.restype = wintypes.BOOL
+        ntdll = ctypes.WinDLL("ntdll", use_last_error=True)
+        self.rename = ntdll.NtSetInformationFile
+        self.rename.argtypes = [wintypes.HANDLE, ctypes.POINTER(_IoStatusBlock),
+                                ctypes.c_void_p, wintypes.ULONG, ctypes.c_int]
+        self.rename.restype = ctypes.c_long
 
     def _open(self, parent, name, access, disposition):
         _component(name)
@@ -94,8 +94,12 @@ class _PublisherNative(_NativeWriter):
         info.contents.FileNameLength = len(encoded)
         ctypes.memmove(ctypes.addressof(buffer)+_FileRenameInfo.FileName.offset,
                        encoded, len(encoded))
-        if not self.rename(source, _FILE_RENAME_INFO, buffer, total):
-            raise InputRejected("Windows atomic no-replace output rename denied (win32=%d)" % ctypes.get_last_error())
+        ios = _IoStatusBlock()
+        status = self.rename(source, ctypes.byref(ios), buffer, total,
+                             _FILE_RENAME_INFO)
+        if status != 0:
+            raise InputRejected("native Windows no-replace output rename denied (ntstatus=0x%08x)" %
+                                (status & 0xffffffff))
 
     def open_output_directory(self, parent):
         # The target directory must authorize creating the new directory entry

@@ -10,7 +10,7 @@ import unittest
 from minionone.mcp_server import LocalMCP
 from minionone.process_logs import ProcessLogs
 from minionone.agent_loop import ModelStep
-from test_flash_delegation_v027 import FlashHTTPFixture,TOKEN,MODEL
+from test_flash_delegation_v027 import FlashHTTPFixture,TOKEN
 
 
 class BlockingFlint:

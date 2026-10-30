@@ -1,8 +1,7 @@
-"""POSIX-only, manager-owned, descriptor-relative input capture for staged jobs.
+"""Manager-owned, bounded POSIX and Windows input capture for staged jobs.
 
-This is a safe local DEVELOPMENT SEAM, not the Windows NTFS file broker and
-not a worker runtime. On Windows sealing is deliberately unavailable until
-Win32 handle-identity/reparse/ADS defenses have a real target-host proof.
+This is a DEVELOPMENT admission seam, not a verified worker broker or a
+real target-host Windows security gate. Worker execution remains disabled.
 """
 from __future__ import annotations
 
@@ -154,6 +153,13 @@ def _write_projection(workspace,row,events):
             'operation_id':event['operation_id'],'utc':event['occurred_utc'],
             'metadata':{}},sort_keys=True,separators=(',',':'))+'\n')
     payload=''.join(lines).encode('utf-8')
+    if os.name == 'nt':
+        # The native manager output route is append-free for the ACCEPTED
+        # admission event. No Windows worker/running-job logging is enabled.
+        if len(events) != 1 or events[0]['status'] != 'ACCEPTED':
+            raise InputRejected('Windows admission projection supports only ACCEPTED')
+        from .win32_workspace_sealing import project_admission_log
+        return project_admission_log(workspace,row,payload)
     temp='.joblog-'+secrets.token_hex(12)+'.tmp'
     with _job_directory(workspace,row,'output') as fd:
         handle=os.open(temp,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=fd)
@@ -166,6 +172,17 @@ def _write_projection(workspace,row,events):
             os.close(handle)
             try:os.unlink(temp,dir_fd=fd)
             except FileNotFoundError:pass
+
+
+
+@contextmanager
+def _capture_for_admission(workspace,row):
+    if os.name == 'nt':
+        from .win32_workspace_sealing import pinned_capture
+        with pinned_capture(workspace,row) as snapshot:
+            yield snapshot
+    else:
+        yield capture(workspace,row)
 
 
 def seal(workspace,token,thread,job_id,expected_version,operation_id):
@@ -188,7 +205,13 @@ def seal(workspace,token,thread,job_id,expected_version,operation_id):
         _write_projection(workspace,row,workspace.store.events(token,thread,job_id))
         return receipt
     if row['state']!='PREPARING':raise InputRejected('workspace not prepared')
-    data,digests,input_digest=capture(workspace,row)
+    with _capture_for_admission(workspace,row) as snapshot:
+        return _commit_captured(workspace,token,thread,job_id,operation_id,
+                                principal,row,snapshot)
+
+
+def _commit_captured(workspace,token,thread,job_id,operation_id,principal,row,snapshot):
+    data,digests,input_digest=snapshot
     with workspace.store._connection() as con:
         con.execute('BEGIN IMMEDIATE')
         fresh=con.execute('''SELECT * FROM workspace_reservations
@@ -225,7 +248,6 @@ def seal(workspace,token,thread,job_id,expected_version,operation_id):
     _write_projection(workspace,row,workspace.store.events(token,thread,job_id))
     return receipt
 
-
 def verify(workspace,token,thread,job_id):
     principal=workspace.store._principal(token,thread)
     from .workspace_preparation import _JOB
@@ -239,13 +261,14 @@ def verify(workspace,token,thread,job_id):
         snapshots=con.execute('SELECT name,sha256,content FROM workspace_input_blobs WHERE job_id=?',
                               (job_id,)).fetchall()
     if sealed is None or not snapshots:raise InputRejected('trusted input snapshot missing')
-    data,digests,digest=capture(workspace,row)
-    if digest!=sealed['input_digest'] or len(data)!=len(snapshots):
-        raise InputRejected('sealed inputs were modified')
-    for saved in snapshots:
-        if (saved['name'] not in data or
-            hashlib.sha256(saved['content']).hexdigest()!=saved['sha256'] or
-            data[saved['name']]!=saved['content']):
-            raise InputRejected('sealed input snapshot mismatch')
-    return {'job_id':job_id,'state':'ACCEPTED','input_integrity':'VERIFIED',
-            'input_digest':digest,'worker_execution_enabled':False}
+    with _capture_for_admission(workspace,row) as snapshot:
+        data,digests,digest=snapshot
+        if digest!=sealed['input_digest'] or len(data)!=len(snapshots):
+            raise InputRejected('sealed inputs were modified')
+        for saved in snapshots:
+            if (saved['name'] not in data or
+                hashlib.sha256(saved['content']).hexdigest()!=saved['sha256'] or
+                data[saved['name']]!=saved['content']):
+                raise InputRejected('sealed input snapshot mismatch')
+        return {'job_id':job_id,'state':'ACCEPTED','input_integrity':'VERIFIED',
+                'input_digest':digest,'worker_execution_enabled':False}

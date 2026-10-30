@@ -7,7 +7,7 @@
 - Manager-pinned bytes and SHA-256 are registered by `stage()` in SQLite before publication. Name, operation ID, job ID and aggregate byte/file quotas remain durable.
 - For Windows, the publisher anchors the approved project directory, validates the root FileId and traverses `.minionone/jobs/JOB-…/output` with held relative NTFS handles, denying reparse-point components and volume changes.
 - It creates `pending-<digest>.part` with `NtCreateFile(FILE_CREATE)`, writes bounded bytes through `WriteFile`, calls `FlushFileBuffers` and verifies the complete content by an opened native handle.
-- The manager then uses `NtSetInformationFile(FileRenameInformation)` with `ReplaceIfExists=false` and a held output-directory handle. A different existing final output is never overwritten.
+- The manager then uses `NtSetInformationFile(FileRenameInformation)` with `ReplaceIfExists=false`, a validated single-component filename, and `RootDirectory=NULL` (same-directory rename from an anchored source file handle). A different existing final output is never overwritten.
 - `BEGIN IMMEDIATE` on the manager SQLite journal serializes concurrent publishers across processes; the database receipt is committed only after the final name becomes visible and verifies correctly.
 - A restart after fsync but before rename can verify the pending bytes and finish; a restart after rename but before SQLite commit can verify the final content and complete the journal.
 - Incomplete, manipulated or unexpected pending/final states fail closed; no unsafe automatic cleanup or replacement.
@@ -29,3 +29,7 @@
 ## Win32 API correction in runner evidence
 
 Windows returned `WinError 87 (ERROR_INVALID_PARAMETER)` for the native kernel32 `SetFileInformationByHandle(FileRenameInfo)` wrapper with a non-NULL `RootDirectory` and relative name. The manager deliberately uses `NtSetInformationFile(FileRenameInformation)` instead, retaining the parent directory handle and avoiding any lexical/absolute-path rename fallback. This correction must be tested by the native Windows-runner suite and separately on the target host. See [Microsoft's FileRenameInfo contract](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_rename_info).
+
+## Corrected same-directory Win32 rename
+
+The final implementation uses `NtSetInformationFile(FileRenameInformation)` with a validated simple filename and `RootDirectory=NULL`, as specified for a rename **within the existing source directory**. The file being renamed was opened relative to the approved, pinned output handle. This avoids a second target-directory open and preserves the directory's deny-delete sharing mode, rather than broadening it to `FILE_SHARE_DELETE`. Native Windows CI also tests that the `output/` directory cannot be renamed while the publisher holds it.

@@ -12,7 +12,7 @@ spec=importlib.util.spec_from_file_location('minionone_bundle_builder',ROOT/'scr
 builder=importlib.util.module_from_spec(spec);spec.loader.exec_module(builder)
 
 class SystemBundleTests(unittest.TestCase):
-    def wheel(self,folder,version='0.18.0.dev0',internal=None):
+    def wheel(self,folder,version='0.19.0.dev0',internal=None):
         path=folder/f'minionone-{version}-py3-none-any.whl'
         with zipfile.ZipFile(path,'w') as archive:
             archive.writestr(f'minionone-{version}.dist-info/METADATA','Name: minionone\nVersion: '+(internal or version)+'\n')

@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-30",
+  "source_base": "53e0bbb2333f357d3eb8a8f14963cbc2bb0fc255",
+  "source_base_tree": "0f46bef64babb30566d94275dac1fa727da3a38c",
+  "version": "0.17.0.dev0",
+  "environment": {
+    "python": "3.12.14",
+    "platform": "Linux",
+    "sqlite": "3.53.1",
+    "clean_venv": true
+  },
+  "runs": [
+    {
+      "log": "RED_FINAL_TESTS_ON_V016.log",
+      "command": "PYTHONPATH=<baseline-v016>/src python -m unittest discover -s <baseline-v016>/tests -p test_storage_diagnostics.py -v",
+      "outcome": "expected_failure_on_unchanged_v016",
+      "test_cases_run": 18,
+      "duration_seconds": 2.085,
+      "failure_records": 47,
+      "error_records": 10,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "log": "MALFORMED_DIAGNOSTIC_RED.log",
+      "command": "python -m unittest discover -s tests -p test_storage_diagnostics.py -v",
+      "outcome": "expected_failure_before_catalog_key_guard",
+      "test_cases_run": 18,
+      "duration_seconds": 2.361,
+      "failure_records": 0,
+      "error_records": 2,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "log": "VERSION_RED.log",
+      "command": "python -m unittest discover -s tests -p test_version_checkpoint.py -v",
+      "outcome": "expected_failure_before_version_bump",
+      "test_cases_run": 2,
+      "duration_seconds": 0.001,
+      "failure_records": 2,
+      "error_records": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "log": "ENVIRONMENT_RED.log",
+      "command": "python -m unittest discover -s tests -v",
+      "outcome": "failed_stale_reused_environment_metadata",
+      "test_cases_run": 231,
+      "duration_seconds": 25.917,
+      "failure_records": 1,
+      "error_records": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "log": "GREEN_FULL.log",
+      "command": "python -m unittest discover -s tests -v",
+      "outcome": "pass_in_fresh_environment",
+      "test_cases_run": 231,
+      "duration_seconds": 24.463,
+      "failure_records": 0,
+      "error_records": 0,
+      "skipped": 0,
+      "exit_code": 0
+    }
+  ],
+  "wheel": {
+    "filename": "minionone-0.17.0.dev0-py3-none-any.whl",
+    "sha256": "c49d50a4c45f1694bff1cb2e2b1f0cf43fc32e43bcd7a0fa903e897500b7f4f2",
+    "build_command": "python -m pip wheel --no-build-isolation --no-deps --wheel-dir dist .",
+    "clean_install_command": "python -m pip install --no-index --no-deps dist/minionone-0.17.0.dev0-py3-none-any.whl",
+    "smoke_log": "WHEEL_SMOKE.log",
+    "isolated_import_and_startup_smoke_passed": true
+  },
+  "notes": [
+    "Final full suite: 231 passed, 0 failed/errors/skipped.",
+    "Subtest failure/error record totals can exceed parent test counts.",
+    "SQLite lock/corrupt/cannot-open/read-only/page-count failures are real synthetic local effects; other errno/SQLite categories are injected.",
+    "SQLite size exhaustion is not physical disk-full or target Windows ACL evidence.",
+    "No new job state, worker rights, automatic retry or state repair.",
+    "User removed separate review/approval stages; tests, CI and direct merge continue. Issue #9 canceled, not an audit pass.",
+    "Transient paths and trailing whitespace in published logs are normalized.",
+    "Remote CI is separately recorded at exact source SHA in the handoff."
+  ]
+}

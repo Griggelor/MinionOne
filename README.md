@@ -2,7 +2,7 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.16.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.17.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
 MinionOne aims to delegate bounded tasks from a primary local assistant to specialist workers (initially via LM Studio), while keeping authorization, state, resource budgets, files and final integration under the trusted manager's control. It is **not** an official Unsloth project or an endorsed Unsloth extension.
 
@@ -15,6 +15,14 @@ status. Failed-command replay preserves its outcome; the error is historical
 metadata, not a new job state. See [transaction and recovery contract](docs/ADR_G2_DURABLE_CONTROL_ERRORS.md).
 Issue #29 remains open: provider/worker/storage-wide error journaling and real
 Unsloth notification are not implemented by this slice.
+
+**New in v0.17:** SQLite and local-state failures now have distinct fixed diagnostics
+for busy/locked, corrupt, unavailable, full, read-only, I/O, permission,
+schema/integrity and database-memory failures. Startup reports a redacted JSON
+error and exits without claiming a listener started; default-state-directory
+failures are handled too. See [storage diagnostic contract](docs/G2_STORAGE_DIAGNOSTICS.md).
+Implementation proceeds with tests and CI, then merge; no separate review or
+review-approval step is required by the owner. Worker execution remains disabled.
 
 ## New: opt-in local MCP transport pilot
 

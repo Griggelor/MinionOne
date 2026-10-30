@@ -1,0 +1,777 @@
+test_corrupt_runtime_file_reports_error_instead_of_successful_status (test_storage_diagnostics.MCPStorageBoundaryTests.test_corrupt_runtime_file_reports_error_instead_of_successful_status) ... FAIL
+test_journal_failure_keeps_primary_code_but_gives_specific_storage_action (test_storage_diagnostics.MCPStorageBoundaryTests.test_journal_failure_keeps_primary_code_but_gives_specific_storage_action) ... FAIL
+test_numeric_storage_failures_cross_real_http_boundary (test_storage_diagnostics.MCPStorageBoundaryTests.test_numeric_storage_failures_cross_real_http_boundary) ...
+  test_numeric_storage_failures_cross_real_http_boundary (test_storage_diagnostics.MCPStorageBoundaryTests.test_numeric_storage_failures_cross_real_http_boundary) (code=13) ... FAIL
+  test_numeric_storage_failures_cross_real_http_boundary (test_storage_diagnostics.MCPStorageBoundaryTests.test_numeric_storage_failures_cross_real_http_boundary) (code=8) ... FAIL
+  test_numeric_storage_failures_cross_real_http_boundary (test_storage_diagnostics.MCPStorageBoundaryTests.test_numeric_storage_failures_cross_real_http_boundary) (code=11) ... FAIL
+test_real_writer_lock_reports_busy_without_retry_or_partial_admission (test_storage_diagnostics.MCPStorageBoundaryTests.test_real_writer_lock_reports_busy_without_retry_or_partial_admission) ... FAIL
+test_default_state_directory_failure_is_inside_safe_startup_boundary (test_storage_diagnostics.StartupStorageTests.test_default_state_directory_failure_is_inside_safe_startup_boundary) ... ERROR
+test_explicit_db_does_not_require_or_create_default_home_state (test_storage_diagnostics.StartupStorageTests.test_explicit_db_does_not_require_or_create_default_home_state) ... FAIL
+test_foreign_key_damage_is_distinct_from_physical_corruption (test_storage_diagnostics.StartupStorageTests.test_foreign_key_damage_is_distinct_from_physical_corruption) ... ERROR
+test_known_startup_os_faults_and_unexpected_errors_are_redacted (test_storage_diagnostics.StartupStorageTests.test_known_startup_os_faults_and_unexpected_errors_are_redacted) ...
+  test_known_startup_os_faults_and_unexpected_errors_are_redacted (test_storage_diagnostics.StartupStorageTests.test_known_startup_os_faults_and_unexpected_errors_are_redacted) (code='STORAGE_ACCESS_DENIED') ... ERROR
+  test_known_startup_os_faults_and_unexpected_errors_are_redacted (test_storage_diagnostics.StartupStorageTests.test_known_startup_os_faults_and_unexpected_errors_are_redacted) (code='STORAGE_FULL') ... ERROR
+  test_known_startup_os_faults_and_unexpected_errors_are_redacted (test_storage_diagnostics.StartupStorageTests.test_known_startup_os_faults_and_unexpected_errors_are_redacted) (code='MCP_ADDRESS_IN_USE') ... ERROR
+  test_known_startup_os_faults_and_unexpected_errors_are_redacted (test_storage_diagnostics.StartupStorageTests.test_known_startup_os_faults_and_unexpected_errors_are_redacted) (code='CONFIGURATION_INVALID') ... ERROR
+  test_known_startup_os_faults_and_unexpected_errors_are_redacted (test_storage_diagnostics.StartupStorageTests.test_known_startup_os_faults_and_unexpected_errors_are_redacted) (code='INTERNAL_ERROR') ... ERROR
+test_real_cannot_open_directory_is_typed_and_not_deleted (test_storage_diagnostics.StartupStorageTests.test_real_cannot_open_directory_is_typed_and_not_deleted) ... ERROR
+test_real_corrupt_database_is_preserved_and_listener_never_binds (test_storage_diagnostics.StartupStorageTests.test_real_corrupt_database_is_preserved_and_listener_never_binds) ... ERROR
+test_unexpected_existing_schema_is_not_reported_as_client_input (test_storage_diagnostics.StartupStorageTests.test_unexpected_existing_schema_is_not_reported_as_client_input) ... ERROR
+test_attached_diagnostics_cannot_spoof_storage_cause_or_leak_text (test_storage_diagnostics.StorageTaxonomyTests.test_attached_diagnostics_cannot_spoof_storage_cause_or_leak_text) ... FAIL
+test_extended_codes_use_the_primary_low_byte (test_storage_diagnostics.StorageTaxonomyTests.test_extended_codes_use_the_primary_low_byte) ...
+  test_extended_codes_use_the_primary_low_byte (test_storage_diagnostics.StorageTaxonomyTests.test_extended_codes_use_the_primary_low_byte) (code=5) ... FAIL
+  test_extended_codes_use_the_primary_low_byte (test_storage_diagnostics.StorageTaxonomyTests.test_extended_codes_use_the_primary_low_byte) (code=13) ... FAIL
+  test_extended_codes_use_the_primary_low_byte (test_storage_diagnostics.StorageTaxonomyTests.test_extended_codes_use_the_primary_low_byte) (code=8) ... FAIL
+  test_extended_codes_use_the_primary_low_byte (test_storage_diagnostics.StorageTaxonomyTests.test_extended_codes_use_the_primary_low_byte) (code=11) ... FAIL
+  test_extended_codes_use_the_primary_low_byte (test_storage_diagnostics.StorageTaxonomyTests.test_extended_codes_use_the_primary_low_byte) (code=10) ... FAIL
+test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) ...
+  test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='list') ... FAIL
+  test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='dict') ... FAIL
+  test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='NoneType') ... FAIL
+  test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='bool') ... FAIL
+  test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='str') ... FAIL
+test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes) ...
+  test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes) (code=None) ... FAIL
+  test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes) (code=True) ... FAIL
+  test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes) (code='13') ... FAIL
+  test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes) (code=-1) ... FAIL
+  test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes) (code=1099511627776) ... FAIL
+test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes) ... FAIL
+test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) ...
+  test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_FULL', exc='OSError') ... FAIL
+  test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_ACCESS_DENIED', exc='PermissionError') ... FAIL
+  test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_ACCESS_DENIED', exc='PermissionError') ... FAIL
+  test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_READ_ONLY', exc='OSError') ... FAIL
+  test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_IO_ERROR', exc='OSError') ... FAIL
+  test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_UNAVAILABLE', exc='FileNotFoundError') ... FAIL
+  test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_UNAVAILABLE', exc='NotADirectoryError') ... FAIL
+  test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_ACCESS_DENIED', exc='PermissionError') ... FAIL
+  test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_FULL', exc='OSError') ... FAIL
+test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) ...
+  test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=5) ... FAIL
+  test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=6) ... FAIL
+  test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=11) ... FAIL
+  test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=26) ... FAIL
+  test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=14) ... FAIL
+  test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=13) ... FAIL
+  test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=8) ... FAIL
+  test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=10) ... FAIL
+  test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=3) ... FAIL
+  test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=23) ... FAIL
+  test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=17) ... FAIL
+  test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=19) ... FAIL
+  test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=7) ... FAIL
+test_real_sqlite_readonly_and_size_cap (test_storage_diagnostics.StorageTaxonomyTests.test_real_sqlite_readonly_and_size_cap) ... FAIL
+
+======================================================================
+ERROR: test_default_state_directory_failure_is_inside_safe_startup_boundary (test_storage_diagnostics.StartupStorageTests.test_default_state_directory_failure_is_inside_safe_startup_boundary)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 170, in test_default_state_directory_failure_is_inside_safe_startup_boundary
+    self.assertEqual(self.run_startup([])["code"], "STORAGE_UNAVAILABLE")
+                     ^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 140, in run_startup
+    result = mcp_cli.main(args if args is not None else ["--db", str(self.db)])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/src/minionone/mcp_cli.py", line 21, in main
+    root.mkdir(mode=0o700,parents=True,exist_ok=True)
+  File "<python-runtime>/lib/python3.12/pathlib.py", line 1311, in mkdir
+    os.mkdir(self, mode)
+FileExistsError: [Errno 17] File exists: '<checkout>/tmpd7wc_goi/.minionone'
+
+======================================================================
+ERROR: test_foreign_key_damage_is_distinct_from_physical_corruption (test_storage_diagnostics.StartupStorageTests.test_foreign_key_damage_is_distinct_from_physical_corruption)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 197, in test_foreign_key_damage_is_distinct_from_physical_corruption
+    self.assertEqual(self.run_startup()["code"], "DB_INTEGRITY_ERROR")
+                     ^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 147, in run_startup
+    value = json.loads(err.getvalue())
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/decoder.py", line 338, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/decoder.py", line 356, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+======================================================================
+ERROR: test_known_startup_os_faults_and_unexpected_errors_are_redacted (test_storage_diagnostics.StartupStorageTests.test_known_startup_os_faults_and_unexpected_errors_are_redacted) (code='STORAGE_ACCESS_DENIED')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 207, in test_known_startup_os_faults_and_unexpected_errors_are_redacted
+    self.assertEqual(self.run_startup()["code"], code)
+                     ^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 147, in run_startup
+    value = json.loads(err.getvalue())
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/decoder.py", line 338, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/decoder.py", line 356, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+======================================================================
+ERROR: test_known_startup_os_faults_and_unexpected_errors_are_redacted (test_storage_diagnostics.StartupStorageTests.test_known_startup_os_faults_and_unexpected_errors_are_redacted) (code='STORAGE_FULL')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 207, in test_known_startup_os_faults_and_unexpected_errors_are_redacted
+    self.assertEqual(self.run_startup()["code"], code)
+                     ^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 147, in run_startup
+    value = json.loads(err.getvalue())
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/decoder.py", line 338, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/decoder.py", line 356, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+======================================================================
+ERROR: test_known_startup_os_faults_and_unexpected_errors_are_redacted (test_storage_diagnostics.StartupStorageTests.test_known_startup_os_faults_and_unexpected_errors_are_redacted) (code='MCP_ADDRESS_IN_USE')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 207, in test_known_startup_os_faults_and_unexpected_errors_are_redacted
+    self.assertEqual(self.run_startup()["code"], code)
+                     ^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 147, in run_startup
+    value = json.loads(err.getvalue())
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/decoder.py", line 338, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/decoder.py", line 356, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+======================================================================
+ERROR: test_known_startup_os_faults_and_unexpected_errors_are_redacted (test_storage_diagnostics.StartupStorageTests.test_known_startup_os_faults_and_unexpected_errors_are_redacted) (code='CONFIGURATION_INVALID')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 207, in test_known_startup_os_faults_and_unexpected_errors_are_redacted
+    self.assertEqual(self.run_startup()["code"], code)
+                     ^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 147, in run_startup
+    value = json.loads(err.getvalue())
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/decoder.py", line 338, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/decoder.py", line 356, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+======================================================================
+ERROR: test_known_startup_os_faults_and_unexpected_errors_are_redacted (test_storage_diagnostics.StartupStorageTests.test_known_startup_os_faults_and_unexpected_errors_are_redacted) (code='INTERNAL_ERROR')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 207, in test_known_startup_os_faults_and_unexpected_errors_are_redacted
+    self.assertEqual(self.run_startup()["code"], code)
+                     ^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 140, in run_startup
+    result = mcp_cli.main(args if args is not None else ["--db", str(self.db)])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/src/minionone/mcp_cli.py", line 25, in main
+    server=LocalMCP(("127.0.0.1",args.port),token=token,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/unittest/mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/unittest/mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/unittest/mock.py", line 1198, in _execute_mock_call
+    raise effect
+RuntimeError: secret-password=/private/synthetic/storage-canary
+
+======================================================================
+ERROR: test_real_cannot_open_directory_is_typed_and_not_deleted (test_storage_diagnostics.StartupStorageTests.test_real_cannot_open_directory_is_typed_and_not_deleted)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 164, in test_real_cannot_open_directory_is_typed_and_not_deleted
+    self.assertEqual(self.run_startup()["code"], "DB_UNAVAILABLE")
+                     ^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 140, in run_startup
+    result = mcp_cli.main(args if args is not None else ["--db", str(self.db)])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/src/minionone/mcp_cli.py", line 25, in main
+    server=LocalMCP(("127.0.0.1",args.port),token=token,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/src/minionone/mcp_server.py", line 45, in __init__
+    self.store = AdmissionStore(database_path, credentials={token:(principal,{thread})})
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/src/minionone/admission.py", line 90, in __init__
+    with self._connection() as con:
+         ^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/contextlib.py", line 137, in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+  File "<baseline-v016>/src/minionone/admission.py", line 203, in _connection
+    con = sqlite3.connect(str(self.database_path), isolation_level=None, timeout=10.0)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: unable to open database file
+
+======================================================================
+ERROR: test_real_corrupt_database_is_preserved_and_listener_never_binds (test_storage_diagnostics.StartupStorageTests.test_real_corrupt_database_is_preserved_and_listener_never_binds)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 156, in test_real_corrupt_database_is_preserved_and_listener_never_binds
+    fault = self.run_startup()
+            ^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 140, in run_startup
+    result = mcp_cli.main(args if args is not None else ["--db", str(self.db)])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/src/minionone/mcp_cli.py", line 25, in main
+    server=LocalMCP(("127.0.0.1",args.port),token=token,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/src/minionone/mcp_server.py", line 45, in __init__
+    self.store = AdmissionStore(database_path, credentials={token:(principal,{thread})})
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/src/minionone/admission.py", line 90, in __init__
+    with self._connection() as con:
+         ^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/contextlib.py", line 137, in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+  File "<baseline-v016>/src/minionone/admission.py", line 208, in _connection
+    con.execute('PRAGMA journal_mode=WAL')
+sqlite3.DatabaseError: file is not a database
+
+======================================================================
+ERROR: test_unexpected_existing_schema_is_not_reported_as_client_input (test_storage_diagnostics.StartupStorageTests.test_unexpected_existing_schema_is_not_reported_as_client_input)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 188, in test_unexpected_existing_schema_is_not_reported_as_client_input
+    fault = self.run_startup()
+            ^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 147, in run_startup
+    value = json.loads(err.getvalue())
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/decoder.py", line 338, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/json/decoder.py", line 356, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+======================================================================
+FAIL: test_corrupt_runtime_file_reports_error_instead_of_successful_status (test_storage_diagnostics.MCPStorageBoundaryTests.test_corrupt_runtime_file_reports_error_instead_of_successful_status)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 296, in test_corrupt_runtime_file_reports_error_instead_of_successful_status
+    self.assertEqual(value["error"]["code"], "DB_CORRUPT")
+AssertionError: 'INTERNAL_ERROR' != 'DB_CORRUPT'
+- INTERNAL_ERROR
++ DB_CORRUPT
+
+
+======================================================================
+FAIL: test_journal_failure_keeps_primary_code_but_gives_specific_storage_action (test_storage_diagnostics.MCPStorageBoundaryTests.test_journal_failure_keeps_primary_code_but_gives_specific_storage_action)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 284, in test_journal_failure_keeps_primary_code_but_gives_specific_storage_action
+    self.assertIn("space", value["error"]["action"].lower())
+AssertionError: 'space' not found in 'check local storage and journal capacity; read job status before choosing a new operation. do not blindly replay.'
+
+======================================================================
+FAIL: test_numeric_storage_failures_cross_real_http_boundary (test_storage_diagnostics.MCPStorageBoundaryTests.test_numeric_storage_failures_cross_real_http_boundary) (code=13)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 275, in test_numeric_storage_failures_cross_real_http_boundary
+    self.assertEqual(value["error"]["code"], expected)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_FULL'
+- INTERNAL_ERROR
++ STORAGE_FULL
+
+
+======================================================================
+FAIL: test_numeric_storage_failures_cross_real_http_boundary (test_storage_diagnostics.MCPStorageBoundaryTests.test_numeric_storage_failures_cross_real_http_boundary) (code=8)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 275, in test_numeric_storage_failures_cross_real_http_boundary
+    self.assertEqual(value["error"]["code"], expected)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_READ_ONLY'
+- INTERNAL_ERROR
++ STORAGE_READ_ONLY
+
+
+======================================================================
+FAIL: test_numeric_storage_failures_cross_real_http_boundary (test_storage_diagnostics.MCPStorageBoundaryTests.test_numeric_storage_failures_cross_real_http_boundary) (code=11)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 275, in test_numeric_storage_failures_cross_real_http_boundary
+    self.assertEqual(value["error"]["code"], expected)
+AssertionError: 'INTERNAL_ERROR' != 'DB_CORRUPT'
+- INTERNAL_ERROR
++ DB_CORRUPT
+
+
+======================================================================
+FAIL: test_real_writer_lock_reports_busy_without_retry_or_partial_admission (test_storage_diagnostics.MCPStorageBoundaryTests.test_real_writer_lock_reports_busy_without_retry_or_partial_admission)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 257, in test_real_writer_lock_reports_busy_without_retry_or_partial_admission
+    self.assertEqual(value["error"]["code"], "DB_BUSY")
+AssertionError: 'INTERNAL_ERROR' != 'DB_BUSY'
+- INTERNAL_ERROR
++ DB_BUSY
+
+
+======================================================================
+FAIL: test_explicit_db_does_not_require_or_create_default_home_state (test_storage_diagnostics.StartupStorageTests.test_explicit_db_does_not_require_or_create_default_home_state)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 179, in test_explicit_db_does_not_require_or_create_default_home_state
+    self.assertEqual(mcp_cli.main(["--db", str(self.db), "--port", "18765"]), 0)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<baseline-v016>/src/minionone/mcp_cli.py", line 20, in main
+    root=Path.home()/".minionone"
+         ^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/unittest/mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/unittest/mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<python-runtime>/lib/python3.12/unittest/mock.py", line 1198, in _execute_mock_call
+    raise effect
+AssertionError: unused home
+
+======================================================================
+FAIL: test_attached_diagnostics_cannot_spoof_storage_cause_or_leak_text (test_storage_diagnostics.StorageTaxonomyTests.test_attached_diagnostics_cannot_spoof_storage_cause_or_leak_text)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 98, in test_attached_diagnostics_cannot_spoof_storage_cause_or_leak_text
+    self.assertEqual(safe_tool_fault(exc).code, "STORAGE_FULL")
+AssertionError: 'PROVIDER_AUTH_FAILED' != 'STORAGE_FULL'
+- PROVIDER_AUTH_FAILED
++ STORAGE_FULL
+
+
+======================================================================
+FAIL: test_extended_codes_use_the_primary_low_byte (test_storage_diagnostics.StorageTaxonomyTests.test_extended_codes_use_the_primary_low_byte) (code=5)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 65, in test_extended_codes_use_the_primary_low_byte
+    self.assertNotEqual(safe_tool_fault(sqlite_fault(code)).code, "INTERNAL_ERROR")
+AssertionError: 'INTERNAL_ERROR' == 'INTERNAL_ERROR'
+
+======================================================================
+FAIL: test_extended_codes_use_the_primary_low_byte (test_storage_diagnostics.StorageTaxonomyTests.test_extended_codes_use_the_primary_low_byte) (code=13)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 65, in test_extended_codes_use_the_primary_low_byte
+    self.assertNotEqual(safe_tool_fault(sqlite_fault(code)).code, "INTERNAL_ERROR")
+AssertionError: 'INTERNAL_ERROR' == 'INTERNAL_ERROR'
+
+======================================================================
+FAIL: test_extended_codes_use_the_primary_low_byte (test_storage_diagnostics.StorageTaxonomyTests.test_extended_codes_use_the_primary_low_byte) (code=8)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 65, in test_extended_codes_use_the_primary_low_byte
+    self.assertNotEqual(safe_tool_fault(sqlite_fault(code)).code, "INTERNAL_ERROR")
+AssertionError: 'INTERNAL_ERROR' == 'INTERNAL_ERROR'
+
+======================================================================
+FAIL: test_extended_codes_use_the_primary_low_byte (test_storage_diagnostics.StorageTaxonomyTests.test_extended_codes_use_the_primary_low_byte) (code=11)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 65, in test_extended_codes_use_the_primary_low_byte
+    self.assertNotEqual(safe_tool_fault(sqlite_fault(code)).code, "INTERNAL_ERROR")
+AssertionError: 'INTERNAL_ERROR' == 'INTERNAL_ERROR'
+
+======================================================================
+FAIL: test_extended_codes_use_the_primary_low_byte (test_storage_diagnostics.StorageTaxonomyTests.test_extended_codes_use_the_primary_low_byte) (code=10)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 65, in test_extended_codes_use_the_primary_low_byte
+    self.assertNotEqual(safe_tool_fault(sqlite_fault(code)).code, "INTERNAL_ERROR")
+AssertionError: 'INTERNAL_ERROR' == 'INTERNAL_ERROR'
+
+======================================================================
+FAIL: test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='list')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 109, in test_malformed_attached_catalog_key_stays_a_safe_internal_error
+    self.assertEqual(fault.code, "INTERNAL_ERROR")
+AssertionError: [] != 'INTERNAL_ERROR'
+
+======================================================================
+FAIL: test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='dict')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 109, in test_malformed_attached_catalog_key_stays_a_safe_internal_error
+    self.assertEqual(fault.code, "INTERNAL_ERROR")
+AssertionError: {} != 'INTERNAL_ERROR'
+
+======================================================================
+FAIL: test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='NoneType')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 109, in test_malformed_attached_catalog_key_stays_a_safe_internal_error
+    self.assertEqual(fault.code, "INTERNAL_ERROR")
+AssertionError: None != 'INTERNAL_ERROR'
+
+======================================================================
+FAIL: test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='bool')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 109, in test_malformed_attached_catalog_key_stays_a_safe_internal_error
+    self.assertEqual(fault.code, "INTERNAL_ERROR")
+AssertionError: True != 'INTERNAL_ERROR'
+
+======================================================================
+FAIL: test_malformed_attached_catalog_key_stays_a_safe_internal_error (test_storage_diagnostics.StorageTaxonomyTests.test_malformed_attached_catalog_key_stays_a_safe_internal_error) (code='str')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 109, in test_malformed_attached_catalog_key_stays_a_safe_internal_error
+    self.assertEqual(fault.code, "INTERNAL_ERROR")
+AssertionError: 'unrecognized-secret-password=/private/synthetic/storage-canary' != 'INTERNAL_ERROR'
+- unrecognized-secret-password=/private/synthetic/storage-canary
++ INTERNAL_ERROR
+
+
+======================================================================
+FAIL: test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes) (code=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 71, in test_missing_malformed_codes_and_error_words_do_not_guess_causes
+    self.assertEqual(safe_tool_fault(exc).code, "DB_ERROR")
+AssertionError: 'INTERNAL_ERROR' != 'DB_ERROR'
+- INTERNAL_ERROR
++ DB_ERROR
+
+
+======================================================================
+FAIL: test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes) (code=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 71, in test_missing_malformed_codes_and_error_words_do_not_guess_causes
+    self.assertEqual(safe_tool_fault(exc).code, "DB_ERROR")
+AssertionError: 'INTERNAL_ERROR' != 'DB_ERROR'
+- INTERNAL_ERROR
++ DB_ERROR
+
+
+======================================================================
+FAIL: test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes) (code='13')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 71, in test_missing_malformed_codes_and_error_words_do_not_guess_causes
+    self.assertEqual(safe_tool_fault(exc).code, "DB_ERROR")
+AssertionError: 'INTERNAL_ERROR' != 'DB_ERROR'
+- INTERNAL_ERROR
++ DB_ERROR
+
+
+======================================================================
+FAIL: test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes) (code=-1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 71, in test_missing_malformed_codes_and_error_words_do_not_guess_causes
+    self.assertEqual(safe_tool_fault(exc).code, "DB_ERROR")
+AssertionError: 'INTERNAL_ERROR' != 'DB_ERROR'
+- INTERNAL_ERROR
++ DB_ERROR
+
+
+======================================================================
+FAIL: test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes) (code=1099511627776)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 71, in test_missing_malformed_codes_and_error_words_do_not_guess_causes
+    self.assertEqual(safe_tool_fault(exc).code, "DB_ERROR")
+AssertionError: 'INTERNAL_ERROR' != 'DB_ERROR'
+- INTERNAL_ERROR
++ DB_ERROR
+
+
+======================================================================
+FAIL: test_missing_malformed_codes_and_error_words_do_not_guess_causes (test_storage_diagnostics.StorageTaxonomyTests.test_missing_malformed_codes_and_error_words_do_not_guess_causes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 73, in test_missing_malformed_codes_and_error_words_do_not_guess_causes
+    self.assertEqual(safe_tool_fault(plain).code, "DB_ERROR")
+AssertionError: 'INTERNAL_ERROR' != 'DB_ERROR'
+- INTERNAL_ERROR
++ DB_ERROR
+
+
+======================================================================
+FAIL: test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_FULL', exc='OSError')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 90, in test_os_errno_and_known_types_do_not_echo_paths
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_FULL'
+- INTERNAL_ERROR
++ STORAGE_FULL
+
+
+======================================================================
+FAIL: test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_ACCESS_DENIED', exc='PermissionError')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 90, in test_os_errno_and_known_types_do_not_echo_paths
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_ACCESS_DENIED'
+- INTERNAL_ERROR
++ STORAGE_ACCESS_DENIED
+
+
+======================================================================
+FAIL: test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_ACCESS_DENIED', exc='PermissionError')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 90, in test_os_errno_and_known_types_do_not_echo_paths
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_ACCESS_DENIED'
+- INTERNAL_ERROR
++ STORAGE_ACCESS_DENIED
+
+
+======================================================================
+FAIL: test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_READ_ONLY', exc='OSError')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 90, in test_os_errno_and_known_types_do_not_echo_paths
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_READ_ONLY'
+- INTERNAL_ERROR
++ STORAGE_READ_ONLY
+
+
+======================================================================
+FAIL: test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_IO_ERROR', exc='OSError')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 90, in test_os_errno_and_known_types_do_not_echo_paths
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_IO_ERROR'
+- INTERNAL_ERROR
++ STORAGE_IO_ERROR
+
+
+======================================================================
+FAIL: test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_UNAVAILABLE', exc='FileNotFoundError')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 90, in test_os_errno_and_known_types_do_not_echo_paths
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_UNAVAILABLE'
+- INTERNAL_ERROR
++ STORAGE_UNAVAILABLE
+
+
+======================================================================
+FAIL: test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_UNAVAILABLE', exc='NotADirectoryError')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 90, in test_os_errno_and_known_types_do_not_echo_paths
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_UNAVAILABLE'
+- INTERNAL_ERROR
++ STORAGE_UNAVAILABLE
+
+
+======================================================================
+FAIL: test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_ACCESS_DENIED', exc='PermissionError')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 90, in test_os_errno_and_known_types_do_not_echo_paths
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_ACCESS_DENIED'
+- INTERNAL_ERROR
++ STORAGE_ACCESS_DENIED
+
+
+======================================================================
+FAIL: test_os_errno_and_known_types_do_not_echo_paths (test_storage_diagnostics.StorageTaxonomyTests.test_os_errno_and_known_types_do_not_echo_paths) (code='STORAGE_FULL', exc='OSError')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 90, in test_os_errno_and_known_types_do_not_echo_paths
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_FULL'
+- INTERNAL_ERROR
++ STORAGE_FULL
+
+
+======================================================================
+FAIL: test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=5)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 53, in test_primary_sqlite_codes_have_distinct_safe_actions
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'DB_BUSY'
+- INTERNAL_ERROR
++ DB_BUSY
+
+
+======================================================================
+FAIL: test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=6)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 53, in test_primary_sqlite_codes_have_distinct_safe_actions
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'DB_BUSY'
+- INTERNAL_ERROR
++ DB_BUSY
+
+
+======================================================================
+FAIL: test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=11)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 53, in test_primary_sqlite_codes_have_distinct_safe_actions
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'DB_CORRUPT'
+- INTERNAL_ERROR
++ DB_CORRUPT
+
+
+======================================================================
+FAIL: test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=26)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 53, in test_primary_sqlite_codes_have_distinct_safe_actions
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'DB_CORRUPT'
+- INTERNAL_ERROR
++ DB_CORRUPT
+
+
+======================================================================
+FAIL: test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=14)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 53, in test_primary_sqlite_codes_have_distinct_safe_actions
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'DB_UNAVAILABLE'
+- INTERNAL_ERROR
++ DB_UNAVAILABLE
+
+
+======================================================================
+FAIL: test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=13)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 53, in test_primary_sqlite_codes_have_distinct_safe_actions
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_FULL'
+- INTERNAL_ERROR
++ STORAGE_FULL
+
+
+======================================================================
+FAIL: test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=8)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 53, in test_primary_sqlite_codes_have_distinct_safe_actions
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_READ_ONLY'
+- INTERNAL_ERROR
++ STORAGE_READ_ONLY
+
+
+======================================================================
+FAIL: test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=10)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 53, in test_primary_sqlite_codes_have_distinct_safe_actions
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_IO_ERROR'
+- INTERNAL_ERROR
++ STORAGE_IO_ERROR
+
+
+======================================================================
+FAIL: test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=3)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 53, in test_primary_sqlite_codes_have_distinct_safe_actions
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_ACCESS_DENIED'
+- INTERNAL_ERROR
++ STORAGE_ACCESS_DENIED
+
+
+======================================================================
+FAIL: test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=23)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 53, in test_primary_sqlite_codes_have_distinct_safe_actions
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_ACCESS_DENIED'
+- INTERNAL_ERROR
++ STORAGE_ACCESS_DENIED
+
+
+======================================================================
+FAIL: test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=17)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 53, in test_primary_sqlite_codes_have_distinct_safe_actions
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'DB_SCHEMA_ERROR'
+- INTERNAL_ERROR
++ DB_SCHEMA_ERROR
+
+
+======================================================================
+FAIL: test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=19)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 53, in test_primary_sqlite_codes_have_distinct_safe_actions
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'DB_INTEGRITY_ERROR'
+- INTERNAL_ERROR
++ DB_INTEGRITY_ERROR
+
+
+======================================================================
+FAIL: test_primary_sqlite_codes_have_distinct_safe_actions (test_storage_diagnostics.StorageTaxonomyTests.test_primary_sqlite_codes_have_distinct_safe_actions) (number=7)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 53, in test_primary_sqlite_codes_have_distinct_safe_actions
+    self.assertEqual(fault.code, code)
+AssertionError: 'INTERNAL_ERROR' != 'DB_RESOURCE_EXHAUSTED'
+- INTERNAL_ERROR
++ DB_RESOURCE_EXHAUSTED
+
+
+======================================================================
+FAIL: test_real_sqlite_readonly_and_size_cap (test_storage_diagnostics.StorageTaxonomyTests.test_real_sqlite_readonly_and_size_cap)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<baseline-v016>/tests/test_storage_diagnostics.py", line 118, in test_real_sqlite_readonly_and_size_cap
+    self.assertEqual(safe_tool_fault(readonly.exception).code, "STORAGE_READ_ONLY")
+AssertionError: 'INTERNAL_ERROR' != 'STORAGE_READ_ONLY'
+- INTERNAL_ERROR
++ STORAGE_READ_ONLY
+
+
+----------------------------------------------------------------------
+Ran 18 tests in 2.085s
+
+FAILED (failures=47, errors=10)

@@ -1,7 +1,15 @@
 # Development status — 2026-10-30
 
-**Version:** 0.16.0.dev0
+**Version:** 0.17.0.dev0
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
+
+## v0.17.0.dev0 — typed local-state/storage diagnostics
+
+- v0.16 PR #32 is merged to main at `53e0bbb2333f357d3eb8a8f14963cbc2bb0fc255`.
+- SQLite/OS numeric diagnostics now cross actual MCP and startup boundaries. Startup state-directory errors no longer escape as raw tracebacks; incompatible schema/reference faults are distinguished from invalid client input.
+- Full local Linux/Python 3.12 clean-environment suite: **231/231 PASS**, 24.463s; 18 new storage tests. Exact evidence is in evidence/g2-storage-diagnostics/TEST_RUN_SUMMARY.json. Remote OS/SDK/wheel results require their own exact-head CI.
+- Separate review/approval stages were removed at the owner's explicit instruction on 2026-10-30. Issue #9 is canceled, not represented as a completed audit. Historical review files do not impose current workflow gates.
+- No new schema, retries, worker rights or autonomous Resume. Corrupt state is preserved; unavailable storage does not claim durable journaling. Issue #29 remains open; beta NO-GO.
 
 ## v0.16.0.dev0 — durable parent-control rejection journal
 
@@ -18,11 +26,11 @@
 - Source exact-head [CI #40973935402](https://github.com/Griggelor/MinionOne/actions/runs/40973935402): **193/193 Windows and 193/193 Ubuntu PASS**, plus official MCP SDK and Win32 feasibility checks. Versioned wheel needs its own dual-OS clean-install workflow.
 - Strict scope: no durable per-job fault journal, no real Unsloth error UI, no Win32 broker/worker fault translation, no external target fault injection. Full matrix tracked in [Issue #29](https://github.com/Griggelor/MinionOne/issues/29). **Beta NO-GO.**
 
-## Ongoing error-handling review (mandatory before Beta)
+## Ongoing error-handling implementation
 
 - [Issue #29](https://github.com/Griggelor/MinionOne/issues/29): comprehensive end-to-end error handling with understandable messages for API failures, incorrect credentials/passwords, connection failures, timeouts, SQLite/file permissions, provider OOM, worker failures and parent delivery/ACK.
 - [PR #30](https://github.com/Griggelor/MinionOne/pull/30): first code slice introduces fixed safe `code`, `message`, `action`, `retryable` for local provider errors and MCP authorization, plus CLI fault output. Tests must prove passwords, API keys, paths and raw provider responses never leak.
-- **Still open:** durable per-job error events, tool/broker and filesystem failure mapping, original-chat UI/wakeup, checkpoint-resume error status, external LM Studio/Unsloth fault injection and independent security review. The PR does not turn on real worker actions. Beta NO-GO.
+- **Still open:** durable per-job error events, tool/broker and filesystem failure mapping, original-chat UI/wakeup, checkpoint-resume error status, external LM Studio/Unsloth fault injection. The PR does not turn on real worker actions. Beta NO-GO.
 
 ## 0.14.0.dev0 – durable timeout and parent Resume request (non-executing)
 
@@ -140,7 +148,7 @@ be checked independently; these numbers are commit-specific.
 3. Verified real Windows NTFS handle-based file broker and adversarial external-process tests (Issue #3).
 4. Real LM Studio/Flint/Rulith resource and residency measurements (Issue #4).
 5. Full durable job state machine, attempt fencing, worker tool permissions, immutable artifact publication, recovery and outbox (Issues #5–6).
-6. Synthetic *real-provider* end-to-end and independent external security review (Issues #7, #9).
+6. Synthetic *real-provider* end-to-end (Issue #7). Separate review gate #9 was canceled by owner instruction on 2026-10-30.
 7. Approved license and provenance analysis before open-source distribution (Issue #8).
 
 **None of these gates is waived by green mock-based tests.** The downloadable GitHub source archive is a development snapshot, not a beta installer.

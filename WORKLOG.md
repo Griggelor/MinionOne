@@ -1,5 +1,16 @@
 # MinionOne WORKLOG — 2026-10-29
 
+## 2026-10-30 — G2-E29-03 storage diagnostics / v0.17.0.dev0
+
+- Intake main was still v0.15; PR #32 had no review comments. Owner then explicitly requested direct implementation without reviews. Removed that process gate, canceled issue #9 as not planned, and merged passing PR #32. New base: `53e0bbb2333f357d3eb8a8f14963cbc2bb0fc255` (tree `0f46bef64babb30566d94275dac1fa727da3a38c`).
+- Wrote storage/startup/HTTP negative tests first. Final 18-test set also executed against untouched v0.16 source and failed as expected. Additional red case caught malformed attached diagnostic catalog keys before the guard was added.
+- Implemented numeric SQLite/OS taxonomy, typed stored-schema/reference rejection, safe startup JSON/exit code, explicit-DB home independence, safe cause-specific journal actions and catalog reconstruction. No new job owner/state/store, no automatic retry or repair.
+- A reused environment contained stale editable distribution metadata; the initial full suite failed only its installed-version check. A fresh isolated environment reports matching 0.17 versions and **231/231 tests PASS**, 24.463s. Preserve this distinction in evidence.
+- Functional evidence includes real SQLite locking over HTTP, actual corrupt/cannot-open files, SQLite read-only and size-cap errors. Physical disk-full and Windows ACL cases are not claimed: errno cases are injected.
+- Updated versioned artifact metadata and current process/gate documentation. No new review document/stage is created. Continue through exact-head OS/SDK/wheel CI and merge automatically when all pass.
+- Next implementation: coherent combined job/timeout status projection, then persistent operator health and provider/worker outcome wiring at real canonical boundaries. Keep real target integration and worker file rights gated until implemented and demonstrated.
+
+
 ## 2026-10-30 — G2-E29-02 durable rejected controls / v0.16.0.dev0
 
 - Source base rechecked against GitHub main: `49eb8804731dba58fd0ef69fda454fc4ceac6a92`; no open PRs at intake. Restored all 74 files and verified Git blob hashes. Handoff checksum verification: 140/140.

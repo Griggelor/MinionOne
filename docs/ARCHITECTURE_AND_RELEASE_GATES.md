@@ -35,9 +35,15 @@ Persist job IDs before dispatch. Enforce scoped authentication, CAS state versio
 
 The public \`AdmissionStore\` is *deliberately incomplete*: it registers accepted jobs, supports authenticated status and abort-before-start, and cannot start workers or claim completion. It is not a real MCP server and cannot attest Unsloth chat/thread ownership. The admission event table is preliminary, not a tamper-evident end-to-end journal.
 
-## Test-first and independent review
+## Implementation, tests and CI
 
-Use sequence: failing positive/negative/adversarial test → minimal implementation → actual production-path integration → fault/restart/concurrency tests → independent review → gate evidence → only then phase promotion. Report commands, host/OS, pass/fail/skip counts and non-reproducible caveats.
+Owner decision, 2026-10-30: implement directly with tests and CI; no separate
+review or review-approval stage. Issue #9 was canceled as not planned, not
+reported as an audit pass. This supersedes historical handoff review gates.
+
+Use sequence: failing positive/negative/adversarial test → implementation → actual
+production-path integration → fault/restart/concurrency tests → exact-head CI →
+merge. Report commands, host/OS, pass/fail/skip counts and non-reproducible limits.
 
 ### Gates
 
@@ -49,7 +55,7 @@ Use sequence: failing positive/negative/adversarial test → minimal implementat
 | G1c | **BLOCKED** | Worker/provider feasibility, exact target resource model and no parent unload |
 | G2 | In development | Durable manager, broker, audit, leases, outbox, recovery, invariants |
 | G3 | **BLOCKED** | Actual synthetic Unsloth → MinionOne → LM Studio worker E2E |
-| Beta | **NO-GO** | Full positive/negative/recovery suite, signed independent review, no unmitigated blocker |
+| Beta | **NO-GO** | Full positive/negative/recovery suite, actual target integration and no unmitigated blocker |
 
 ### Independent-project disclaimer
 

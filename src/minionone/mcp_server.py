@@ -194,6 +194,7 @@ class LocalMCP(ThreadingHTTPServer):
                 from .pilot_jobs import PilotJobs,PilotConfig
                 self.pilot=PilotJobs(self.store,PilotConfig(worker_model,lmstudio_url,worker_api_key,
                                     model_call_seconds=model_call_seconds,min_free_mb=min_free_mb))
+                self.pilot.process_logs=self.logs
                 if enable_workspace_jobs:
                     from .workspace_jobs import WorkspaceJobs
                     self.workspace_jobs=WorkspaceJobs(self.workspace,self.pilot,token,thread)

@@ -1,0 +1,41 @@
+name: MinionOne product acceptance evidence (not release)
+on:
+  push:
+    paths:
+      - 'src/minionone/**'
+      - 'tests/**'
+      - 'product_acceptance/**'
+      - 'scripts/run_product_status.py'
+      - '.github/workflows/product-acceptance.yml'
+  pull_request:
+    paths:
+      - 'src/minionone/**'
+      - 'tests/**'
+      - 'product_acceptance/**'
+      - 'scripts/run_product_status.py'
+      - '.github/workflows/product-acceptance.yml'
+  workflow_dispatch:
+jobs:
+  collect-evidence:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install candidate source
+        run: python -m pip install -e .
+      - name: Collect actual local and intentionally red target contract evidence
+        run: python scripts/run_product_status.py
+      - name: Run normal regression suite (red target tests are kept separate)
+        run: python -m unittest discover -s tests -q
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: product-acceptance-${{ matrix.os }}
+          path: evidence/product-status/
+          if-no-files-found: error

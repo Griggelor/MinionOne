@@ -21,7 +21,7 @@ from .win32_input_broker import (
     _Native, _UnicodeString, _ObjectAttributes, _IoStatusBlock,
     _OBJ_CASE_INSENSITIVE, _SYNC, _OPEN_REPARSE, _NON_DIRECTORY,
     _READ_ATTRIBUTES, _SYNCHRONIZE, _FILE_STANDARD, _FileStandardInfo,
-    _component, _DIRECTORY,
+    _component,
 )
 from .win32_work_create_probe import _NativeWriter, _FILE_WRITE_DATA
 
@@ -90,7 +90,11 @@ class _PublisherNative(_NativeWriter):
         buffer = ctypes.create_string_buffer(total)
         info = ctypes.cast(buffer, ctypes.POINTER(_FileRenameInfo))
         info.contents.ReplaceIfExists = 0
-        info.contents.RootDirectory = root
+        # For a same-directory rename, Windows defines RootDirectory=NULL
+        # and a single, validated final component. The source file handle was
+        # opened relative to the pinned approved output handle; no host path
+        # or new directory handle is reopened by the rename.
+        info.contents.RootDirectory = None
         info.contents.FileNameLength = len(encoded)
         ctypes.memmove(ctypes.addressof(buffer)+_FileRenameInfo.FileName.offset,
                        encoded, len(encoded))
@@ -100,31 +104,6 @@ class _PublisherNative(_NativeWriter):
         if status != 0:
             raise InputRejected("native Windows no-replace output rename denied (ntstatus=0x%08x)" %
                                 (status & 0xffffffff))
-
-    def open_output_directory(self, parent):
-        # NtSetInformationFile internally reopens RootDirectory for WRITE_DATA.
-        # SHARE_WRITE is essential: a SHARE_READ-only root handle conflicts with
-        # that internal open (STATUS_SHARING_VIOLATION). Do not grant SHARE_DELETE:
-        # the held output directory should remain non-renameable while pinned.
-        name = "output"
-        encoded = name.encode("utf-16-le")
-        buf = ctypes.create_unicode_buffer(name)
-        uni = _UnicodeString(len(encoded), len(encoded)+2,
-                             ctypes.cast(buf, wintypes.LPWSTR))
-        obj = _ObjectAttributes(ctypes.sizeof(_ObjectAttributes), parent,
-                                ctypes.pointer(uni), _OBJ_CASE_INSENSITIVE, None, None)
-        ios = _IoStatusBlock()
-        out = wintypes.HANDLE()
-        _FILE_SHARE_WRITE = 0x00000002
-        _FILE_TRAVERSE = 0x00000020
-        status = self.open_relative(ctypes.byref(out),
-                    _READ_ATTRIBUTES | _SYNCHRONIZE | _FILE_TRAVERSE,
-                    ctypes.byref(obj), ctypes.byref(ios), None, 0x80,
-                    _SHARE_READ | _FILE_SHARE_WRITE,
-                    _FILE_OPEN, _SYNC | _OPEN_REPARSE | _DIRECTORY, None, 0)
-        if status != 0 or not out.value:
-            raise InputRejected("Windows manager output directory lacks create authority")
-        return out.value
 
     def read_verified(self, handle, digest, size, volume):
         self.validate(handle, directory=False, volume=volume, single_link=True)
@@ -154,8 +133,7 @@ def _output_directory(workspace, row):
             raise InputRejected("Windows project root identity changed")
         parent = root
         for part in (".minionone", "jobs", row["job_id"], "output"):
-            child = (api.open_output_directory(parent) if part == "output"
-                     else api.child(parent, part, directory=True))
+            child = api.child(parent, part, directory=True)
             stack.callback(api.close, child)
             api.validate(child, directory=True, volume=ident[0])
             parent = child

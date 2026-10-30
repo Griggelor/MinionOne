@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-30",
+  "source_base": "49eb8804731dba58fd0ef69fda454fc4ceac6a92",
+  "version": "0.16.0.dev0",
+  "environment": {
+    "python": "3.12.14",
+    "platform": "Linux",
+    "sqlite": "3.53.1"
+  },
+  "runs": [
+    {
+      "log": "RED_FINAL_TESTS_ON_BASELINE.log",
+      "command": "PYTHONPATH=<baseline-checkout>/src python -m unittest discover -s <baseline-checkout>/tests -p test_durable_control_errors.py -v",
+      "outcome": "expected_failure",
+      "test_cases_run": 20,
+      "duration_seconds": 2.698,
+      "failure_records": 15,
+      "error_records": 6,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "log": "COMMIT_BOUNDARY_RED.log",
+      "command": "python -m unittest discover -s tests -p test_durable_control_errors.py -v",
+      "outcome": "expected_failure_before_commit_diagnostic_fix",
+      "test_cases_run": 20,
+      "duration_seconds": 3.847,
+      "failure_records": 1,
+      "error_records": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "log": "VERSION_RED.log",
+      "command": "python -m unittest discover -s tests -p test_version_checkpoint.py -v",
+      "outcome": "expected_failure_before_version_bump",
+      "test_cases_run": 2,
+      "duration_seconds": 0.002,
+      "failure_records": 2,
+      "error_records": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "log": "GREEN_FULL.log",
+      "command": "python -m unittest discover -s tests -v",
+      "outcome": "pass",
+      "test_cases_run": 213,
+      "duration_seconds": 19.668,
+      "failure_records": 0,
+      "error_records": 0,
+      "skipped": 0,
+      "exit_code": 0
+    }
+  ],
+  "notes": [
+    "Failure/error record counts include subtests and may exceed parent test-case counts.",
+    "Final full suite: 213 passed, 0 failed, 0 errors, 0 skipped.",
+    "New tests use synthetic jobs and providers only; real local MCP sockets and SQLite, with subprocess crash injection.",
+    "Remote CI evidence is recorded on the PR and in the final handoff, separately from local execution.",
+    "No live Windows broker, Unsloth or Flint verification.",
+    "Published logs replace transient environment paths and strip trailing whitespace; test outcomes and exception records are preserved."
+  ],
+  "wheel": {
+    "filename": "minionone-0.16.0.dev0-py3-none-any.whl",
+    "sha256": "8aa5f010afa566bc3ae011004dcb6dcfbe0d1931f3b6046e484648631158714d",
+    "build_command": "python -m pip wheel --no-build-isolation --no-deps --wheel-dir dist .",
+    "clean_install_command": "python -m pip install --no-index --no-deps dist/minionone-0.16.0.dev0-py3-none-any.whl",
+    "smoke_log": "WHEEL_SMOKE.log",
+    "smoke_passed": true
+  }
+}

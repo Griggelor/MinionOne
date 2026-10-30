@@ -1,5 +1,17 @@
 # MinionOne WORKLOG — 2026-10-29
 
+## 2026-10-30 — G2-E29-02 durable rejected controls / v0.16.0.dev0
+
+- Source base rechecked against GitHub main: `49eb8804731dba58fd0ef69fda454fc4ceac6a92`; no open PRs at intake. Restored all 74 files and verified Git blob hashes. Handoff checksum verification: 140/140.
+- Work uses attached handoff and GitHub only. The unrelated project-level PDF review file is outside this project scope.
+- Reproduced missing durable RESUME_NOT_READY event through LocalMCP, then wrote production-path challenges before implementation. The final 20-test challenge set was rerun against an untouched baseline source snapshot and failed as expected.
+- Added canonical transaction-bound control rejection metadata, fixed safe diagnostics, receipt replay, quota, authenticated projections, additive migration and rollback guidance. A commit-boundary test failed before the commit-error diagnostic fix and passed afterwards.
+- Full local suite: `python -m unittest discover -s tests -v`, 213/213 PASS (19.668s). Python 3.12 / Linux; local editable venv install. Wheel smoke evidence is separate. Exact-head remote Windows/Linux/SDK/build evidence must be checked on the PR, not inferred.
+- Versioned package/runtime/README/CI artifact at 0.16.0.dev0. Pilot-wheel workflow now also checks pull requests before merge.
+- Critical self-review recorded in reviews/G2_DURABLE_CONTROL_ERRORS_REVIEW.md; this does not close the independent review gate.
+- Next: typed storage/operator health, then durable provider/worker outcomes through the same canonical owner. Real Unsloth notifications, Windows broker and target resource/provider verification remain gated. No worker execution enabled, no license chosen, no beta approval.
+
+
 **Project:** https://github.com/Griggelor/MinionOne
 **Channel:** Public pre-alpha / MCP transport pilot. **Overall beta gate: NO-GO.**
 **Normative basis:** handoff v0.7, architecture/security/test contracts v0.6.

@@ -58,6 +58,8 @@ _CATALOG = {
                              "Read job status and use a new identifier only for a genuinely new operation.", False),
     "RESUME_NOT_READY": ("This job cannot be resumed safely yet.",
                          "Check the timeout status, checkpoint and reconciliation requirements.", False),
+    "ERROR_JOURNAL_UNAVAILABLE": ("The rejected request could not be recorded in the job error journal.",
+                                  "Check local storage and journal capacity; read job status before choosing a new operation. Do not blindly replay.", False),
     "INTERNAL_ERROR": ("MinionOne encountered an internal error.",
                        "Check the local manager's redacted diagnostics and job state; do not blindly repeat operations.", False),
 }
@@ -100,6 +102,7 @@ def safe_tool_fault(exc) -> Diagnostic:
     """Map known manager exception *types* to safe stable public codes."""
     from .admission import (
         PermissionDenied, InputRejected, VersionConflict, IdempotencyConflict,
+        ControlJournalUnavailable,
     )
     from .timeout_control import TimeoutControlDenied
     if hasattr(exc,"diagnostic") and type(exc.diagnostic) is Diagnostic:
@@ -109,4 +112,5 @@ def safe_tool_fault(exc) -> Diagnostic:
     if isinstance(exc,VersionConflict): return diagnostic("STALE_VERSION")
     if isinstance(exc,IdempotencyConflict): return diagnostic("IDEMPOTENCY_CONFLICT")
     if isinstance(exc,TimeoutControlDenied): return diagnostic("RESUME_NOT_READY")
+    if isinstance(exc,ControlJournalUnavailable): return diagnostic("ERROR_JOURNAL_UNAVAILABLE")
     return diagnostic("INTERNAL_ERROR")

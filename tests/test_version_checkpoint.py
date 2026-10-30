@@ -6,7 +6,7 @@ import unittest
 from minionone import __version__
 
 ROOT=Path(__file__).resolve().parents[1]
-EXPECTED="0.15.0.dev0"
+EXPECTED="0.16.0.dev0"
 
 class TestDevelopmentVersion(unittest.TestCase):
     def test_packaged_and_runtime_version_match_milestone(self):

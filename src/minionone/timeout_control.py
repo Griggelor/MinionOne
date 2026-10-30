@@ -157,23 +157,23 @@ class TimeoutControlStore:
         provider quiescence and resource budget before RESUMING -> RUNNING.
         """
         principal=self.owner._principal(parent_token,thread_id)
-        _field(_ID,job_id,"job id")
-        _field(_OP,operation_id,"resume operation")
         if type(expected_version) is not int or expected_version < 0:
             raise InputRejected("invalid expected version")
         request_hash=_digest([expected_version,"REQUEST_RESUME"])
-        with self.owner._connection() as con:
-            con.execute("BEGIN IMMEDIATE")
-            job=self.owner._owned_row(con,principal,thread_id,job_id)
+        with self.owner._job_control(principal,thread_id,job_id,expected_version,
+                                     operation_id,'RESUME_REQUEST') as (con,job):
             record=con.execute("SELECT * FROM timeout_records WHERE job_id=?",
                                (job_id,)).fetchone()
+            if (record is not None and record["resume_requested"] and
+                    record["resume_operation_id"] == operation_id):
+                if record["resume_request_hash"]!=request_hash:
+                    raise IdempotencyConflict("resume key reused")
+                return json.loads(record["resume_receipt_json"])
+            self.owner._raise_rejected_control(con,job_id,'RESUME_REQUEST',
+                                               operation_id,expected_version)
             if record is None:
                 raise TimeoutControlDenied("job has no timeout")
             if record["resume_requested"]:
-                if record["resume_operation_id"] == operation_id:
-                    if record["resume_request_hash"]!=request_hash:
-                        raise IdempotencyConflict("resume key reused")
-                    return json.loads(record["resume_receipt_json"])
                 raise VersionConflict("resume already requested")
             if job["version"]!=expected_version:
                 raise VersionConflict("stale canonical job version")

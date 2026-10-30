@@ -1,0 +1,9 @@
+Processing <checkout>
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Building wheels for collected packages: minionone
+  Building wheel for minionone (pyproject.toml): started
+  Building wheel for minionone (pyproject.toml): finished with status 'done'
+  Created wheel for minionone: filename=minionone-0.16.0.dev0-py3-none-any.whl size=44943 sha256=8aa5f010afa566bc3ae011004dcb6dcfbe0d1931f3b6046e484648631158714d
+  Stored in directory: <checkout>/pip-ephem-wheel-cache-o69drg4p/wheels/b3/b5/18/f49a70feba708b8893fe605b16cee171c4d55724d691bf45ed
+Successfully built minionone

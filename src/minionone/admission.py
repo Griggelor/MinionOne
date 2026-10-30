@@ -34,6 +34,10 @@ class VersionConflict(ValueError):
     pass
 
 
+class ControlJournalUnavailable(RuntimeError):
+    """A rejected control could not be durably recorded. Never report success."""
+
+
 _ID = re.compile(r'[A-Za-z0-9_.:-]{1,128}\Z', re.ASCII)
 _OP = re.compile(r'[A-Za-z0-9_.:-]{8,128}\Z', re.ASCII)
 _SHA = re.compile(r'[a-f0-9]{64}\Z', re.ASCII)
@@ -116,6 +120,22 @@ class AdmissionStore:
                 request_hash TEXT NOT NULL, receipt TEXT NOT NULL,
                 PRIMARY KEY(job_id,operation_id),
                 FOREIGN KEY(job_id) REFERENCES jobs(job_id)
+            )''')
+            # Additive metadata on the SAME canonical event timeline. These
+            # rows describe rejected parent commands, never a second job state.
+            con.execute('''CREATE TABLE IF NOT EXISTS control_errors(
+                job_id TEXT NOT NULL, seq INTEGER NOT NULL,
+                operation TEXT NOT NULL CHECK(operation IN ('ABORT','RESUME_REQUEST')),
+                operation_digest TEXT NOT NULL CHECK(length(operation_digest)=64),
+                request_hash TEXT NOT NULL CHECK(length(request_hash)=64),
+                state_version INTEGER NOT NULL CHECK(state_version>=0),
+                attempt_epoch INTEGER CHECK(attempt_epoch>=1),
+                error_code TEXT NOT NULL CHECK(error_code IN
+                    ('STALE_VERSION','IDEMPOTENCY_CONFLICT','RESUME_NOT_READY')),
+                diagnostic_json TEXT NOT NULL,
+                PRIMARY KEY(job_id,operation,operation_digest),
+                UNIQUE(job_id,seq),
+                FOREIGN KEY(job_id,seq) REFERENCES admission_events(job_id,seq)
             )''')
 
     def _migrate_legacy_jobs(self, con):
@@ -255,14 +275,135 @@ class AdmissionStore:
     def status(self, parent_token, thread_id, job_id):
         principal = self._principal(parent_token, thread_id)
         with self._connection() as con:
-            return self._snapshot(self._owned_row(con, principal, thread_id, job_id))
+            con.execute('BEGIN')
+            snapshot = self._snapshot(self._owned_row(con, principal, thread_id, job_id))
+            error = con.execute('''SELECT e.*,c.operation,c.state_version,
+                c.attempt_epoch,c.diagnostic_json FROM admission_events e
+                JOIN control_errors c ON c.job_id=e.job_id AND c.seq=e.seq
+                WHERE e.job_id=? ORDER BY e.seq DESC LIMIT 1''', (job_id,)).fetchone()
+            if error is not None:
+                snapshot['latest_control_error'] = self._control_error_view(error)
+            return snapshot
 
     def events(self, parent_token, thread_id, job_id):
         principal = self._principal(parent_token, thread_id)
         with self._connection() as con:
+            con.execute('BEGIN')
             self._owned_row(con, principal, thread_id, job_id)
-            return [dict(r) for r in con.execute('''SELECT seq,status,operation_id,actor,occurred_utc
-              FROM admission_events WHERE job_id=? ORDER BY seq LIMIT 500''',(job_id,)).fetchall()]
+            rows = con.execute('''SELECT e.*,c.operation,c.state_version,
+                c.attempt_epoch,c.diagnostic_json FROM admission_events e
+                LEFT JOIN control_errors c ON c.job_id=e.job_id AND c.seq=e.seq
+                WHERE e.job_id=? ORDER BY e.seq LIMIT 500''', (job_id,)).fetchall()
+            return [self._control_error_view(r) if r['operation'] is not None else
+                    {k:r[k] for k in ('seq','status','operation_id','actor','occurred_utc')}
+                    for r in rows]
+
+    @staticmethod
+    def _control_error_view(row):
+        return {**{k:row[k] for k in
+                   ('seq','status','operation_id','actor','occurred_utc',
+                    'operation','state_version','attempt_epoch')},
+                'type':'CONTROL_REJECTED', 'schema_version':1,
+                'phase':'PARENT_CONTROL', 'error':json.loads(row['diagnostic_json'])}
+
+    @staticmethod
+    def _control_error_types():
+        # Late import avoids the timeout adapter's import of the canonical owner.
+        from .timeout_control import TimeoutControlDenied
+        return {'STALE_VERSION':VersionConflict,
+                'IDEMPOTENCY_CONFLICT':IdempotencyConflict,
+                'RESUME_NOT_READY':TimeoutControlDenied}
+
+    def _raise_rejected_control(self, con, job_id, operation, operation_id,
+                                expected_version):
+        """Call AFTER checking an existing successful receipt for this command.
+
+        A conflicting request must not poison the original accepted receipt.
+        A rejected command, however, must never become a new action on replay.
+        """
+        prior = con.execute('''SELECT request_hash,error_code FROM control_errors
+            WHERE job_id=? AND operation=? AND operation_digest=?''',
+            (job_id,operation,_digest([job_id,operation,operation_id]))).fetchone()
+        if prior is not None:
+            if prior['request_hash'] != _digest([expected_version,operation]):
+                raise IdempotencyConflict('rejected control key reused')
+            raise self._control_error_types()[prior['error_code']](
+                'previously rejected control; inspect job events')
+
+    @contextmanager
+    def _job_control(self, principal, thread_id, job_id, expected_version,
+                     operation_id, operation):
+        """One transaction for a control outcome and its canonical audit.
+
+        Authorization precedes replay and journaling. Roll back all partial
+        command writes to a savepoint before recording a classified rejection.
+        Commit the error BEFORE raising it to the MCP boundary. SQLite failures
+        roll back everything; no separate best-effort logger claims durability.
+        """
+        _field(_ID, job_id, 'job id')
+        _field(_OP, operation_id, 'operation id')
+        if type(expected_version) is not int or expected_version < 0:
+            raise InputRejected('invalid expected version')
+        if operation not in ('ABORT','RESUME_REQUEST'):
+            raise InputRejected('invalid control operation')
+        types = self._control_error_types()
+        failure = None
+        try:
+            with self._connection() as con:
+                con.execute('BEGIN IMMEDIATE')
+                row = self._owned_row(con, principal, thread_id, job_id)
+                con.execute('SAVEPOINT parent_control')
+                try:
+                    yield con, row
+                except tuple(types.values()) as exc:
+                    con.execute('ROLLBACK TO parent_control')
+                    con.execute('RELEASE parent_control')
+                    code = next(k for k,cls in types.items() if isinstance(exc,cls))
+                    try:
+                        self._record_control_error(con, row, operation, operation_id,
+                                                   expected_version, code)
+                    except sqlite3.Error:
+                        raise ControlJournalUnavailable('error journal write failed') from None
+                    failure = types[code]('control rejected; inspect job events')
+                else:
+                    con.execute('RELEASE parent_control')
+        except sqlite3.Error:
+            if failure is not None:
+                raise ControlJournalUnavailable('error journal commit failed') from None
+            raise
+        if failure is not None:
+            raise failure
+
+    def _record_control_error(self, con, row, operation, operation_id,
+                              expected_version, code):
+        from .diagnostics import diagnostic
+        operation_digest = _digest([row['job_id'],operation,operation_id])
+        prior = con.execute('''SELECT 1 FROM control_errors
+            WHERE job_id=? AND operation=? AND operation_digest=?''',
+            (row['job_id'],operation,operation_digest)).fetchone()
+        if prior is not None:
+            return
+        count = con.execute('SELECT count(*) FROM control_errors WHERE job_id=?',
+                            (row['job_id'],)).fetchone()[0]
+        if count >= 128:
+            raise ControlJournalUnavailable('error journal capacity exhausted')
+        # No attempt is invented for admitted/non-executing jobs. An existing
+        # fence identifies the observed epoch; it does not prove worker liveness.
+        epoch = None
+        if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='attempt_fences'").fetchone():
+            fence = con.execute('SELECT attempt_epoch FROM attempt_fences WHERE job_id=?',
+                                (row['job_id'],)).fetchone()
+            if fence is not None:
+                epoch = fence['attempt_epoch']
+        seq = con.execute('SELECT COALESCE(MAX(seq),0)+1 FROM admission_events WHERE job_id=?',
+                          (row['job_id'],)).fetchone()[0]
+        con.execute('INSERT INTO admission_events VALUES (?,?,?,?,?,?)',
+                    (row['job_id'],seq,row['state'],'error:'+operation_digest,
+                     'AUTHENTICATED_PARENT_REQUEST_ERROR',_utc()))
+        con.execute('INSERT INTO control_errors VALUES (?,?,?,?,?,?,?,?,?)',
+                    (row['job_id'],seq,operation,operation_digest,
+                     _digest([expected_version,operation]),row['version'],epoch,
+                     code,json.dumps(diagnostic(code).to_dict(),sort_keys=True)))
 
     def advance_pre_dispatch(self, job_id, expected_version, operation_id, target_state):
         """Trusted manager ONLY: durable pre-execution stages on canonical jobs.
@@ -316,20 +457,18 @@ class AdmissionStore:
 
     def request_abort(self, parent_token, thread_id, job_id, expected_version, operation_id):
         principal = self._principal(parent_token, thread_id)
-        _field(_ID, job_id, 'job id')
-        _field(_OP, operation_id, 'operation id')
         if type(expected_version) is not int or expected_version < 0:
             raise InputRejected('invalid expected version')
         digest = _digest([expected_version,'abort'])
-        with self._connection() as con:
-            con.execute('BEGIN IMMEDIATE')
-            row = self._owned_row(con, principal, thread_id, job_id)
+        with self._job_control(principal,thread_id,job_id,expected_version,
+                               operation_id,'ABORT') as (con,row):
             prior = con.execute('SELECT request_hash,receipt FROM controls WHERE job_id=? AND operation_id=?',
                                 (job_id,operation_id)).fetchone()
             if prior:
                 if prior['request_hash'] != digest:
                     raise IdempotencyConflict('control key reused with different request')
                 return json.loads(prior['receipt'])
+            self._raise_rejected_control(con,job_id,'ABORT',operation_id,expected_version)
             if (row['version'] != expected_version or
                     row['state'] not in ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK',
                                          'INTERRUPTED') or

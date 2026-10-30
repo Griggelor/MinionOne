@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.16.0.dev0 — 2026-10-30 (PUBLIC PRE-ALPHA, NOT BETA)
+
+- Durable, authorized ABORT/RESUME_REQUEST rejection events on the canonical job timeline; historical error projection in job status, fixed safe diagnostic snapshots and observed state/version/attempt metadata.
+- Failed-command replay survives restart without duplicate events or later execution. Accepted receipts retain priority over conflicting requests.
+- Savepoint rollback and atomic journal commit; explicit ERROR_JOURNAL_UNAVAILABLE on failed error writes/commits or 128/job capacity exhaustion. Valid abort remains available at capacity.
+- 20 new production-path/transaction/crash/security tests; full local suite 213/213 PASS. New PR must pass Windows/Linux, official MCP SDK and wheel checks at its own exact head.
+- Additive database metadata; back up the stopped private pilot DB before upgrade. See docs/ADR_G2_DURABLE_CONTROL_ERRORS.md.
+- Provider/worker/storage-wide error journaling and actual Unsloth error delivery remain open under #29. Worker execution stays disabled; **Beta NO-GO**.
+
+
 ## 0.15.0.dev0 — 2026-10-30 (PUBLIC PRE-ALPHA, NOT BETA)
 
 - [PR #30](https://github.com/Griggelor/MinionOne/pull/30): safe, operator-actionable error codes for wrong MCP password/token, provider 401/403 authentication, connection refused, timeout, 400/404/429/5xx API responses, malformed provider response, unauthorized job, stale version, input and resume denial. MCP and local CLI return fixed `code/message/action/retryable` without raw credentials or URLs.

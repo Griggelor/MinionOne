@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.19.0.dev0 — 2026-10-30 (WIP: PREPARING job staging; PRODUCT NO-GO)
+
+- Operator-approved project IDs, durable PREPARING job-ID, three real folders, idempotent retries, quota and scoped MCP status, all disabled unless explicitly configured.
+- Added 169 original + 13 new acceptance IDs; 3 explicitly RED target-contract tests and a machine-readable release-gate report.
+- No input seal, worker NTFS broker, verified Windows security, or Unsloth/Flint end-to-end claim.
+
+
 ## 0.18.0.dev0 — 2026-10-30 (COMPLETE LOCAL SYSTEM-TEST PILOT)
 
 - Opt-in real LM Studio document-job execution: sealed submission, durable start receipt, scoped tools, immutable publication, result delivery and explicit parent ACK to COMPLETED.
@@ -83,3 +90,12 @@ Outstanding: real Unsloth parent chat and same-chat wakeup, Windows NTFS handle-
 ## 0.9.0.dev0 — historical experimental MCP pilot
 
 Authenticated loopback Streamable HTTP endpoint, non-executing SQLite admission, read-only local LM Studio discovery, limited diagnostic CLI, conservative outbox and official MCP transport tests. No real worker execution.
+
+
+## v0.20.0.dev0 — POSIX-only real input seal and provider roadmap (WIP, 2026-10-30)
+
+- Added manager-owned `minionone_seal_workspace`: manifest/SHA-256 validation, pinned input bytes, canonical `jobs` admission **with the same JOB-ID**, idempotent retry and v0.19-state migration.
+- Added `minionone_verify_workspace_input` to reject post-seal mutation in independent local checks.
+- Manager-only redacted `output/job.log.jsonl` from canonical admission events; replay through idempotent seal retry.
+- Added 14 independent POSIX integrity/negative tests, extended local MCP target contract (2 locally green, one intentional fail), and provider roadmap (LM Studio, Unsloth native, OpenAI optional).
+- **Still NO-GO:** native Windows secure handle broker, real worker start, real Unsloth and OpenAI adapters, same-chat parent integration.

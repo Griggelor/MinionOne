@@ -313,3 +313,18 @@ and [Win32 feasibility PASS](https://github.com/Griggelor/MinionOne/actions/runs
 All worker/file/parent-delivery operations remain disabled. Full Issue #29,
 real Windows/Unsloth fault injection, durable error journal and independent
 human review are still open. Beta NO-GO.
+
+## 2026-10-30 – nächster Entwicklungsschritt: v0.19 WIP, zweiphasige Jobvorbereitung
+
+- Normative v0.6-Inputs bleiben erst *nach* erfolgreicher Admission versiegelt; vorgeschaltete `PREPARING`-Reservierung als vom Nutzer gewünschter neuer UX-Slice aufgenommen.
+- Opt-in `minionone_prepare_workspace`/`minionone_workspace_status` auf realem MCP-HTTP integriert, SQLite-Job-ID und genau drei sichtbare Verzeichnisse unter einem operatorseitig konfigurierten Projekt. Keine Worker-/OS-Rechteausweitung.
+- `--project ID=ABSOLUTE_DIR` zur manuellen Staging-Demonstration in `mcp_cli`; default off.
+- 13 neue lokale Tests (T-170..T-182) bestanden; historische 246 Tests plus neue 13 Vorbereitungs- und drei Produktstatus-Strukturtests ergeben **262** Tests (endgültiger v0.19-Regressionslauf wird separat protokolliert).
+- 169 existierende Spezifikationstestfälle aus Dokumenten 07, 16 und 23 verzeichnet; drei Zielvertragstests absichtlich rot. Produkt-Release **NO-GO**.
+- Noch offen: echte Input-Versiegelung, kanonischer Job-Admission-Join, Workerdateibroker, Ergebnislog, Modellprofil, Echtsystemtests.
+- Diese Arbeitskopie ist ein lokaler, nicht gemergter Entwicklungsstand. Die Windows-EXE von v0.18 wurde nicht neu gebaut.
+
+
+## 2026-10-30 – v0.20 work increment
+
+Implemented on top of v0.19 local WIP: descriptor-relative POSIX input capture and immutable SQLite snapshot; canonical job-ID acceptance; manager-redacted log; restart and adversarial local tests. Windows sealing disabled pending native security proof. Local target MCP cases T-082/T-102 now green; T-163 remains red. No live provider or target Windows verification claimed. Full test/evidence logs accompany this package. See `docs/V020_POSIX_SEAL_SCOPE.md` and `docs/MODEL_PROVIDER_ROADMAP.md`.

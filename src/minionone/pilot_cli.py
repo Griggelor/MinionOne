@@ -192,8 +192,13 @@ def _synthetic_workspace_folder(project_root, job):
     root=Path(project_root)
     if not root.is_absolute() or not root.is_dir():
         raise PilotError('CONFIGURATION_INVALID')
-    # Reject symlink/junction redirection of user-configured root.
-    if os.path.normcase(str(root.absolute())) != os.path.normcase(str(root.resolve(strict=True))):
+    # Do not compare Windows string canonicalization: volume aliases or
+    # runner drive spelling can differ without making the directory a link.
+    # The native manager pins and verifies the actual root handle identity.
+    root_stat=root.lstat()
+    if (not stat.S_ISDIR(root_stat.st_mode) or root.is_symlink() or
+            (os.name=='nt' and root_stat.st_file_attributes &
+             getattr(stat,'FILE_ATTRIBUTE_REPARSE_POINT',0x400))):
         raise PilotError('PILOT_FILE_CHANGED')
     if type(job) is not str or _JOB.fullmatch(job) is None:
         raise PilotError('PILOT_FILE_CHANGED')
@@ -241,9 +246,12 @@ def workspace_exercise(client, *, project_id, project_root, model, timeout=900):
             raise PilotError('CONFIGURATION_INVALID')
         # Check the trusted operator-selected directory BEFORE reserving a job.
         root=Path(project_root)
-        if (not root.is_absolute() or not root.is_dir() or root.is_symlink() or
-                os.path.normcase(str(root.absolute())) !=
-                os.path.normcase(str(root.resolve(strict=True)))):
+        if not root.is_absolute() or not root.is_dir():
+            raise PilotError('CONFIGURATION_INVALID')
+        root_stat=root.lstat()
+        if (not stat.S_ISDIR(root_stat.st_mode) or root.is_symlink() or
+                (os.name=='nt' and root_stat.st_file_attributes &
+                 getattr(stat,'FILE_ATTRIBUTE_REPARSE_POINT',0x400))):
             raise PilotError('CONFIGURATION_INVALID')
         gate=client.tool('minionone_status',{})
         if (gate.get('release_gate')!='NO_GO' or

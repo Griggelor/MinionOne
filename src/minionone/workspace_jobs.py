@@ -94,10 +94,20 @@ class WorkspaceJobs:
         if sealed["state"]=="ACCEPTED":
             return self.start(token,thread,job_id,sealed["version"],
                               op_base+"-start",self.pilot.config.model_id)
-        if sealed["state"] in ("QUEUED","RESOURCE_CHECK","RUNNING",
-                               "RESULT_READY","COMPLETED","WAITING_FOR_PARENT"):
-            return self.workspace.store.status(token,thread,job_id)
-        raise InputRejected("delegation job unavailable for automatic retry")
+        # Replays must return the original durable START receipt regardless of
+        # whether the asynchronous worker has since advanced its job state.
+        with self.workspace.store._connection() as con:
+            old=con.execute("""SELECT receipt FROM pilot_receipts
+                WHERE job_id=? AND kind='START' AND operation_digest=?""",
+                (job_id,_digest(op_base+"-start"))).fetchone()
+        if old is not None:
+            return json.loads(old["receipt"])
+        if sealed["state"]=="QUEUED":
+            # A process interruption between QUEUED and START receipt may
+            # retry ONLY its identical, already persisted operation marker.
+            return self.start(token,thread,job_id,sealed["version"]-1,
+                              op_base+"-start",self.pilot.config.model_id)
+        raise InputRejected("delegation has no safely replayable worker start")
 
     def start(self, token, thread, job_id, expected_version, operation_id, model_id):
         """Start on SAME sealed job ID, with per-job CAS and retry safety.

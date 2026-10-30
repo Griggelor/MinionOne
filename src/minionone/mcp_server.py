@@ -39,6 +39,10 @@ WORKSPACE_TOOLS = [
   'description':'Verify that admitted POSIX/Win32 staging input still matches the pinned manager snapshot. NOT worker-start or target-host attestation.',
   'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'}},
                  'required':['job_id'],'additionalProperties':False}},
+ {'name':'minionone_workspace_snapshot',
+  'description':'Authenticated manager metadata for sealed SQLite input (names, hashes, sizes). No content, worker access or on-disk recheck.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'}},
+                 'required':['job_id'],'additionalProperties':False}},
  {'name':'minionone_workspace_status',
   'description':'Read an owned PREPARING or admitted workspace; never launches worker execution.',
   'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'}},
@@ -186,6 +190,9 @@ class LocalMCP(ThreadingHTTPServer):
                 return self.workspace.seal(token,thread,args['job_id'],args['expected_version'],args['operation_id'])
             if name == 'minionone_verify_workspace_input':
                 return self.workspace.verify_input(token,thread,args['job_id'])
+            if name == 'minionone_workspace_snapshot':
+                from .workspace_input_snapshot import SealedWorkspaceInput
+                return SealedWorkspaceInput(self.workspace).metadata(token,thread,args['job_id'])
             if name == 'minionone_workspace_status':
                 return self.workspace.status(token,thread,args['job_id'])
         if self.pilot is not None:

@@ -265,7 +265,9 @@ class CompleteBridgeE2E(unittest.TestCase):
         self.model.mode="malformed"
         job=self.direct("e2e-malformed-00001")
         status=self.outcome(job)
-        self.assertEqual(status["state"],"FAILED",status)
+        # A syntactically invalid response was received, but the model
+        # boundary is deliberately conservative about unaccounted effects.
+        self.assertEqual(status["state"],"NEEDS_RECONCILIATION",status)
         self.assertIn('"choices":[]',json.dumps(self.transcript(job)))
         self.assertFalse((self.project/".minionone"/"jobs"/job["job_id"]/
                           "output"/"result.txt").exists())

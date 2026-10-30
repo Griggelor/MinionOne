@@ -240,3 +240,27 @@ fails closed instead of silently truncating. See
 **Local development only, NO-GO for real data** until actual target-host
 Unsloth/LM Studio integration, file ACLs, resumption and native worker
 workspace capabilities are validated.
+
+### v0.30 — fsynced live JSONL logs independent of SQLite
+
+During an explicitly enabled synthetic workspace job, the manager uses
+pinned POSIX/NTFS native file handles to write each exact model request,
+model response (including any provider-supplied thinking fields), and exact
+tool response **immediately into** `output/worker-io.jsonl`, before the
+model advances. Per-record fsync/FlushFileBuffers also updates the existing
+hash-chained SQLite mirror for authenticated MCP `minionone_worker_io` reads.
+`output/job.log.jsonl` is likewise appended with redacted manager events
+during the run, rather than containing only the sealed admission snapshot.
+
+Separate `<state>/logs/minionone-process.jsonl` and
+`<state>/logs/minionone-errors.jsonl` are opened **before SQLite** so startup,
+MCP and worker failures remain readable even if the database is unavailable.
+Each safe-metadata entry is synced directly; size rotation archives old files
+without deleting them. No model payload is ever written into global process
+logs. SQLite remains authoritative for transactional state, authorization,
+leases, idempotency and parent ACK. See
+[ADR-029 (v0.30 update)](docs/ADR_029_EXACT_WORKER_IO_OUTPUT.md).
+
+Partial JSONL tails after a crash must not be interpreted as complete records;
+an uncertain worker must not be restarted solely from a text log. Synthetic
+development mode only — real Unsloth/Flint target-host approval remains NO-GO.

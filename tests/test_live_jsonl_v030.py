@@ -10,7 +10,7 @@ import unittest
 from minionone.mcp_server import LocalMCP
 from minionone.process_logs import ProcessLogs
 from minionone.agent_loop import ModelStep
-from test_flash_delegation_v027 import FlashDelegationHTTP,TOKEN,MODEL
+from test_flash_delegation_v027 import FlashHTTPFixture,TOKEN,MODEL
 
 
 class BlockingFlint:
@@ -49,7 +49,7 @@ class BlockingFlint:
             "name":name,"status":reply.status,"data":reply.data},sort_keys=True))
 
 
-class LiveJobLogIntegration(FlashDelegationHTTP):
+class LiveJobLogIntegration(FlashHTTPFixture,unittest.TestCase):
     def test_before_worker_finishes_there_is_a_direct_fsynced_jsonl_file(self):
         BlockingFlint.started.clear()
         BlockingFlint.finish.clear()

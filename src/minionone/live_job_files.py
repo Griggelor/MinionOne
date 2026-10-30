@@ -28,7 +28,7 @@ class LiveJobFiles:
         self._handles={}
         self._sizes={}
         self._native=None
-        self._volume=None
+        self._seek=None
 
     def __enter__(self):
         stack=ExitStack()
@@ -47,13 +47,13 @@ class LiveJobFiles:
                 api,directory,volume=stack.enter_context(
                     _output_directory(self.manager.workspace,row))
                 self._native=api
-                self._volume=volume
                 self._windows=True
                 kernel=ctypes.WinDLL("kernel32",use_last_error=True)
                 seek=kernel.SetFilePointerEx
                 seek.argtypes=[wintypes.HANDLE,ctypes.c_longlong,
                                ctypes.POINTER(ctypes.c_longlong),wintypes.DWORD]
                 seek.restype=wintypes.BOOL
+                self._seek=seek
                 for name,disposition in (
                         ("worker-io.jsonl",_FILE_CREATE),
                         ("job.log.jsonl",_FILE_OPEN)):
@@ -75,7 +75,7 @@ class LiveJobFiles:
                     _job_directory(self.manager.workspace,row,"output"))
                 directory_stat=os.fstat(directory)
                 for name,flags in (
-                        ("worker-io.jsonl",os.O_WRONLY|os.O_CREAT|os.O_EXCL),
+                        ("worker-io.jsonl",os.O_RDWR|os.O_CREAT|os.O_EXCL),
                         ("job.log.jsonl",os.O_WRONLY|os.O_APPEND)):
                     handle=os.open(name,flags|os.O_NOFOLLOW|
                                    getattr(os,"O_CLOEXEC",0),0o600,dir_fd=directory)
@@ -129,6 +129,32 @@ class LiveJobFiles:
         line=json.dumps(record,sort_keys=True,ensure_ascii=True,
                         separators=(",",":")).encode("ascii")+b"\n"
         self._write("worker-io.jsonl",line,_MAX_FILE)
+
+    def verify_worker_bytes(self,expected):
+        """Compare entire actual pinned output file to the verified DB mirror.
+
+        A matching byte LENGTH alone is insufficient: it cannot detect a
+        same-length write fault/tamper. Use pinned handles, never host paths.
+        """
+        if type(expected) is not bytes or len(expected)>_MAX_FILE:
+            raise InputRejected("worker IO mirror bytes invalid")
+        handle=self._handles.get("worker-io.jsonl")
+        if self._stack is None or handle is None:
+            raise InputRejected("worker IO handle unavailable")
+        if self._windows:
+            if not self._seek(handle,0,None,0):
+                raise InputRejected("Windows worker IO verify seek failed")
+            actual=self._native.read_regular(handle,max_bytes=_MAX_FILE)
+        else:
+            parts=[];offset=0
+            while offset<len(expected)+1:
+                data=os.pread(handle,min(65536,len(expected)+1-offset),offset)
+                if not data:break
+                parts.append(data);offset+=len(data)
+            actual=b"".join(parts)
+        if actual!=expected or len(actual)!=self._sizes["worker-io.jsonl"]:
+            raise InputRejected("worker IO file differs from SQLite journal")
+        return True
 
     def job_event(self,event,fields=None):
         # Closed schema, never write task text, path, prompt or model payload.

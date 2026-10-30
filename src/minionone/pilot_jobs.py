@@ -307,6 +307,14 @@ class PilotJobs:
             if run.status=='AWAITING_REVIEW':
                 if row['job_kind']=='WORKSPACE':
                     if self.workspace_execution is None:raise PilotError('PILOT_STATE_INVALID')
+                    # Verify that at least one immutable broker result
+                    # exists BEFORE declaring an external native publication
+                    # attempt. A model-only 'finished' answer must fail cleanly,
+                    # not enter reconciliation for output side effects which
+                    # never occurred.
+                    with self.owner._connection() as check:
+                        check.execute('BEGIN')
+                        self._outputs(check,job)
                     publication_started=True
                     self.workspace_execution.publish_finished(job,cap)
                 self._finish(job,'RESULT_READY',None)

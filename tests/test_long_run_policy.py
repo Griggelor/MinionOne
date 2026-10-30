@@ -128,7 +128,7 @@ class LongRunPolicyTests(unittest.TestCase):
                                    tool_call_seconds=300,max_loops=1),clock=clock).run(provider,broker)
                 self.assertEqual(result.tool_calls,1)
                 self.assertEqual(broker.calls,[(name,cap)])
-                self.assertEqual(result.status,"LOOP_LIMIT")
+                self.assertEqual(result.status,"WAITING_FOR_PARENT" if name=="ask_question" else "LOOP_LIMIT")
 
     def test_per_model_call_deadline_enforced_independent_of_job_time(self):
         clock=Clock()

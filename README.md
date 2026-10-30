@@ -2,7 +2,7 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.17.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.18.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
 MinionOne aims to delegate bounded tasks from a primary local assistant to specialist workers (initially via LM Studio), while keeping authorization, state, resource budgets, files and final integration under the trusted manager's control. It is **not** an official Unsloth project or an endorsed Unsloth extension.
 
@@ -23,6 +23,33 @@ error and exits without claiming a listener started; default-state-directory
 failures are handled too. See [storage diagnostic contract](docs/G2_STORAGE_DIAGNOSTICS.md).
 Implementation proceeds with tests and CI, then merge; no separate review or
 review-approval step is required by the owner. Worker execution remains disabled.
+
+## Complete system-test pilot (v0.18)
+
+An opt-in **real LM Studio job path** is now implemented: submit sealed test
+text files, start a bounded worker, read/create/publish through six scoped
+manager tools, fetch the immutable result and send an explicit parent ACK.
+Only then does the canonical job become COMPLETED. All tools operate on an
+isolated SQLite document namespace; no worker host-filesystem, shell or code
+execution is exposed. The native Windows project-folder broker remains a
+separate unimplemented feature, not a claimed property of this backend.
+
+The Windows package contains a console executable and start/connection/system-test
+launchers. No Python installation is needed for that package. The executable is
+itself exercised in Windows CI, including spawned network clients, protected
+credentials and an exported result ZIP, against a synthetic HTTP model server.
+Use the [German system-test instructions](system_test/README_DE.md) for a real
+Flint/LM Studio and Unsloth run on your machine. Actual target-model/Unsloth
+interoperability is established by that target test, not by the CI fixture.
+
+Run from source: `python -m minionone.pilot_cli serve --model EXACT_LOADED_MODEL_ID`.
+Use `python -m minionone.pilot_cli connection --show-token` locally for MCP setup,
+then `python -m minionone.pilot_cli self-test` in another terminal. The worker
+model must already be loaded; MinionOne does not send load/unload commands.
+
+The default `minionone.mcp_cli` remains a connection/admission-only server.
+Complete jobs are explicitly enabled by the system-test launcher, with a
+separate local state directory. This is a test build, not a production beta.
 
 ## New: opt-in local MCP transport pilot
 

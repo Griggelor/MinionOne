@@ -64,6 +64,22 @@ _TOOLS = [
     for name in sorted(ALLOWED_WORKER_TOOLS)
 ]
 
+_PARAMETERS = {
+    'list_files': {'zone': {'type':'string','enum':['input','work']}},
+    'read_file': {'path': {'type':'string','maxLength':96}},
+    'create_work': {'name': {'type':'string','maxLength':64},
+                    'content': {'type':'string','maxLength':3500}},
+    'publish_artifact': {'name': {'type':'string','maxLength':64}},
+    'report_progress': {'percent': {'type':'integer','minimum':0,'maximum':100}},
+    'ask_question': {'question': {'type':'string','maxLength':1000}},
+}
+for _tool in _TOOLS:
+    _properties = _PARAMETERS[_tool['function']['name']]
+    _tool['function']['parameters'] = {
+        'type':'object','properties':_properties,
+        'required':list(_properties),'additionalProperties':False,
+    }
+
 
 class LMStudioAgentProvider:
     """Adapter for ONE tool request per completion. No model load or worker I/O.
@@ -198,19 +214,26 @@ class LMStudioAgentProvider:
             raise PlannerRejected("malformed or unsafe provider response") from exc
 
     def observe_tool(self, name, reply):
-        """Accept ONLY sanitized manager-broker outcome metadata, not file bytes."""
+        """Accept manager-verified outcome data, including approved job documents.
+
+        The pilot supplies sealed scoped UTF-8 content; arbitrary host data and
+        provider reasoning are never inferred or authorized by this adapter.
+        """
         if (self._pending is None or name != self._pending[0] or
                 type(reply) is not BrokerReply or
                 reply.status not in ("ok","DENIED") or
                 type(reply.result_code) is not str or
                 _CODE.fullmatch(reply.result_code) is None):
             raise PlannerRejected("unverified or unmatched tool response")
+        if reply.data is not None and (type(reply.data) is not dict or not _safe_arguments(reply.data)):
+            raise PlannerRejected('invalid scoped tool data')
         _,call_id=self._pending
         self._messages.append({
             "role":"tool",
             "tool_call_id":call_id,
             "content":json.dumps({"status":reply.status,
-                                  "result_code":reply.result_code},
+                                  "result_code":reply.result_code,
+                                  **({'data':reply.data} if reply.data is not None else {})},
                                  sort_keys=True,separators=(",",":")),
         })
         self._pending=None

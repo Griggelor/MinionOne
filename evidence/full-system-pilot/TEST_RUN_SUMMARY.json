@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "version": "0.18.0.dev0",
+  "base_main": "3da7b5249a83db4602937b44ffa1763d92e7b326",
+  "date": "2026-10-30",
+  "environment": {
+    "python": "3.12.14",
+    "os": "Linux",
+    "sqlite": "3.53.1"
+  },
+  "runs": [
+    {
+      "log": "ATOMIC_STATUS_RED.log",
+      "command": "python -m unittest discover -s tests -p test_atomic_status.py -v",
+      "tests": 1,
+      "seconds": 0.036,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "outcome": "expected_red_before_feature_boundary"
+    },
+    {
+      "log": "COMPLETE_JOB_RED.log",
+      "command": "python -m unittest discover -s tests -p test_complete_test_job.py -v",
+      "tests": 6,
+      "seconds": 3.025,
+      "failures": 0,
+      "errors": 6,
+      "skipped": 0,
+      "exit_code": 1,
+      "outcome": "expected_red_before_feature_boundary"
+    },
+    {
+      "log": "GREEN_FULL.log",
+      "command": "python -m unittest discover -s tests -v",
+      "tests": 246,
+      "seconds": 45.807,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "outcome": "pass"
+    }
+  ],
+  "distribution": {
+    "wheel_sha256": "61a3178ce972472fb5094f27ab0af20f0f4271ced4f1f77a2a078a7af0317549",
+    "offline_bundle_sha256": "6789551ab83fa6913cd0368ddf56d2173288a35aa59c5a227c8afd553ecc64e3",
+    "isolated_wheel_smoke_passed": true,
+    "windows_executable": "separate exact-head Windows CI required; not inferred from local Linux"
+  },
+  "scope": [
+    "Real MCP HTTP and spawned HTTP client; deterministic synthetic model provider.",
+    "Complete submit/start/scoped-files/publish/result/parent-ACK path, timeout/denial/capability/restart/instance lock and installer contracts.",
+    "No actual Flint/Unsloth, target UMA or native NTFS-file privilege proof claimed from these fixtures.",
+    "Worker files are bounded immutable SQLite documents; no host paths/shell/general network/code execution.",
+    "Published logs normalize ephemeral paths and trailing whitespace.",
+    "246 local tests passed; redundant executions are not summed."
+  ]
+}

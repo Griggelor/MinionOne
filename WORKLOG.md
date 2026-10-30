@@ -1,5 +1,15 @@
 # MinionOne WORKLOG — 2026-10-29
 
+## 2026-10-30 — full-system test target / v0.18.0.dev0
+
+- User explicitly selected a complete Unsloth -> Flint -> test files -> returned-result test, rather than a connection-only package. Continue until a runnable Windows system-test artifact exists; no separate reviews.
+- Base main: `3da7b5249a83db4602937b44ffa1763d92e7b326` (v0.17). Atomic status race reproduced with a red production-path test, then fixed with a shared read transaction. Existing suite plus that case passed 232/232.
+- Implemented opt-in durable real-provider test jobs over a strictly scoped SQLite document backend. This is an explicit alternative to native host file access for the first system test; G1b NTFS rights remain ungranted. Full HTTP model/manager/result/ACK flow passed, with negative, timeout, duplicate-start, immutability, capability and restart cases.
+- Added absolute HTTP deadlines via isolated network-client processes and uncertain-generation quarantine; stopping the client is never presented as provider quiescence. One process lock prevents competing startup recovery.
+- Added native Windows launcher build with multiprocessing freeze_support, user-bound credential protection, guided setup, actual provider test, safe result export, reports and offline Python fallback. Frozen executable runs its own integration exercise in CI before packaging.
+- Scope and user-machine procedure are documented in docs/SYSTEM_TEST_PILOT.md and system_test/README_DE.md. No target-device or actual Flint/Unsloth success is claimed until the user runs this package. Existing implementation/CI/merge workflow continues without review gates.
+
+
 ## 2026-10-30 — G2-E29-03 storage diagnostics / v0.17.0.dev0
 
 - Intake main was still v0.15; PR #32 had no review comments. Owner then explicitly requested direct implementation without reviews. Removed that process gate, canceled issue #9 as not planned, and merged passing PR #32. New base: `53e0bbb2333f357d3eb8a8f14963cbc2bb0fc255` (tree `0f46bef64babb30566d94275dac1fa727da3a38c`).

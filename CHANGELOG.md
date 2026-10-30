@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.18.0.dev0 — 2026-10-30 (COMPLETE LOCAL SYSTEM-TEST PILOT)
+
+- Opt-in real LM Studio document-job execution: sealed submission, durable start receipt, scoped tools, immutable publication, result delivery and explicit parent ACK to COMPLETED.
+- SQLite document backend: no worker host paths, shell, arbitrary network or code execution. Native NTFS project-folder support remains separate.
+- Canonical jobs schema migration preserves old non-executing jobs and adds explicitly marked isolated test jobs. One snapshot for combined job/timeout/test status.
+- Absolute-deadline network-client processes, one active pilot/attempt, persistent budgets/denials, cancellation, restart quarantine and offline operator reconciliation. No automatic provider replay.
+- Windows native console application, private DPAPI token, start/connection/system-test launchers, result ZIP export and offline Python fallback. Native executable is exercised in CI against a labelled synthetic HTTP provider before packaging.
+- Real loaded-model test and Unsloth instructions supplied in system_test/README_DE.md. Actual target integration remains to be run on the user's machine; this is not a production beta.
+
+
 ## 0.17.0.dev0 — 2026-10-30 (PUBLIC PRE-ALPHA, NOT BETA)
 
 - Distinct fixed SQLite/OS diagnostics for busy/locked, corrupt, cannot-open, full, read-only, I/O, permissions, schema/integrity and database-memory failures. Numeric codes only; no raw-message guessing.

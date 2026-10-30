@@ -1,7 +1,15 @@
 # Development status — 2026-10-30
 
-**Version:** 0.17.0.dev0
+**Version:** 0.18.0.dev0
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
+
+## v0.18.0.dev0 — complete test-document job path
+
+- Canonical path now supports an opt-in full test job using real LM Studio HTTP tool calls and the six scoped SQLite document operations. COMPLETED requires verified published files and authenticated parent ACK; default connection mode remains non-executing.
+- The native Windows package is built and tested separately from the source suite. Frozen execution, spawned network client, DPAPI roundtrip, duplicate-instance guard and result export are tested before uploading a runnable artifact. See exact CI evidence, not just source-test counts.
+- Local source suite: 246 tests after new full HTTP pipeline, timeout, broker, recovery, operator exercise, bundle and atomic-status cases. Executed result is recorded in evidence/full-system-pilot/TEST_RUN_SUMMARY.json.
+- First complete-system backend deliberately uses manager-owned SQLite documents. It grants no native Windows project-folder rights and does not claim the NTFS broker gate. Job files can be returned/exported as verified ZIP data.
+- Readiness requires an already-loaded configured worker and available host memory. Original Unsloth chat attestation/wakeup, GPU UMA/parent residency, native project import, general multi-attempt Resume and production release remain outside this test build. No review/approval stage is added.
 
 ## v0.17.0.dev0 — typed local-state/storage diagnostics
 

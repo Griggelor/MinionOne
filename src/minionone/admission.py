@@ -58,6 +58,20 @@ _OP = re.compile(r'[A-Za-z0-9_.:-]{8,128}\Z', re.ASCII)
 _SHA = re.compile(r'[a-f0-9]{64}\Z', re.ASCII)
 
 
+_JOB_TABLE = """CREATE TABLE IF NOT EXISTS {name}(
+ job_id TEXT PRIMARY KEY, principal TEXT NOT NULL, thread_id TEXT NOT NULL,
+ input_digest TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN
+ ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK','RUNNING','INTERRUPTED',
+  'RESUMING','NEEDS_RECONCILIATION','CANCEL_REQUESTED','CANCELLED',
+  'RESULT_READY','COMPLETED','FAILED','WAITING_FOR_PARENT')),
+ version INTEGER NOT NULL CHECK(version>=0),
+ job_kind TEXT NOT NULL DEFAULT 'NON_EXECUTING'
+   CHECK(job_kind IN ('NON_EXECUTING','ISOLATED_TEST')),
+ worker_started INTEGER NOT NULL DEFAULT 0 CHECK(worker_started IN (0,1))
+   CHECK(worker_started=0 OR job_kind='ISOLATED_TEST'),
+ created_utc TEXT NOT NULL, updated_utc TEXT NOT NULL)"""
+
+
 def _utc():
     return datetime.now(timezone.utc).isoformat(timespec='microseconds').replace('+00:00', 'Z')
 
@@ -103,16 +117,8 @@ class AdmissionStore:
         self.database_path = Path(database_path)  # trusted manager configuration only
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
         with self._connection() as con:
+            con.execute(_JOB_TABLE.format(name='jobs'))
             con.executescript('''
-            CREATE TABLE IF NOT EXISTS jobs(
-              job_id TEXT PRIMARY KEY, principal TEXT NOT NULL, thread_id TEXT NOT NULL,
-              input_digest TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN
-                ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK',
-               'RUNNING','INTERRUPTED','RESUMING','NEEDS_RECONCILIATION',
-               'CANCEL_REQUESTED','CANCELLED')),
-              version INTEGER NOT NULL CHECK(version>=0),
-              worker_started INTEGER NOT NULL DEFAULT 0 CHECK(worker_started=0),
-              created_utc TEXT NOT NULL, updated_utc TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS admissions(
               principal TEXT NOT NULL, operation_id TEXT NOT NULL,
               request_hash TEXT NOT NULL, job_id TEXT NOT NULL, receipt TEXT NOT NULL,
@@ -161,11 +167,12 @@ class AdmissionStore:
             raise StateSchemaRejected('canonical jobs schema unavailable')
         definition = sqlrow[0]
         normalized = ''.join(definition.split())
-        if (all(("'" + state + "'") in definition for state in (
-                "VALIDATING","RESOURCE_CHECK","RUNNING","INTERRUPTED",
-                "RESUMING","NEEDS_RECONCILIATION"))):
-            if 'CHECK(worker_started=0)' not in normalized:
-                raise StateSchemaRejected('worker execution must remain database-disabled')
+        if 'job_kind' in normalized:
+            required = ("CHECK(worker_startedIN(0,1))",
+                        "CHECK(worker_started=0ORjob_kind='ISOLATED_TEST')",
+                        "'RESULT_READY'", "'COMPLETED'", "'FAILED'")
+            if not all(x in normalized for x in required):
+                raise StateSchemaRejected('unsafe isolated-test jobs schema')
             if con.execute('PRAGMA foreign_key_check').fetchone() is not None:
                 raise StateIntegrityRejected('broken canonical foreign keys')
             return
@@ -175,7 +182,10 @@ class AdmissionStore:
             "('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK',"
             "'CANCEL_REQUESTED','CANCELLED')"
         )
-        if (not any(x in normalized for x in (old_three,old_six)) or
+        old_ten = ("('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK',"
+                   "'RUNNING','INTERRUPTED','RESUMING','NEEDS_RECONCILIATION',"
+                   "'CANCEL_REQUESTED','CANCELLED')")
+        if (not any(x in normalized for x in (old_three,old_six,old_ten)) or
                 not all(term in normalized for term in (
                     'CHECK(worker_started=0)', 'PRIMARYKEY', 'input_digest',
                     'thread_id', 'created_utc', 'updated_utc'))):
@@ -187,15 +197,7 @@ class AdmissionStore:
         con.execute('PRAGMA foreign_keys=OFF')
         try:
             con.execute('BEGIN IMMEDIATE')
-            con.execute('''CREATE TABLE jobs__g2_preflight(
-              job_id TEXT PRIMARY KEY, principal TEXT NOT NULL, thread_id TEXT NOT NULL,
-              input_digest TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN
-                ('ACCEPTED','VALIDATING','QUEUED','RESOURCE_CHECK',
-                 'RUNNING','INTERRUPTED','RESUMING','NEEDS_RECONCILIATION',
-                 'CANCEL_REQUESTED','CANCELLED')),
-              version INTEGER NOT NULL CHECK(version>=0),
-              worker_started INTEGER NOT NULL DEFAULT 0 CHECK(worker_started=0),
-              created_utc TEXT NOT NULL, updated_utc TEXT NOT NULL)''')
+            con.execute(_JOB_TABLE.format(name='jobs__g2_preflight'))
             con.execute('''INSERT INTO jobs__g2_preflight
               (job_id,principal,thread_id,input_digest,state,version,
                worker_started,created_utc,updated_utc)
@@ -214,11 +216,13 @@ class AdmissionStore:
             con.execute('PRAGMA foreign_keys=ON')
 
     @contextmanager
-    def _connection(self):
-        con = sqlite3.connect(str(self.database_path), isolation_level=None, timeout=10.0)
+    def _connection(self, *, timeout_seconds=10.0):
+        if type(timeout_seconds) not in (int,float) or not 0<timeout_seconds<=10:
+            raise InputRejected('invalid bounded database timeout')
+        con = sqlite3.connect(str(self.database_path), isolation_level=None, timeout=timeout_seconds)
         try:
             con.row_factory = sqlite3.Row
-            con.execute('PRAGMA busy_timeout=10000')
+            con.execute('PRAGMA busy_timeout='+str(max(1,int(timeout_seconds*1000))))
             con.execute('PRAGMA foreign_keys=ON')
             con.execute('PRAGMA journal_mode=WAL')
             con.execute('PRAGMA synchronous=FULL')
@@ -287,18 +291,43 @@ class AdmissionStore:
                         (job_id,1,'ACCEPTED',operation_id,'MANAGER',now))
             return receipt
 
-    def status(self, parent_token, thread_id, job_id):
+    def status(self, parent_token, thread_id, job_id, *, include_timeout=False):
         principal = self._principal(parent_token, thread_id)
         with self._connection() as con:
             con.execute('BEGIN')
-            snapshot = self._snapshot(self._owned_row(con, principal, thread_id, job_id))
+            row = self._owned_row(con, principal, thread_id, job_id)
+            snapshot = self._snapshot(row)
             error = con.execute('''SELECT e.*,c.operation,c.state_version,
                 c.attempt_epoch,c.diagnostic_json FROM admission_events e
                 JOIN control_errors c ON c.job_id=e.job_id AND c.seq=e.seq
                 WHERE e.job_id=? ORDER BY e.seq DESC LIMIT 1''', (job_id,)).fetchone()
             if error is not None:
                 snapshot['latest_control_error'] = self._control_error_view(error)
+            if include_timeout:
+                from .timeout_control import TimeoutControlStore
+                timeout = TimeoutControlStore.project(con,row)
+                if timeout is not None:
+                    snapshot['timeout'] = timeout
+            if row['job_kind'] == 'ISOLATED_TEST':
+                from .pilot_jobs import PilotJobs
+                snapshot['test_job'] = PilotJobs.project(con,row)
             return snapshot
+
+    def _transition(self, con, row, new, evidence, operation_id, *, actor='MANAGER'):
+        """Canonical owner of actual job transitions, within the caller's txn."""
+        check_transition(row['state'],new,evidence)
+        now=_utc()
+        changed=con.execute('UPDATE jobs SET state=?,version=version+1,updated_utc=?, '
+                            "worker_started=CASE WHEN ?='RUNNING' THEN 1 ELSE worker_started END "
+                            'WHERE job_id=? AND version=?',
+                            (new,now,new,row['job_id'],row['version']))
+        if changed.rowcount != 1:
+            raise VersionConflict('canonical transition lost CAS')
+        seq=con.execute('SELECT COALESCE(MAX(seq),0)+1 FROM admission_events WHERE job_id=?',
+                        (row['job_id'],)).fetchone()[0]
+        con.execute('INSERT INTO admission_events VALUES (?,?,?,?,?,?)',
+                    (row['job_id'],seq,new,operation_id,actor,now))
+        return con.execute('SELECT * FROM jobs WHERE job_id=?',(row['job_id'],)).fetchone()
 
     def events(self, parent_token, thread_id, job_id):
         principal = self._principal(parent_token, thread_id)

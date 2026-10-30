@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "run_id": 41055767296,
+  "job_id": 124062787455,
+  "head": "0820d1614beab16a0ac6d610944becdaa26bd043",
+  "scope": "actual frozen Windows executable with synthetic HTTP model",
+  "source_tests": {
+    "tests": 246,
+    "passed": true
+  },
+  "functional_stages": "completed job + DPAPI + duplicate-instance rejection + result ZIP assertions passed",
+  "overall_result": "failure",
+  "failure": "TemporaryDirectory cleanup attempted before stopping the frozen server; Windows lock-file handle was still open.",
+  "fix": "Stop and reap server before removing temporary state; emit success only after cleanup.",
+  "not_claimed": [
+    "No successful native distribution was uploaded from this failed run.",
+    "No real target Flint/Unsloth/GPU test claimed."
+  ]
+}

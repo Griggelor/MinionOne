@@ -1,11 +1,10 @@
 """Internal G2 agent-step coordinator: bounded loops, time, tool and security budgets.
 
-NON-PRODUCTION: no LM Studio provider binding, Win32 file broker, parent-chat
-attestation, publisher or delivery. Callbacks are trusted synthetic/future
-manager dependencies, NEVER raw MCP/worker-provided arbitrary callables.
-No background process killing or hard timeout of a blocking callback is
-possible in this synchronous policy: provider/broker MUST have their own
-enforced timeout/cancellation and fail-closed OS isolation before use.
+Generic policy used by synthetic tests and the opt-in SQLite-document pilot.
+Callbacks are trusted manager dependencies, NEVER MCP/worker-provided code.
+This coordinator alone cannot stop a blocking callback: the pilot provides
+an isolated, absolute-deadline network client and scoped transactional broker.
+It does not establish native Windows filesystem or Unsloth chat attestation.
 """
 from __future__ import annotations
 
@@ -99,6 +98,7 @@ class BrokerReply:
     """Only accepted from the trusted manager-side broker, never model output."""
     status: str
     result_code: str = 'OK'
+    data: dict | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,7 +139,7 @@ def _valid_step(step):
 
 
 class AgentLoop:
-    """Manager-internal finite state coordinator for simulated worker turns.
+    """Manager-internal finite state coordinator for bounded worker turns.
 
     This deliberately has NO default broker or provider and NO methods to
     publish, perform disk I/O, launch models, or notify an Unsloth chat.
@@ -244,6 +244,8 @@ class AgentLoop:
                 return receipt('PROVIDER_FAILURE')
             if denials >= self.limits.max_denials:
                 return receipt('SECURITY_ABORT')
+            if step.name == 'ask_question' and reply.status == 'ok':
+                return receipt('WAITING_FOR_PARENT')
             if tools >= self.limits.max_tool_calls:
                 return receipt('TOOL_LIMIT')
         return receipt('LOOP_LIMIT')

@@ -1,0 +1,83 @@
+test_absolute_timeout_quarantines_and_blocks_another_generation (test_complete_test_job.CompleteTestJobTests.test_absolute_timeout_quarantines_and_blocks_another_generation) ... ERROR
+test_document_input_is_immutable_and_output_read_is_scoped (test_complete_test_job.CompleteTestJobTests.test_document_input_is_immutable_and_output_read_is_scoped) ... ERROR
+test_full_http_document_job_and_authenticated_result_ack (test_complete_test_job.CompleteTestJobTests.test_full_http_document_job_and_authenticated_result_ack) ... ERROR
+test_input_paths_and_reserved_names_rejected_before_admission (test_complete_test_job.CompleteTestJobTests.test_input_paths_and_reserved_names_rejected_before_admission) ... ERROR
+test_not_loaded_model_never_sends_generation_request (test_complete_test_job.CompleteTestJobTests.test_not_loaded_model_never_sends_generation_request) ... ERROR
+test_three_unknown_tools_stop_without_any_file_write (test_complete_test_job.CompleteTestJobTests.test_three_unknown_tools_stop_without_any_file_write) ... ERROR
+
+======================================================================
+ERROR: test_absolute_timeout_quarantines_and_blocks_another_generation (test_complete_test_job.CompleteTestJobTests.test_absolute_timeout_quarantines_and_blocks_another_generation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<checkout>/tests/test_complete_test_job.py", line 56, in setUp
+    self.server=self.open_server();threading.Thread(target=self.server.serve_forever,daemon=True).start()
+                ^^^^^^^^^^^^^^^^^^
+  File "<checkout>/tests/test_complete_test_job.py", line 60, in open_server
+    return LocalMCP(('127.0.0.1',0),token=TOKEN,database_path=self.db,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: LocalMCP.__init__() got an unexpected keyword argument 'enable_test_jobs'
+
+======================================================================
+ERROR: test_document_input_is_immutable_and_output_read_is_scoped (test_complete_test_job.CompleteTestJobTests.test_document_input_is_immutable_and_output_read_is_scoped)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<checkout>/tests/test_complete_test_job.py", line 56, in setUp
+    self.server=self.open_server();threading.Thread(target=self.server.serve_forever,daemon=True).start()
+                ^^^^^^^^^^^^^^^^^^
+  File "<checkout>/tests/test_complete_test_job.py", line 60, in open_server
+    return LocalMCP(('127.0.0.1',0),token=TOKEN,database_path=self.db,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: LocalMCP.__init__() got an unexpected keyword argument 'enable_test_jobs'
+
+======================================================================
+ERROR: test_full_http_document_job_and_authenticated_result_ack (test_complete_test_job.CompleteTestJobTests.test_full_http_document_job_and_authenticated_result_ack)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<checkout>/tests/test_complete_test_job.py", line 56, in setUp
+    self.server=self.open_server();threading.Thread(target=self.server.serve_forever,daemon=True).start()
+                ^^^^^^^^^^^^^^^^^^
+  File "<checkout>/tests/test_complete_test_job.py", line 60, in open_server
+    return LocalMCP(('127.0.0.1',0),token=TOKEN,database_path=self.db,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: LocalMCP.__init__() got an unexpected keyword argument 'enable_test_jobs'
+
+======================================================================
+ERROR: test_input_paths_and_reserved_names_rejected_before_admission (test_complete_test_job.CompleteTestJobTests.test_input_paths_and_reserved_names_rejected_before_admission)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<checkout>/tests/test_complete_test_job.py", line 56, in setUp
+    self.server=self.open_server();threading.Thread(target=self.server.serve_forever,daemon=True).start()
+                ^^^^^^^^^^^^^^^^^^
+  File "<checkout>/tests/test_complete_test_job.py", line 60, in open_server
+    return LocalMCP(('127.0.0.1',0),token=TOKEN,database_path=self.db,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: LocalMCP.__init__() got an unexpected keyword argument 'enable_test_jobs'
+
+======================================================================
+ERROR: test_not_loaded_model_never_sends_generation_request (test_complete_test_job.CompleteTestJobTests.test_not_loaded_model_never_sends_generation_request)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<checkout>/tests/test_complete_test_job.py", line 56, in setUp
+    self.server=self.open_server();threading.Thread(target=self.server.serve_forever,daemon=True).start()
+                ^^^^^^^^^^^^^^^^^^
+  File "<checkout>/tests/test_complete_test_job.py", line 60, in open_server
+    return LocalMCP(('127.0.0.1',0),token=TOKEN,database_path=self.db,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: LocalMCP.__init__() got an unexpected keyword argument 'enable_test_jobs'
+
+======================================================================
+ERROR: test_three_unknown_tools_stop_without_any_file_write (test_complete_test_job.CompleteTestJobTests.test_three_unknown_tools_stop_without_any_file_write)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<checkout>/tests/test_complete_test_job.py", line 56, in setUp
+    self.server=self.open_server();threading.Thread(target=self.server.serve_forever,daemon=True).start()
+                ^^^^^^^^^^^^^^^^^^
+  File "<checkout>/tests/test_complete_test_job.py", line 60, in open_server
+    return LocalMCP(('127.0.0.1',0),token=TOKEN,database_path=self.db,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: LocalMCP.__init__() got an unexpected keyword argument 'enable_test_jobs'
+
+----------------------------------------------------------------------
+Ran 6 tests in 3.025s
+
+FAILED (errors=6)

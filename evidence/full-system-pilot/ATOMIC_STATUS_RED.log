@@ -1,0 +1,14 @@
+test_actual_mcp_status_never_stitches_two_versions (test_atomic_status.AtomicStatusTests.test_actual_mcp_status_never_stitches_two_versions) ... FAIL
+
+======================================================================
+FAIL: test_actual_mcp_status_never_stitches_two_versions (test_atomic_status.AtomicStatusTests.test_actual_mcp_status_never_stitches_two_versions)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<checkout>/tests/test_atomic_status.py", line 30, in test_actual_mcp_status_never_stitches_two_versions
+    self.assertNotIn('timeout',result)
+AssertionError: 'timeout' unexpectedly found in {'job_id': 'JOB-56e72f2550c9065b7753f8682be65293', 'state': 'ACCEPTED', 'version': 0, 'input_digest': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'created_utc': '2026-10-30T11:39:54.449265Z', 'updated_utc': '2026-10-30T11:39:54.449265Z', 'timeout': {'job_id': 'JOB-56e72f2550c9065b7753f8682be65293', 'state': 'ACCEPTED', 'version': 1}}
+
+----------------------------------------------------------------------
+Ran 1 test in 0.036s
+
+FAILED (failures=1)

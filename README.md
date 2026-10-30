@@ -219,3 +219,24 @@ a create-only, redacted JSON support report via:
 Full guide: [MCP and logging/debugging contract](docs/V028_MCP_LOGGING_DEBUGGING.md).
 This remains a synthetic-data **NO-GO development** path; native worker
 work/ tools and resumed question turns are not yet production ready.
+
+### v0.29 — exact content-bearing Flint I/O in output/ (sensitive)
+
+For explicitly enabled synthetic workspace jobs, MinionOne now captures the
+actual OpenAI-compatible UTF-8 request/response **bodies** crossing the
+LM Studio boundary and the exact broker tool replies. The manager durably
+hash-chains these sensitive events, makes them available to the authorized
+Flash parent via `minionone_worker_io` during execution, and creates the
+manager-only immutable `output/worker-io.jsonl` **before** reporting
+`RESULT_READY`. This is intentionally separate from the redacted
+`output/job.log.jsonl` and `minionone_job_trace`.
+
+The model cannot write or forge either log. This transcript can contain
+task data, source text and provider-returned reasoning fields; do not upload
+it or run it as instructions. The capture has strict byte/entry budgets and
+fails closed instead of silently truncating. See
+[ADR-029 — exact worker transcript](docs/ADR_029_EXACT_WORKER_IO_OUTPUT.md).
+
+**Local development only, NO-GO for real data** until actual target-host
+Unsloth/LM Studio integration, file ACLs, resumption and native worker
+workspace capabilities are validated.

@@ -102,8 +102,10 @@ class _PublisherNative(_NativeWriter):
                                 (status & 0xffffffff))
 
     def open_output_directory(self, parent):
-        # The target directory must authorize creating the new directory entry
-        # during rename; FILE_LIST_DIRECTORY alone is insufficient on NTFS.
+        # NtSetInformationFile internally reopens RootDirectory for WRITE_DATA.
+        # SHARE_WRITE is essential: a SHARE_READ-only root handle conflicts with
+        # that internal open (STATUS_SHARING_VIOLATION). Do not grant SHARE_DELETE:
+        # the held output directory should remain non-renameable while pinned.
         name = "output"
         encoded = name.encode("utf-16-le")
         buf = ctypes.create_unicode_buffer(name)
@@ -113,10 +115,12 @@ class _PublisherNative(_NativeWriter):
                                 ctypes.pointer(uni), _OBJ_CASE_INSENSITIVE, None, None)
         ios = _IoStatusBlock()
         out = wintypes.HANDLE()
-        FILE_ADD_FILE = 0x0002
+        _FILE_SHARE_WRITE = 0x00000002
+        _FILE_TRAVERSE = 0x00000020
         status = self.open_relative(ctypes.byref(out),
-                    _READ_ATTRIBUTES | _SYNCHRONIZE | _FILE_READ_DATA | FILE_ADD_FILE,
-                    ctypes.byref(obj), ctypes.byref(ios), None, 0x80, _SHARE_READ,
+                    _READ_ATTRIBUTES | _SYNCHRONIZE | _FILE_TRAVERSE,
+                    ctypes.byref(obj), ctypes.byref(ios), None, 0x80,
+                    _SHARE_READ | _FILE_SHARE_WRITE,
                     _FILE_OPEN, _SYNC | _OPEN_REPARSE | _DIRECTORY, None, 0)
         if status != 0 or not out.value:
             raise InputRejected("Windows manager output directory lacks create authority")

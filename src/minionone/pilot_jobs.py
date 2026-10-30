@@ -296,6 +296,11 @@ class PilotJobs:
                     raise PilotError('PILOT_FILE_CHANGED')
                 live_logs.job_event('JOB_OUTCOME',{'outcome':run.status})
                 io_published=True
+                # On Windows, a terminal job state MUST NOT become visible
+                # while any live output file handle is still open. Otherwise
+                # a parent ACK/cleanup can race pinned NTFS handles.
+                live_logs.__exit__(None,None,None)
+                live_logs=None
             if run.status=='AWAITING_REVIEW':
                 if row['job_kind']=='WORKSPACE':
                     if self.workspace_execution is None:raise PilotError('PILOT_STATE_INVALID')
@@ -335,6 +340,12 @@ class PilotJobs:
             if getattr(self,'process_logs',None) is not None:
                 try:self.process_logs.failure('WORKER_FAILED',exc,job_id=job,error_code=code)
                 except Exception:publication_started=True
+            # Always release pinned Windows output handles before publishing
+            # FAILED / NEEDS_RECONCILIATION as a visible terminal state.
+            if live_logs is not None:
+                try:live_logs.__exit__(None,None,None)
+                except Exception:publication_started=True
+                live_logs=None
             try:self._finish(job,'NEEDS_RECONCILIATION' if publication_started else 'FAILED',code)
             except Exception:pass  # DB outage leaves the durable active intent for restart quarantine.
         finally:
@@ -358,7 +369,13 @@ class PilotJobs:
                 self.owner._transition(con,row,'CANCEL_REQUESTED',Evidence(),'pilot-stop-'+secrets.token_hex(8))
                 con.execute('UPDATE pilot_runs SET active=0,capability=NULL WHERE job_id=?',(row['job_id'],))
         with self._lock:threads=list(self._threads)
-        for thread in threads:thread.join(timeout=.2)
+        # Cancellation revokes every live capability, but OS handles are
+        # owned by worker threads until they actually unwind. A 200 ms
+        # join is insufficient on Windows, leading to locked job logs and
+        # unusable test/recovery directories. One shared bounded grace period.
+        deadline=time.monotonic()+max(2,min(10,self.config.model_call_seconds))
+        for thread in threads:
+            thread.join(timeout=max(0,deadline-time.monotonic()))
 
     def resolve_for_operator(self,job_id):
         # Not an MCP tool. Caller must independently confirm provider stopped.

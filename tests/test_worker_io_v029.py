@@ -168,7 +168,10 @@ class FlashRawWorkerIO(FlashDelegationHTTP):
         self.assertNotEqual(status["state"],"RESULT_READY")
         exactfile=self.project/".minionone"/"jobs"/job/"output"/"worker-io.jsonl"
         self.assertTrue(exactfile.exists())
-        self.assertNotIn("FALSIFIED WORKER LOG",exactfile.read_text())
+        # The forged content MUST be visible as a rejected model proposal:
+        # content fidelity is the whole point of the forensic transcript.
+        self.assertIn("FALSIFIED WORKER LOG",exactfile.read_text())
+        self.assertFalse((self.project/".minionone"/"jobs"/job/"output"/"result.txt").exists())
 
 
 if __name__=="__main__":

@@ -64,6 +64,10 @@ def main():
     native_output=io.StringIO()
     native_result=unittest.TextTestRunner(stream=native_output,verbosity=2).run(native_suite)
     (out/'WINDOWS_MANAGER_OUTPUT_TESTS.log').write_text(native_output.getvalue(),encoding='utf-8')
+    winseal_suite=unittest.defaultTestLoader.discover(str(ROOT/'tests'),pattern='test_win32_workspace_sealing.py')
+    winseal_output=io.StringIO()
+    winseal_result=unittest.TextTestRunner(stream=winseal_output,verbosity=2).run(winseal_suite)
+    (out/'WIN32_INPUT_SEAL_ADMISSION_TESTS.log').write_text(winseal_output.getvalue(),encoding='utf-8')
     # Run RED target contract tests separately. These tests must not be hidden
     # by the green pilot suite or marked successful without execution evidence.
     target_suite=unittest.defaultTestLoader.discover(str(ROOT/'product_acceptance'),
@@ -92,8 +96,8 @@ def main():
     for case in cases:counts[case['verification']]=counts.get(case['verification'],0)+1
     product_pass=all(c['verification']=='PASS_TARGET_E2E' for c in cases)
     report={'schema_version':1,'generated_utc':datetime.now(timezone.utc).isoformat(),
-      'version':'0.24.0.dev0 (native Windows manager output proof; worker still BLOCKED)',
-      'baseline':'v0.23.0.dev0 (GitHub main baseline, PR #38)',
+      'version':'0.25.0.dev0 (native Windows seal + output proofs; worker BLOCKED)',
+      'baseline':'v0.24.0.dev0 (GitHub main baseline, PR #39)',
       'environment':{'os':platform.system(),'python':platform.python_version()},
       'execution':{'command':'PYTHONPATH=src python scripts/run_product_status.py',
         'tests_run':result.testsRun,'passed':result.testsRun-len(result.failures)-len(result.errors)-len(result.skipped),
@@ -116,6 +120,11 @@ def main():
          'failed':len(native_result.failures)+len(native_result.errors),
          'skipped':len(native_result.skipped),
          'type':'native Windows manager-only output proof; synthetic ADMITTED rows, NOT E2E'},
+      'native_win32_input_seal_execution':{'tests_run':winseal_result.testsRun,
+         'passed':winseal_result.testsRun-len(winseal_result.failures)-len(winseal_result.errors)-len(winseal_result.skipped),
+         'failed':len(winseal_result.failures)+len(winseal_result.errors),
+         'skipped':len(winseal_result.skipped),
+         'type':'native Windows pinned input, admission, MCP contract; not target host G1b'},
       'catalog':{'cases_total':len(cases),'counts':counts,'known_baseline_test_ids':169,
                  'historical_undefined_test_ids':0},
       'release_gate':{'product_ready':product_pass,'reason':('ALL_TARGET_GATES_VERIFIED' if product_pass else
@@ -131,6 +140,7 @@ def main():
       f"Target MCP contract (local only): **{report['target_contract_execution']['passed']} passed, {report['target_contract_execution']['failed']} failed**.",
       f"New manager publication tests: **{report['publication_security_execution']['passed']} passed, {report['publication_security_execution']['failed']} failed, {report['publication_security_execution']['skipped']} skipped** (NOT target product approval).",
       f"Native Windows manager-only publisher tests: **{report['native_windows_publisher_execution']['passed']} passed, {report['native_windows_publisher_execution']['failed']} failed, {report['native_windows_publisher_execution']['skipped']} skipped** (NOT target-host acceptance).",
+      f"Native Windows seal/admission: **{report['native_win32_input_seal_execution']['passed']} passed, {report['native_win32_input_seal_execution']['failed']} failed, {report['native_win32_input_seal_execution']['skipped']} skipped** (runner evidence only).",
       '', '| Verification | Cases |', '|---|---:|']
     for status,n in sorted(counts.items()):md.append(f'| `{status}` | {n} |')
     md+=['','**Crucial:** `PASS_LOCAL_ONLY` does NOT count as production/target acceptance.',
@@ -138,7 +148,7 @@ def main():
       '`FAIL_TARGET_CONTRACT` records an actual failing desired-product test at the production MCP boundary.',
       'An older passing pilot suite does not close these target gates.','',
       '## Open product milestones','',
-      '- Portable/Windows manager seal with verified Win32 handles (POSIX-only local seal exists).',
+      '- Win32 manager seal implemented; target-host G1b and immutable Worker read broker still BLOCKED.',
       '- Admission and selected model bound to the same durable job_id.',
       '- Secure native Windows NTFS handle-based broker; adversarial host tests.',
       '- Real Flint tool execution through an activated Windows broker, verified result publication and parent ACK.',
@@ -146,9 +156,17 @@ def main():
       '', 'Exact per-case details: `PRODUCT_STATUS.json`.','']
     (out/'PRODUCT_STATUS.md').write_text('\n'.join(md),encoding='utf-8')
     print(f"PRODUCT_READY={product_pass} | CASES={len(cases)} | {counts} | WORKSPACE_LOCAL={report['execution']['passed']}/{result.testsRun} | SEAL_LOCAL={report['seal_security_execution']['passed']}/{seal_result.testsRun}")
+    for component, suite_result in (
+        ('workspace_mcp', result), ('posix_seal', seal_result),
+        ('posix_publication', publish_result),
+        ('win32_output', native_result), ('win32_input_seal', winseal_result)):
+        for failed_test, trace in suite_result.failures + suite_result.errors:
+            print('COMPONENT_TEST_FAILURE',component,failed_test.id(),
+                  trace[-1500:],file=sys.stderr)
     if (result.failures or result.errors or seal_result.failures or seal_result.errors or
             publish_result.failures or publish_result.errors or
-            native_result.failures or native_result.errors):return 1
+            native_result.failures or native_result.errors or
+            winseal_result.failures or winseal_result.errors):return 1
     # Target failures are expected during development, but strict mode fails.
     if args.strict and not product_pass:return 2
     return 0

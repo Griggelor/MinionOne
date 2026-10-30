@@ -1,6 +1,6 @@
 # Development status — 2026-10-30
 
-**Version:** 0.24.0.dev0 (GitHub development; PRODUCT NO-GO)
+**Version:** 0.25.0.dev0 (GitHub development; TARGET_PRODUCT NO-GO)
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
 
 ## v0.18.0.dev0 — complete test-document job path
@@ -191,3 +191,9 @@ be checked independently; these numbers are commit-specific.
 
 - SQLite journal shared with POSIX, native output directory handle anchoring, pending-file hash and atomic no-overwrite rename, replay after SQLite/NTFS interruption.
 - Native tests seed ADMITTED status only in fixtures; Windows input seal remains fail-closed, worker filesystem permissions disabled. Real deployment G1b and E2E gates not met.
+
+## v0.25.0.dev0 – native Windows manager input seal and canonical admission
+
+- Same reserved JOB-ID admitted as ACCEPTED/version 1 under an immutable manager SQLite snapshot of validated Windows input bytes and hashes.
+- Native held Windows file handles through DB transaction, SHA256 manifest validation, task/text/size rules, and admission-only manager log projection.
+- Real MCP prepare/seal/verify contract tested on native Windows runner; no worker start, provider profiles, target-host ACL certification or Unsloth parent ACK. Product NO-GO.

@@ -2,7 +2,7 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.24.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.25.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
 **New v0.19 WIP:** opt-in operator-approved project workspace staging with a durable PREPARING job ID (no seal, no worker file access, no Windows NTFS sandbox). See [target workflow](docs/PRODUCT_TARGET_WORKFLOW.md) and [live status evidence](evidence/product-status/PRODUCT_STATUS.md).
 
@@ -158,3 +158,7 @@ An admitted job can have trusted-manager candidate bytes pinned in SQLite and at
 ### v0.24 native Windows manager output publisher (NOT worker-enabled)
 
 A separate manager-only Windows implementation can stage immutable SQLite journal receipts and publish output artifact bytes using handle-relative NTFS access and an atomic no-replace rename. Crash/restart tests run on Windows CI with synthetically admitted jobs. No Windows input sealing, Flint worker file rights or target-host attestation are enabled. See `docs/V024_WINDOWS_OUTPUT_PUBLICATION.md`; release remains NO-GO.
+
+### v0.25 Windows manager input sealing (admission development)
+
+Windows MCP `prepare_workspace → seal_workspace → verify_workspace_input` now uses pinned native NTFS file handles to validate the manifest and admit the same job ID into SQLite, with manager-only redacted admission logging. The native Windows runner tests cover attacks and restarts. **This does not enable worker file tools or any Flint/Unsloth folder job**. Target-host G1b, parent ACK and product release stay NO-GO; see `docs/V025_WIN32_SEAL_ADMISSION.md`.

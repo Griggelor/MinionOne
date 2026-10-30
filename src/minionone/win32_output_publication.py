@@ -1,8 +1,8 @@
 """Native Windows manager-only output publication, backed by canonical SQLite.
 
-NOT a worker tool or a Windows workspace seal. Callers must be trusted manager
-code holding an already admitted job; synthetic Windows tests seed that admission
-because the actual Windows seal remains blocked. A green runner is NOT G1b PASS.
+NOT a worker tool. Callers must be trusted manager code holding an
+already admitted job. Windows sealing is now an independent admission
+DEVELOPMENT path; runner-only tests do not establish target-host G1b PASS.
 """
 from __future__ import annotations
 

@@ -90,18 +90,23 @@ class LMStudioAgentProvider:
     """
 
     def __init__(self, base_url, *, model_id, approved_prompt,
-                 max_output_tokens=1024, api_key=None):
+                 max_output_tokens=1024, api_key=None, system_prompt=None):
         if type(model_id) is not str or _MODEL.fullmatch(model_id) is None:
             raise PlannerRejected("invalid model identifier")
         if type(approved_prompt) is not str or not 1 <= len(approved_prompt) <= 8000:
             raise PlannerRejected("invalid approved prompt budget")
         if type(max_output_tokens) is not int or not 1<=max_output_tokens<=4096:
             raise PlannerRejected("invalid model output token limit")
+        if (system_prompt is not None and
+                (type(system_prompt) is not str or not 1<=len(system_prompt)<=8000)):
+            raise PlannerRejected("invalid immutable worker system policy")
         self._provider=LMStudioProbe(base_url, timeout=2, api_key=api_key,
                                      max_response_bytes=_MAX_RESPONSE_BYTES)
         self._model_id=model_id
         self._max_output_tokens=max_output_tokens
-        self._messages=[{"role":"user","content":approved_prompt}]
+        self._messages=(
+            [{"role":"system","content":system_prompt}] if system_prompt is not None else []
+        ) + [{"role":"user","content":approved_prompt}]
         self._pending=None
 
     def next_step(self, *, timeout_seconds):

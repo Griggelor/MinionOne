@@ -11,6 +11,7 @@ import os
 import re
 import secrets
 import threading
+import time
 from urllib.request import Request
 from .admission import InputRejected, PermissionDenied, VersionConflict, IdempotencyConflict, _digest, _utc, _field, _OP
 from .agent_loop import AgentLoop, AgentLimits, BrokerReply, BrokerScopeDenied
@@ -19,6 +20,7 @@ from .lifecycle import Evidence
 from .lmstudio_agent import LMStudioAgentProvider, PlannerRejected
 from .pilot_transport import DeadlineOpener
 from .worker_contract import SYSTEM_POLICY, task_message
+from .job_telemetry import append as log_event
 
 _NAME=re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z',re.ASCII)
 _RESERVED={'con','prn','aux','nul',*(f'com{i}' for i in range(1,10)),*(f'lpt{i}' for i in range(1,10))}
@@ -171,6 +173,7 @@ class PilotJobs:
                         (job,principal,thread,digest,now,now))
             con.execute('INSERT INTO admission_events VALUES(?,?,?,?,?,?)',(job,1,'ACCEPTED','pilot-submit-'+_digest(operation_id),'AUTHENTICATED_PARENT',now))
             con.execute('INSERT INTO pilot_runs(job_id,task,model_id) VALUES(?,?,?)',(job,task,self.config.model_id))
+            log_event(con,job,'AUDIT','JOB_ACCEPTED',{'state':'ACCEPTED','version':0})
             for name,content in {'task.md':task,**clean}.items():
                 con.execute('INSERT INTO pilot_files VALUES(?,?,?,?,?)',(job,'input',name,content,sha256(content.encode()).hexdigest()))
             row=self.owner._owned_row(con,principal,thread,job)
@@ -346,6 +349,7 @@ class PilotJobs:
             meta=con.execute('SELECT result_digest FROM pilot_runs WHERE job_id=?',(job_id,)).fetchone()
             if meta['result_digest']!=digest:raise PilotError('PILOT_FILE_CHANGED')
             con.execute('UPDATE pilot_runs SET issued_digest=? WHERE job_id=?',(digest,job_id))
+            log_event(con,job_id,'AUDIT','RESULT_DELIVERED',{'result_digest':digest})
             return {'job_id':job_id,'state':row['state'],'version':row['version'],
                     'result_digest':digest,'untrusted_model_output':True,
                     'files':[{'name':r['name'],'text':r['content'],'sha256':r['digest']} for r in files]}
@@ -449,17 +453,32 @@ class ObservedProvider:
         with self.m.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE');self.m._current(con,self.job,self.cap)
             con.execute('UPDATE pilot_runs SET turns=turns+1,provider_inflight=1 WHERE job_id=?',(self.job,))
+            turn=con.execute('SELECT turns FROM pilot_runs WHERE job_id=?',(self.job,)).fetchone()[0]
+            log_event(con,self.job,'DEBUG','MODEL_REQUEST_STARTED',{'turn':turn,'attempt':1})
+        started=time.monotonic_ns()
         try:step=self.provider.next_step(timeout_seconds=timeout_seconds)
         except Exception as exc:
             self.error_code=safe_tool_fault(exc).code
             self.uncertain=self.error_code not in ('PROVIDER_AUTH_FAILED','PROVIDER_CONNECTION_REFUSED','PROVIDER_ENDPOINT_NOT_FOUND','PROVIDER_REQUEST_REJECTED')
+            elapsed=min(4_000_000_000,max(0,(time.monotonic_ns()-started)//1_000_000))
+            with self.m.owner._connection() as con:
+                con.execute('BEGIN IMMEDIATE')
+                log_event(con,self.job,'DEBUG','MODEL_REQUEST_FAILED',
+                          {'turn':turn,'duration_ms':elapsed,'error_code':self.error_code,'attempt':1})
             raise
+        elapsed=min(4_000_000_000,max(0,(time.monotonic_ns()-started)//1_000_000))
         with self.m.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE')
             con.execute('UPDATE pilot_runs SET provider_inflight=0,tokens=tokens+? WHERE job_id=?',(step.total_tokens,self.job))
+            log_event(con,self.job,'DEBUG','MODEL_REQUEST_FINISHED',
+                      {'turn':turn,'duration_ms':elapsed,'tokens':step.total_tokens,'attempt':1})
         return step
     def observe_tool(self,name,reply):
+        from .agent_loop import ALLOWED_WORKER_TOOLS
+        safe_name=name if name in ALLOWED_WORKER_TOOLS else 'FORBIDDEN_TOOL'
         with self.m.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE')
             con.execute('UPDATE pilot_runs SET tools=tools+1,denials=denials+? WHERE job_id=?',(int(reply.status=='DENIED'),self.job))
+            log_event(con,self.job,'DEBUG','WORKER_TOOL_COMPLETED',
+                      {'tool':safe_name,'result_code':reply.result_code,'attempt':1})
         self.provider.observe_tool(name,reply)

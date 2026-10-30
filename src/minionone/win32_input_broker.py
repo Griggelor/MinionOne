@@ -1,7 +1,7 @@
-"""Windows NTFS *read-only* input confinement prototype (G1b evidence, NOT a gate PASS).
+"""Windows NTFS *read-only* input confinement (admission development, NOT a G1b PASS).
 
 Uses held native directory handles, per-component relative NtCreateFile, and
-handle-based enumeration. No worker can invoke this module; no write APIs exist.
+handle-based enumeration. The manager admission path may pin native handles; workers cannot invoke this module. No write APIs exist.
 GitHub runner success is NOT a target-host Windows security gate.
 """
 from __future__ import annotations

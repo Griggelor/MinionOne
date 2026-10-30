@@ -123,3 +123,9 @@ Authenticated loopback Streamable HTTP endpoint, non-executing SQLite admission,
 - Add native NTFS output-publisher component using durable canonical job receipts, pending-file integrity checks and no-replace rename to final artifact name.
 - Add targeted Windows negative/repair/restart tests and independent test evidence to product-status report.
 - Worker execution, Windows input seal and target-host NTFS security gate remain NO-GO.
+
+## v0.25.0.dev0 – native Windows manager input sealing
+
+- Connect Windows NTFS handle-pinned input capture, SHA256 manifest and task checks to canonical job admission and input integrity verification.
+- Add manager-only Windows redacted admission log and Windows-specific negative/restart/MCP tests.
+- Preserve disabled Flint folder worker tools and target product NO-GO pending actual host security and full E2E.

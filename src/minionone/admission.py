@@ -316,6 +316,7 @@ class AdmissionStore:
                         (job_id,1,'ACCEPTED',operation_id,'MANAGER',now))
             from .job_telemetry import append
             append(con,job_id,'AUDIT','JOB_ACCEPTED',{'state':'ACCEPTED','version':0})
+            append(con,job_id,'JOB','JOB_ACCEPTED',{'state':'ACCEPTED','version':0})
             return receipt
 
     def status(self, parent_token, thread_id, job_id, *, include_timeout=False):
@@ -356,6 +357,8 @@ class AdmissionStore:
                     (row['job_id'],seq,new,operation_id,actor,now))
         from .job_telemetry import append
         append(con,row['job_id'],'AUDIT','JOB_TRANSITION',
+               {'previous_state':row['state'],'state':new,'version':row['version']+1})
+        append(con,row['job_id'],'JOB','JOB_TRANSITION',
                {'previous_state':row['state'],'state':new,'version':row['version']+1})
         return con.execute('SELECT * FROM jobs WHERE job_id=?',(row['job_id'],)).fetchone()
 

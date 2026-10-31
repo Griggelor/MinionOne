@@ -43,6 +43,9 @@ runner can be built without relocating the model into the sandbox.
 - Provider advertisement derives from this same registry; `AgentLoop` checks
   the job-specific grant **again** before invoking any broker, counting
   forbidden attempts toward the three-denial limit.
+- The separate `BoxedToolGateway` independently rechecks the same immutable
+  grant *before* delegating to the native Work/Document broker, even if a
+  permissive broker implementation would accept the requested tool.
 - `BOXED_EXEC`, `run_tests`, `execute_shell`, arbitrary scripts/commands and
   all non-attested execution profiles are NOT implemented or advertised.
 - MCP status explicitly reports `worker_tool_boundary=MANAGER_BROKER_FILES_ONLY`,

@@ -75,9 +75,12 @@ class WorkspaceExerciseTests(unittest.TestCase):
         self.assertTrue(report['passed'],report)
         self.assertEqual([r['step'] for r in report['steps']],[
             'opt_in_server_gate','real_manager_input_seal',
-            'bounded_worker_result_ready','published_file_and_digest_verified',
-            'exact_parent_ack'])
+            'bounded_worker_result_ready','real_native_work_file_and_digest_verified',
+            'published_file_and_digest_verified','exact_parent_ack'])
         self.assertEqual(report['release_gate'],'NO_GO')
+        self.assertEqual(report['worker_file_backend'],
+                         'native_win32_work_sqlite_output' if os.name=='nt'
+                         else 'native_posix_work_sqlite_output')
         self.assertFalse(report['target_parent_attested'])
         from minionone.workspace_preparation import _JOB
         self.assertRegex(report['job_id'],_JOB)
@@ -89,6 +92,31 @@ class WorkspaceExerciseTests(unittest.TestCase):
         status=self.client.tool('minionone_job_status',{'job_id':report['job_id']})
         self.assertEqual(status['state'],'COMPLETED')
         self.assertIn('workspace_job',status)
+
+    def test_missing_native_work_file_blocks_parent_ack(self):
+        # The Worker completed and the immutable output exists; after
+        # RESULT_READY, simulate external removal of the physical Work source.
+        # The operator's real-system CLI must fail instead of acknowledging.
+        original=self.client.tool
+        sabotaged={'done':False}
+        def remove_after_result(name,args):
+            result=original(name,args)
+            if name=='minionone_workspace_result':
+                path=self.project/'.minionone'/'jobs'/args['job_id']/'work'/'result.txt'
+                path.unlink()
+                sabotaged['done']=True
+            return result
+        with patch('minionone.pilot_jobs.PilotJobs._readiness',return_value=None), \
+             patch('minionone.pilot_jobs.LMStudioAgentProvider',DeterministicFlintFixture), \
+             patch.object(self.client,'tool',side_effect=remove_after_result):
+            report=workspace_exercise(self.client,project_id='demo',
+                                      project_root=self.project,model='model-loaded',timeout=12)
+        self.assertTrue(sabotaged['done'])
+        self.assertFalse(report['passed'],report)
+        self.assertEqual(report['error']['code'],'PILOT_FILE_CHANGED')
+        self.assertNotIn('exact_parent_ack',[step['step'] for step in report['steps']])
+        status=original('minionone_job_status',{'job_id':report['job_id']})
+        self.assertEqual(status['state'],'RESULT_READY')
 
     def test_mismatching_explicit_root_rejected_before_parent_file_writes(self):
         decoy=self.root/'other-project';decoy.mkdir()

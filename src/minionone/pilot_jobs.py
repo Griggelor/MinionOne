@@ -277,7 +277,7 @@ class PilotJobs:
                     self._current(io_con,job,cap)
                     append_worker_io(io_con,job,kind,body,live_writer=live_logs)
             provider=LMStudioAgentProvider(self.config.base_url,model_id=self.config.model_id,
-                        approved_prompt=instructions,system_prompt=(WORKSPACE_SYSTEM_POLICY if workspace_job else SYSTEM_POLICY),
+                        approved_prompt=instructions,system_prompt=(WORKSPACE_SYSTEM_POLICY if workspace_job and os.name!='nt' else SYSTEM_POLICY),
                         max_output_tokens=2048,api_key=self.config.api_key,
                         io_sink=worker_io_sink if workspace_job else None,
                          workspace_tools=workspace_job and os.name != 'nt')

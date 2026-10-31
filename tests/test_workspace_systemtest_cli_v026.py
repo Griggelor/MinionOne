@@ -6,6 +6,7 @@ target hardware, and uses only synthetic, non-sensitive test text.
 from contextlib import redirect_stderr,redirect_stdout
 from io import StringIO
 import json
+import os
 from pathlib import Path
 import tempfile
 import threading
@@ -83,7 +84,11 @@ class WorkspaceExerciseTests(unittest.TestCase):
         folder=self.project/'.minionone'/'jobs'/report['job_id']
         self.assertEqual((folder/'output'/'result.txt').read_text(encoding='utf-8'),
                          'MINIONONE WORKSPACE OK')
-        self.assertEqual(list((folder/'work').iterdir()),[])
+        if os.name=='nt':
+            self.assertEqual(list((folder/'work').iterdir()),[])
+        else:
+            self.assertEqual((folder/'work'/'result.txt').read_text(encoding='utf-8'),
+                             'MINIONONE WORKSPACE OK')
         status=self.client.tool('minionone_job_status',{'job_id':report['job_id']})
         self.assertEqual(status['state'],'COMPLETED')
         self.assertIn('workspace_job',status)

@@ -66,7 +66,11 @@ class SubprocessBridge(unittest.TestCase):
               "--model-call-seconds","2",
               "--experimental-workspace-jobs",
               "--workspace-project","demo="+str(self.project)]
-        self.proc=subprocess.Popen(args,cwd=str(self.root),
+        # Keeping the child process current directory inside the temporary
+        # state tree can prevent Windows from deleting that tree after an
+        # intentional process kill, independently of any open log handles.
+        # Every state/project path is absolute, so a per-test cwd is unnecessary.
+        self.proc=subprocess.Popen(args,
             stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL)
         deadline=time.monotonic()+15

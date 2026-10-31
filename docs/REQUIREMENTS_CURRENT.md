@@ -77,8 +77,12 @@
 - v0.30: echte Jobprotokolle, Process/Worker-Logs und synthetisches Full Bridge
   E2E; **kein** eigenständiger Target-Host-Beleg.
 - v0.31.1: 22 Work-Anforderungen und neun ausführbare WF-001–003, WF-017–022.
-- v0.31.2: POSIX-Filesystem-Worker-Broker integriert. Synthetische Ubuntu
-  E2E **9/9**, Windows E2E **1/9** (restliche acht nicht implementiert).
+- v0.31.2: POSIX-Filesystem-Worker-Broker integriert.
+- v0.32-Entwicklungsschritt: Windows-NTFS-Broker für Work-CRUD integriert;
+  synthetischer echter MCP-/HTTP-End-to-End-Vertrag auf Ubuntu **9/9**
+  und Windows **9/9** bestanden (PR #50, 21/21 GitHub-CI-Checks am
+  Implementierungs-Commit). **Nicht** gleichbedeutend mit G1b-Zielhost-
+  Sicherheitsprüfung oder Freigabe.
 - **Noch nicht erfüllt**: vollständiger Windows-Dateibroker mit nachgewiesener
   NTFS-Isolation; echte OS-Sandbox/ACL und nicht-kooperierende Race-Tests;
   Crash-Replay-/Idempotenz-Verträge für Work-Mutationen; sichere Wiederaufnahme

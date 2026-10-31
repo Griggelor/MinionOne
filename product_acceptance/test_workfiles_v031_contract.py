@@ -92,5 +92,76 @@ class NativeWorkV031Contract(unittest.TestCase):
             "pilot_files(zone='work', content=TEXT), not a real filesystem source")
 
 
+    def test_wf017_work_file_can_be_overwritten_then_read_and_published(self):
+        """WF-017: work/ is a real, editable filesystem, not create-only."""
+        self.model.mode="work_edit"
+        job=self.direct("v031-work-edit-001")
+        status=self.outcome(job)
+        self.assertEqual(status["state"],"RESULT_READY",status)
+        root=self.project/".minionone"/"jobs"/job["job_id"]
+        self.assertEqual((root/"work"/"result.txt").read_bytes(),b"REVISED")
+        self.assertEqual((root/"output"/"result.txt").read_bytes(),b"REVISED")
+        self.assertIn("write_work", (root/"output"/"worker-io.jsonl").read_text())
+
+    def test_wf018_worker_can_delete_existing_work_file(self):
+        """WF-018: delete_work physically deletes inside work/, not output."""
+        self.model.mode="work_delete"
+        job=self.direct("v031-work-delete-001")
+        status=self.outcome(job)
+        self.assertEqual(status["state"],"RESULT_READY",status)
+        root=self.project/".minionone"/"jobs"/job["job_id"]
+        self.assertFalse((root/"work"/"discard.txt").exists())
+        self.assertEqual((root/"work"/"result.txt").read_bytes(),b"KEPT")
+        self.assertEqual((root/"output"/"result.txt").read_bytes(),b"KEPT")
+
+    def test_wf019_work_file_rename_preserves_bytes_and_removes_old_path(self):
+        """WF-019: Worker can rename/move actual files inside its work dir."""
+        self.model.mode="work_rename"
+        job=self.direct("v031-work-rename-001")
+        status=self.outcome(job)
+        self.assertEqual(status["state"],"RESULT_READY",status)
+        root=self.project/".minionone"/"jobs"/job["job_id"]
+        self.assertFalse((root/"work"/"draft.txt").exists())
+        self.assertEqual((root/"work"/"result.txt").read_bytes(),b"RENAMED CONTENT")
+        self.assertEqual((root/"output"/"result.txt").read_bytes(),b"RENAMED CONTENT")
+
+    def test_wf020_output_create_only_immutable_and_artifact_readable(self):
+        """WF-020: Output snapshot cannot be changed after Work file is edited."""
+        self.model.mode="output_immutable"
+        job=self.direct("v031-output-once-001")
+        status=self.outcome(job)
+        self.assertEqual(status["state"],"RESULT_READY",status)
+        root=self.project/".minionone"/"jobs"/job["job_id"]
+        self.assertEqual((root/"work"/"result.txt").read_bytes(),b"SECOND")
+        self.assertEqual((root/"output"/"result.txt").read_bytes(),b"FIRST")
+        # The attempted second publish of the same name MUST be rejected;
+        # worker must be able to read published artifact, but not manager logs.
+        transcript=(root/"output"/"worker-io.jsonl").read_text(encoding="utf-8")
+        self.assertIn("SCOPE_DENIED",transcript)
+        self.assertIn('output/result.txt',transcript)
+
+    def test_wf021_input_is_readable_but_not_editable_by_worker(self):
+        """WF-021: Input is a sealed read-only source, not a work alias."""
+        self.model.mode="input_readonly"
+        job=self.direct("v031-input-readonly-001")
+        status=self.outcome(job)
+        self.assertEqual(status["state"],"RESULT_READY",status)
+        root=self.project/".minionone"/"jobs"/job["job_id"]
+        inp=root/"input"/"sample.txt"
+        self.assertEqual(inp.read_bytes(),b"synthetic bridge content")
+        self.assertIn("SCOPE_DENIED",(root/"output"/"worker-io.jsonl").read_text())
+        self.assertEqual((root/"output"/"result.txt").read_bytes(),b"INPUT REMAINS SEALED")
+
+    def test_wf022_worker_can_create_and_use_nested_work_directories(self):
+        """WF-022: work/ allows subdirectories but never path escape."""
+        self.model.mode="work_nested"
+        job=self.direct("v031-work-nested-001")
+        status=self.outcome(job)
+        self.assertEqual(status["state"],"RESULT_READY",status)
+        root=self.project/".minionone"/"jobs"/job["job_id"]
+        self.assertEqual((root/"work"/"nested"/"result.txt").read_bytes(),b"NESTED WORK")
+        self.assertTrue((root/"work"/"nested").is_dir())
+
+
 if __name__=="__main__":
     unittest.main()

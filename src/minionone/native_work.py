@@ -19,6 +19,8 @@ from .admission import InputRejected
 from .agent_loop import BrokerReply, BrokerScopeDenied
 from .pilot_jobs import DocumentBroker, _text, PilotError
 from .workspace_sealing import _job_directory, _read_regular
+from .work_path_policy import (ensure_clean_work_entry, ensure_worker_work_name,
+                               artifact_target, ensure_unique_output_name)
 
 _COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z", re.ASCII)
 _RESERVED = {"con", "prn", "aux", "nul"} | {f"com{i}" for i in range(1, 10)} | {f"lpt{i}" for i in range(1, 10)}
@@ -36,6 +38,7 @@ def _parts(value):
     if not 1 <= len(parts) <= 6:
         raise BrokerScopeDenied("invalid work directory depth")
     for part in parts:
+        ensure_worker_work_name(part)
         if (not _COMPONENT.fullmatch(part) or part in (".", "..")
                 or part.endswith(".") or ".." in part
                 or part.split(".")[0].casefold() in _RESERVED):
@@ -120,6 +123,7 @@ def _inventory(fd, prefix="", depth=0):
     if len({name.casefold() for name in names}) != len(names):
         raise BrokerScopeDenied("ambiguous work filenames")
     for name in sorted(names):
+        ensure_clean_work_entry(name)
         _parts(name)
         info = os.stat(name, dir_fd=fd, follow_symlinks=False)
         if info.st_dev != os.fstat(fd).st_dev:
@@ -329,8 +333,7 @@ class NativeWorkspaceBroker(DocumentBroker):
                     with _parent(root, parts) as (fd, basename):
                         content = _read(fd, basename)
                     target = parts[-1]  # Flat legacy output; nested Work source is still scoped.
-                    if target.casefold() in ("worker-io.jsonl", "job.log.jsonl"):
-                        raise BrokerScopeDenied("reserved manager output name")
+                    artifact_target(target)
                     digest = sha256(content).hexdigest()
                     try:
                         text_content = content.decode("utf-8")
@@ -339,9 +342,10 @@ class NativeWorkspaceBroker(DocumentBroker):
                     with self.m.owner._connection() as con:
                         con.execute("BEGIN IMMEDIATE")
                         self.m._current(con, self.job, self.cap)
-                        if con.execute("SELECT 1 FROM pilot_files WHERE job_id=? AND zone='output' AND name=?",
-                                       (self.job, target)).fetchone():
-                            raise BrokerScopeDenied("immutable output already exists")
+                        prior = [row[0] for row in con.execute(
+                            "SELECT name FROM pilot_files WHERE job_id=? AND zone='output'",
+                            (self.job,))]
+                        ensure_unique_output_name(prior, target)
                         con.execute("INSERT INTO pilot_files VALUES(?,?,?,?,?)",
                                     (self.job, "output", target, text_content, digest))
                     result = {"path": "output/" + target, "sha256": digest}

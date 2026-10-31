@@ -266,6 +266,11 @@ class WindowsWorkspaceBroker(DocumentBroker):
                 parent = child
             yield api, parent, identity[0]
 
+    def ensure_work_clean(self):
+        """Validate the pinned real Work tree before terminal publication."""
+        with self._lock, self._zone('work') as (api, root, volume):
+            return _inventory(api, root, volume)
+
     def _execute(self, name, args, *, timeout_seconds):
         if name in ("report_progress", "ask_question"):
             return super()._execute(name, args, timeout_seconds=timeout_seconds)
@@ -342,6 +347,7 @@ class WindowsWorkspaceBroker(DocumentBroker):
                 raise BrokerScopeDenied("bounded worker text denied") from exc
 
         with self._lock, self._zone("work") as (api, root, volume):
+            verified_inventory = _inventory(api, root, volume)
             if name in ("create_work", "write_work"):
                 with _parent(api, root, parts, volume) as (fd, basename):
                     old = None
@@ -350,7 +356,7 @@ class WindowsWorkspaceBroker(DocumentBroker):
                         if (type(args["expected_sha256"]) is not str or
                                 sha256(old).hexdigest() != args["expected_sha256"]):
                             raise BrokerScopeDenied("stale Work overwrite digest")
-                    contents = _inventory(api, root, volume)
+                    contents = verified_inventory
                     size = sum(len(data) for _, data in contents)
                     if ((old is None and len(contents) >= _MAX_FILES) or
                             size - (len(old) if old is not None else 0) + len(content) > _MAX_TOTAL):

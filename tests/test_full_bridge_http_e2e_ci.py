@@ -51,11 +51,13 @@ _WORKSPACE_SCENARIOS = {
                           "expected_sha256":sha256(b"FIRST").hexdigest()}),
         ("read_file", {"path":"output/result.txt"}),
         ("publish_artifact", {"name":"result.txt"}), # MUST be denied: already exists
+        ("delete_output", {"path":"result.txt"}),   # MUST be denied: immutable
     ],
     "input_readonly": [
         ("read_file", {"path":"input/sample.txt"}),
         ("write_work", {"name":"input/sample.txt","content":"ILLEGAL",
                           "expected_sha256":sha256(b"synthetic bridge content").hexdigest()}),
+        ("delete_input", {"path":"sample.txt"}),  # MUST be denied, even though work/ deletion allowed
         ("create_work", {"name":"result.txt","content":"INPUT REMAINS SEALED"}),
         ("publish_artifact", {"name":"result.txt"}),
     ],
@@ -64,6 +66,8 @@ _WORKSPACE_SCENARIOS = {
         ("create_work", {"name":"nested/result.txt","content":"NESTED WORK"}),
         ("read_file", {"path":"work/nested/result.txt"}),
         ("publish_artifact", {"name":"nested/result.txt"}),
+        ("delete_work", {"path":"nested/result.txt"}),
+        ("rmdir_work", {"path":"nested"}),
     ],
 }
 

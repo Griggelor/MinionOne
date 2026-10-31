@@ -6,6 +6,7 @@ used. Only LM Studio provider steps are deterministic test fixtures.
 import hashlib
 import http.client
 import json
+import os
 from pathlib import Path
 import tempfile
 import threading
@@ -17,7 +18,7 @@ from unittest.mock import patch
 from minionone.agent_loop import ModelStep
 from minionone.mcp_server import LocalMCP
 from minionone.lmstudio_agent import LMStudioAgentProvider
-from minionone.worker_contract import SYSTEM_POLICY,delegation_task,task_message
+from minionone.worker_contract import SYSTEM_POLICY,WORKSPACE_SYSTEM_POLICY,delegation_task,task_message
 
 TOKEN="trusted-parent-flash-"+"X"*48
 MODEL="flint-loaded-exact-id"
@@ -117,7 +118,7 @@ class FlashDelegationHTTP(FlashHTTPFixture,unittest.TestCase):
         self.assertEqual(len(ScriptedFlint.seen),1,"must never duplicate provider attempt")
         model,system,user=ScriptedFlint.seen[0]
         self.assertEqual(model,MODEL)
-        self.assertEqual(system,SYSTEM_POLICY)
+        self.assertEqual(system,WORKSPACE_SYSTEM_POLICY if os.name!='nt' else SYSTEM_POLICY)
         self.assertIn("AVAILABLE SEALED INPUT DOCUMENTS",user)
         self.assertIn("input/source.txt",user)
         self.assertIn("acceptance_criteria",user)
@@ -125,7 +126,11 @@ class FlashDelegationHTTP(FlashHTTPFixture,unittest.TestCase):
         folder=self.project/".minionone"/"jobs"/job
         self.assertEqual((folder/"output"/"result.txt").read_text(encoding="utf-8"),
                          "FLASH FLINT BOUNDED TASK COMPLETE")
-        self.assertEqual(list((folder/"work").iterdir()),[])
+        if os.name=='nt':
+            self.assertEqual(list((folder/"work").iterdir()),[])
+        else:
+            self.assertEqual((folder/"work"/"result.txt").read_text(encoding="utf-8"),
+                             "FLASH FLINT BOUNDED TASK COMPLETE")
         seal=self.call("minionone_verify_workspace_input",{"job_id":job})
         self.assertTrue(seal.get("verified",True),seal)
         result=self.call("minionone_workspace_result",{"job_id":job})

@@ -163,6 +163,15 @@ class NativeWorkspaceBroker(DocumentBroker):
         with _job_directory(self.execution.workspace, row, area) as fd:
             yield fd
 
+    def ensure_work_clean(self):
+        """Check all physical Work entries before a result becomes publishable."""
+        with self._zone('work') as root:
+            fcntl.flock(root, fcntl.LOCK_EX)
+            try:
+                return _inventory(root)
+            finally:
+                fcntl.flock(root, fcntl.LOCK_UN)
+
     def _execute(self, name, args, *, timeout_seconds):
         if name in ("report_progress", "ask_question"):
             return super()._execute(name, args, timeout_seconds=timeout_seconds)
@@ -252,6 +261,7 @@ class NativeWorkspaceBroker(DocumentBroker):
         with self._zone("work") as root:
             fcntl.flock(root, fcntl.LOCK_EX)
             try:
+                verified_inventory = _inventory(root)
                 if name in ("create_work", "write_work"):
                     with _parent(root, parts) as (fd, basename):
                         existing = None
@@ -259,7 +269,7 @@ class NativeWorkspaceBroker(DocumentBroker):
                             existing = _read(fd, basename)
                             if type(args["expected_sha256"]) is not str or sha256(existing).hexdigest() != args["expected_sha256"]:
                                 raise BrokerScopeDenied("stale work version")
-                        inventory = _inventory(root)
+                        inventory = verified_inventory
                         current = sum(len(blob) for _, blob in inventory)
                         if len(inventory) >= _MAX_FILES and existing is None:
                             raise BrokerScopeDenied("work file-count quota exceeded")

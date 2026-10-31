@@ -327,6 +327,12 @@ def run_fixed_adversarial_access_probe():
                     str(control.returncode))
             if tuple(_hash(path) for path in files) != before:
                 raise JobProbeUnavailable("positive-control data unexpectedly changed")
+            bootstrap, boot_token, boot_assigned = _appcontainer_exit(
+                deployed, [], runnable)
+            if bootstrap != 0x51 or not boot_token or not boot_assigned:
+                raise JobProbeUnavailable(
+                    "fixed native helper bootstrap did not execute; code=" +
+                    str(bootstrap))
             result, token, assigned = _appcontainer_exit(
                 deployed, args, runnable)
         if result != 0x40:

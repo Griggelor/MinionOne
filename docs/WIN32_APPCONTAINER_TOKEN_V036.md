@@ -17,7 +17,9 @@ not exposed through MinionOne's MCP/AgentLoop/BoxedToolGateway tool surface.
    `PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES` and that AppContainer SID.
 3. Start the fixed OS-owned `whoami.exe` diagnostic from the trusted
    Windows directory **suspended**, with no handle inheritance and a
-   minimal explicitly constructed environment.
+   minimal explicitly constructed environment (including the required
+   `LOCALAPPDATA` value obtained with `SHGetKnownFolderPath`, not from
+   arbitrary inherited environment variables).
 4. Attach it to a Windows Job Object with a single-process limit,
    128 MiB memory limit and kill-on-close, **before resume**.
 5. Before any child instruction runs, query its **real child token** via

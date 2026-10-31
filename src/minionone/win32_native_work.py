@@ -59,6 +59,9 @@ def _parts(path):
 _SHARE_ALL = 0x1 | 0x2 | 0x4
 _DISPOSITION_INFO = 13
 _FILE_LIST_DIRECTORY = 0x0001
+_FILE_ADD_FILE = 0x0002
+_FILE_ADD_SUBDIRECTORY = 0x0004
+_FILE_DELETE_CHILD = 0x0040
 _REQUIRED = {
     "list_files": {"zone"},
     "read_file": {"path"},
@@ -109,7 +112,11 @@ class _WorkNative(_PublisherNative):
         return self._open(parent, name, access, _FILE_CREATE)
 
     def directory(self, parent, name, *, create=False, for_delete=False):
-        access = _READ_ATTRIBUTES | _SYNCHRONIZE | _FILE_LIST_DIRECTORY
+        # The *Work* directory handle must carry the directory rights needed
+        # for handle-relative child creation and removal. Input and all
+        # ancestors keep their read-only handles.
+        access = (_READ_ATTRIBUTES | _SYNCHRONIZE | _FILE_LIST_DIRECTORY |
+                  _FILE_ADD_FILE | _FILE_ADD_SUBDIRECTORY | _FILE_DELETE_CHILD)
         if for_delete:
             access |= _DELETE
         return self._open(parent, name, access,
@@ -246,7 +253,10 @@ class WindowsWorkspaceBroker(DocumentBroker):
                 raise InputRejected("configured Windows project identity changed")
             parent = root
             for part in (".minionone", "jobs", row["job_id"], area):
-                child = api.child(parent, part, directory=True)
+                child = (api.directory(parent, part) if part == "work" else
+                         api.child(parent, part, directory=True))
+                if child is None:
+                    raise BrokerScopeDenied("Windows job zone unavailable")
                 stack.callback(api.close, child)
                 api.validate(child, directory=True, volume=identity[0])
                 parent = child

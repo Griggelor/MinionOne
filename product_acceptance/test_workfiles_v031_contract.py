@@ -7,6 +7,7 @@ as customer-product passing. Only synthetic content is used.
 
 Sources: ADR-020 §3, 23_TEST_PLAN_V06 T-112/T-121, SPEC_V031.
 """
+from contextlib import closing
 from hashlib import sha256
 from pathlib import Path
 import sqlite3
@@ -35,12 +36,16 @@ class NativeWorkV031Contract(unittest.TestCase):
         # filesystem semantics. Run the two routes even when the first
         # lacks a work file, then report both missing results together.
         cases=[
-            ("DIRECT",self.direct("v031-work-real-0001"),
+            ("DIRECT",lambda:self.direct("v031-work-real-0001"),
              b"SYNTHETIC BRIDGE CONTENT"),
-            ("STAGED",self.staged(),b"SYNTHETIC STAGED CONTENT"),
+            ("STAGED",self.staged,b"SYNTHETIC STAGED CONTENT"),
         ]
         absent=[]
-        for route,job,expected in cases:
+        for route,start_job,expected in cases:
+            # Never start two workers concurrently in the single-slot
+            # product fixture; wait for the first terminal state before
+            # preparing the second route.
+            job=start_job()
             status=self.outcome(job)
             self.assertEqual(status["state"],"RESULT_READY",status)
             work=self.project/".minionone"/"jobs"/job["job_id"]/"work"/"result.txt"
@@ -76,7 +81,9 @@ class NativeWorkV031Contract(unittest.TestCase):
         job=self.direct("v031-work-sqlite-0001")
         status=self.outcome(job)
         self.assertEqual(status["state"],"RESULT_READY",status)
-        with sqlite3.connect(self.root/"jobs.sqlite") as con:
+        # sqlite3.Connection.__exit__ commits; it does NOT close the handle.
+        # Windows cannot remove the temp database until we explicitly close.
+        with closing(sqlite3.connect(self.root/"jobs.sqlite")) as con:
             rows=con.execute(
                 "SELECT name,content FROM pilot_files WHERE job_id=? AND zone='work'",
                 (job["job_id"],)).fetchall()

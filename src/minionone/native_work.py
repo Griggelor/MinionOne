@@ -262,6 +262,9 @@ class NativeWorkspaceBroker(DocumentBroker):
                         if current - (len(existing) if existing is not None else 0) + len(content) > _MAX_TOTAL:
                             raise BrokerScopeDenied("work byte quota exceeded")
                         if name == "create_work":
+                            if any(existing_path.casefold() == path.casefold()
+                                   for existing_path, _ in inventory):
+                                raise BrokerScopeDenied("ambiguous casefold work destination")
                             _write_new(fd, basename, content)
                         else:
                             temporary = "pending-" + secrets.token_hex(12)
@@ -289,15 +292,19 @@ class NativeWorkspaceBroker(DocumentBroker):
                     with _parent(root, parts) as (fd, basename):
                         original = _read(fd, basename)
                         with _parent(root, destination) as (target_fd, target):
+                            # Atomic no-replace publication of the new work path.
+                            # If killed before unlink, both names are hardlinks
+                            # and the single-link read invariant fails closed.
                             try:
-                                os.stat(target, dir_fd=target_fd, follow_symlinks=False)
-                            except FileNotFoundError:
-                                pass
-                            else:
-                                raise BrokerScopeDenied("work rename destination already exists")
-                            os.rename(basename, target, src_dir_fd=fd, dst_dir_fd=target_fd)
-                            os.fsync(fd)
+                                os.link(basename, target, src_dir_fd=fd,
+                                        dst_dir_fd=target_fd, follow_symlinks=False)
+                            except FileExistsError as exc:
+                                raise BrokerScopeDenied("work rename destination already exists") from exc
                             os.fsync(target_fd)
+                            os.unlink(basename, dir_fd=fd)
+                            os.fsync(fd)
+                            if _read(target_fd, target) != original:
+                                raise BrokerScopeDenied("work rename source changed")
                     result = {"path": "work/" + args["destination"], "sha256": sha256(original).hexdigest()}
                 elif name == "mkdir_work":
                     with _parent(root, parts) as (fd, basename):

@@ -1,0 +1,73 @@
+"""v0.31 TARGET-CONTRACT tests: intentionally RED until physical work/ exists.
+
+REAL MCP HTTP / REAL LMStudioAgentProvider HTTP / REAL SQLite+native file
+publisher, with ONLY the external inference model replaced by a deterministic
+local HTTP server. Do not run in the green pilot suite or mark collector green
+as customer-product passing. Only synthetic content is used.
+
+Sources: ADR-020 §3, 23_TEST_PLAN_V06 T-112/T-121, SPEC_V031.
+"""
+from hashlib import sha256
+from pathlib import Path
+import sqlite3
+import sys
+import unittest
+
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"tests"))
+from test_full_bridge_http_e2e_ci import CompleteBridgeE2E
+
+
+class NativeWorkV031Contract(unittest.TestCase):
+    # Reuse the genuine transport fixture WITHOUT inheriting the existing
+    # TestCase's dozen tests. These three tests exist precisely to expose the
+    # gap hidden by the pilot document-store happy-path E2E checks.
+    setUp=CompleteBridgeE2E.setUp
+    rpc=CompleteBridgeE2E.rpc
+    direct=CompleteBridgeE2E.direct
+    outcome=CompleteBridgeE2E.outcome
+
+    def test_wf001_real_work_file_is_created_from_worker_tool_bytes(self):
+        """WF-001: create_work must create a real disk file, not SQLite TEXT."""
+        job=self.direct("v031-work-real-0001")
+        status=self.outcome(job)
+        self.assertEqual(status["state"],"RESULT_READY",status)
+        work=self.project/".minionone"/"jobs"/job["job_id"]/"work"/"result.txt"
+        self.assertTrue(work.is_file(),
+            "WF-001 TARGET_NOT_MET: no real work/result.txt after create_work")
+        self.assertEqual(work.read_bytes(),b"SYNTHETIC BRIDGE CONTENT")
+
+    def test_wf002_published_result_is_a_snapshot_of_real_work_bytes(self):
+        """WF-002: output must derive from physical work file and preserve it."""
+        job=self.direct("v031-work-publish-0001")
+        status=self.outcome(job)
+        self.assertEqual(status["state"],"RESULT_READY",status)
+        folder=self.project/".minionone"/"jobs"/job["job_id"]
+        work=folder/"work"/"result.txt"
+        output=folder/"output"/"result.txt"
+        self.assertTrue(output.is_file(),"synthetic provider must publish output")
+        self.assertTrue(work.is_file(),
+            "WF-002 TARGET_NOT_MET: no physical work file to substantiate publish")
+        original=work.read_bytes()
+        published=output.read_bytes()
+        self.assertEqual(sha256(original).hexdigest(),
+                         sha256(published).hexdigest(),
+                         "the manager published bytes other than the pinned work source")
+        self.assertEqual(work.read_bytes(),original,
+                         "publication modified worker's original work file")
+
+    def test_wf003_sqlite_is_not_the_primary_store_for_work_contents(self):
+        """WF-003: job control metadata may be SQL; Work document bytes may not."""
+        job=self.direct("v031-work-sqlite-0001")
+        status=self.outcome(job)
+        self.assertEqual(status["state"],"RESULT_READY",status)
+        with sqlite3.connect(self.root/"jobs.sqlite") as con:
+            rows=con.execute(
+                "SELECT name,content FROM pilot_files WHERE job_id=? AND zone='work'",
+                (job["job_id"],)).fetchall()
+        self.assertFalse(rows,
+            "WF-003 TARGET_NOT_MET: Work content still persisted as "
+            "pilot_files(zone='work', content=TEXT), not a real filesystem source")
+
+
+if __name__=="__main__":
+    unittest.main()

@@ -88,6 +88,12 @@
   Dateizustand verweigert. Die neue Operatorprobe verifiziert echte Work-Bytes
   vor dem ACK. [Windows-Testanleitung](WINDOWS_NATIVE_WORK_SYSTEMTEST_V033.md).
   Synthetische CI **23/23** für PR #51 erfolgreich; *kein* G1b-Zielhost-GO.
+- v0.34: [ADR-034 Boxed Tool Runtime](ADR_034_BOXED_TOOL_EXECUTION.md) definiert
+  das zweistufige Tool-Berechtigungsmodell. Im laufenden Manager sind sechs
+  Legacy- bzw. elf Workspace-Werkzeuge fest jobtypgebunden; AgentLoop und
+  `BoxedToolGateway` prüfen vor jedem Broker-Zugriff. Shell-/Code-/Testausführung
+  ist **weiterhin nicht implementiert**. Die OS-Prozesssandbox ist separat zu
+  bauen und auf dem Zielrechner zu verifizieren. PR #52: 23/23 CI.
 - **Noch nicht erfüllt**: vollständiger Windows-Dateibroker mit nachgewiesener
   NTFS-Isolation; echte OS-Sandbox/ACL und nicht-kooperierende Race-Tests;
   Crash-Replay-/Idempotenz-Verträge für Work-Mutationen; sichere Wiederaufnahme

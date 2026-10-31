@@ -255,8 +255,8 @@ class LocalMCP(ThreadingHTTPServer):
                     "test_readiness":"READY_FOR_LOCAL_SYSTEM_TEST" if self.pilot else "CONNECTION_ONLY",
                     "mcp_transport_available":True,"unsloth_live_verified":False,
                     "parent_thread_attested":False,"worker_execution_enabled":self.pilot is not None,
-                    "worker_file_backend":("native_posix_work_sqlite_output" if self.enable_workspace_jobs and os.name!="nt"
-                                           else "sqlite_documents") if self.pilot else None,
+                    "worker_file_backend":(("native_win32_work_sqlite_output" if os.name=="nt" else "native_posix_work_sqlite_output")
+                                           if self.enable_workspace_jobs else "sqlite_documents") if self.pilot else None,
                     "host_filesystem_tools_enabled":False,
                     "windows_file_broker_verified":False,"auto_wakeup_enabled":False,
                     "workspace_preparation_enabled":self.workspace is not None,

@@ -317,6 +317,9 @@ class PilotJobs:
                 live_logs=None
             if run.status=='AWAITING_REVIEW':
                 if row['job_kind']=='WORKSPACE':
+                    # Never declare RESULT_READY while a crash-left Work
+                    # staging file or unsafe job entry remains on disk.
+                    broker.ensure_work_clean()
                     if self.workspace_execution is None:raise PilotError('PILOT_STATE_INVALID')
                     # Verify that at least one immutable broker result
                     # exists BEFORE declaring an external native publication
@@ -332,8 +335,11 @@ class PilotJobs:
             elif run.status=='CANCELLED':self._finish(job,'CANCELLED',None)
             elif run.status=='WAITING_FOR_PARENT':self._finish(job,'WAITING_FOR_PARENT',None)
             else:
-                uncertain=observed.uncertain or run.status=='TIMEOUT'
                 code=observed.error_code or broker.error_code or ('PILOT_TOOL_DENIED' if run.status=='SECURITY_ABORT' else 'PILOT_JOB_FAILED')
+                uncertain=(observed.uncertain or run.status=='TIMEOUT' or
+                           (workspace_job and run.status=='BROKER_FAILURE' and
+                            code in ('PILOT_FILE_CHANGED', 'DB_INTEGRITY_ERROR',
+                                     'STORAGE_IO_ERROR', 'DB_CORRUPT')))
                 self._finish(job,'NEEDS_RECONCILIATION' if uncertain else 'FAILED',code)
             if getattr(self,'process_logs',None) is not None:
                 self.process_logs.event("WORKER_LOOP_FINISHED",job_id=job,outcome=run.status)

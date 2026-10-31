@@ -34,6 +34,8 @@ from .win32_output_publication import (
     _FILE_CREATE, _FILE_OPEN, _NORMAL, _NOT_FOUND,
 )
 from .win32_work_create_probe import _FILE_WRITE_DATA
+from .work_path_policy import (ensure_clean_work_entry, ensure_worker_work_name,
+                               artifact_target, ensure_unique_output_name)
 import re
 
 _MAX_FILE = 1_048_576
@@ -50,6 +52,7 @@ def _parts(path):
     if not 1 <= len(parts) <= 6:
         raise BrokerScopeDenied("invalid Work depth")
     for part in parts:
+        ensure_worker_work_name(part)
         if (not _COMPONENT.fullmatch(part) or part in (".", "..")
                 or part.endswith(".") or ".." in part
                 or part.split(".")[0].casefold() in _RESERVED):
@@ -191,14 +194,20 @@ def _parent(api, root, parts, volume):
         yield parent, parts[-1]
 
 
-def _inventory(api, root, volume, prefix="", depth=0):
+def _inventory(api, root, volume, prefix="", depth=0, budget=None):
     if depth > 6:
         raise BrokerScopeDenied("Windows Work nesting quota exceeded")
+    if budget is None:
+        budget = [0]  # Count empty dirs as well as real files across recursion.
     files = []
     names = api.list_names(root, max_names=32)
     if len({name.casefold() for name in names}) != len(names):
         raise BrokerScopeDenied("Windows Work casefold collision")
     for name in sorted(names):
+        budget[0] += 1
+        if budget[0] > 64:
+            raise BrokerScopeDenied('Windows total Work entry quota exceeded')
+        ensure_clean_work_entry(name)
         _parts(name)
         directory = None
         try:
@@ -209,7 +218,7 @@ def _inventory(api, root, volume, prefix="", depth=0):
             try:
                 api.validate(directory, directory=True, volume=volume)
                 files.extend(_inventory(api, directory, volume,
-                                        prefix + name + "/", depth + 1))
+                                        prefix + name + "/", depth + 1, budget))
             finally:
                 api.close(directory)
         else:
@@ -261,6 +270,11 @@ class WindowsWorkspaceBroker(DocumentBroker):
                 api.validate(child, directory=True, volume=identity[0])
                 parent = child
             yield api, parent, identity[0]
+
+    def ensure_work_clean(self):
+        """Validate the pinned real Work tree before terminal publication."""
+        with self._lock, self._zone('work') as (api, root, volume):
+            return _inventory(api, root, volume)
 
     def _execute(self, name, args, *, timeout_seconds):
         if name in ("report_progress", "ask_question"):
@@ -338,6 +352,7 @@ class WindowsWorkspaceBroker(DocumentBroker):
                 raise BrokerScopeDenied("bounded worker text denied") from exc
 
         with self._lock, self._zone("work") as (api, root, volume):
+            verified_inventory = _inventory(api, root, volume)
             if name in ("create_work", "write_work"):
                 with _parent(api, root, parts, volume) as (fd, basename):
                     old = None
@@ -346,7 +361,7 @@ class WindowsWorkspaceBroker(DocumentBroker):
                         if (type(args["expected_sha256"]) is not str or
                                 sha256(old).hexdigest() != args["expected_sha256"]):
                             raise BrokerScopeDenied("stale Work overwrite digest")
-                    contents = _inventory(api, root, volume)
+                    contents = verified_inventory
                     size = sum(len(data) for _, data in contents)
                     if ((old is None and len(contents) >= _MAX_FILES) or
                             size - (len(old) if old is not None else 0) + len(content) > _MAX_TOTAL):
@@ -426,8 +441,7 @@ class WindowsWorkspaceBroker(DocumentBroker):
                 with _parent(api, root, parts, volume) as (fd, basename):
                     data = api.read_work(fd, basename, volume)
                 target = parts[-1]
-                if target.casefold() in ("worker-io.jsonl", "job.log.jsonl"):
-                    raise BrokerScopeDenied("reserved output log name")
+                artifact_target(target)
                 try:
                     text_content = data.decode("utf-8")
                 except UnicodeError as exc:
@@ -436,10 +450,9 @@ class WindowsWorkspaceBroker(DocumentBroker):
                 with self.m.owner._connection() as db:
                     db.execute("BEGIN IMMEDIATE")
                     self.m._current(db, self.job, self.cap)
-                    if db.execute("""SELECT 1 FROM pilot_files
-                        WHERE job_id=? AND zone='output' AND name=?""",
-                        (self.job, target)).fetchone() is not None:
-                        raise BrokerScopeDenied("output already published")
+                    prior = [row[0] for row in db.execute("""SELECT name FROM pilot_files
+                        WHERE job_id=? AND zone='output'""", (self.job,))]
+                    ensure_unique_output_name(prior, target)
                     db.execute("INSERT INTO pilot_files VALUES (?,?,?,?,?)",
                                (self.job, "output", target, text_content, digest))
                 result = {"path": "output/" + target, "sha256": digest}

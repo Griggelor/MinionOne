@@ -90,6 +90,27 @@ class NativeNTFSFileOps(unittest.TestCase):
             a.close(folder)
         self.assertIsNone(a.directory(self.work, "nested"))
 
+    def test_orphaned_windows_pending_file_blocks_new_mutations(self):
+        from minionone.win32_native_work import _inventory
+        from minionone.work_path_policy import WorkTransactionUncertain
+        self.api.create_file(self.work, "result.txt", b"COMPLETE", self.volume)
+        self.api.create_file(self.work, "pending-deadworker", b"PARTIAL", self.volume)
+        with self.assertRaises(WorkTransactionUncertain) as observed:
+            _inventory(self.api, self.work, self.volume)
+        self.assertEqual(observed.exception.diagnostic.code, "PILOT_FILE_CHANGED")
+        self.assertEqual(self.api.read_work(self.work, "result.txt", self.volume),
+                         b"COMPLETE")
+
+    def test_native_work_inventory_counts_empty_directory_nodes(self):
+        from minionone.win32_native_work import _inventory
+        for i in range(4):
+            folder = self.root_path / "work" / f"group{i}"
+            folder.mkdir()
+            for j in range(16):
+                (folder / f"empty{j}").mkdir()
+        with self.assertRaises(BrokerScopeDenied):
+            _inventory(self.api, self.work, self.volume)
+
     def test_refuse_hardlink_alias_to_another_file(self):
         foreign = self.root_path / "foreign.txt"
         foreign.write_bytes(b"OUTSIDE SECRET")

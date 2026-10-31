@@ -19,6 +19,8 @@ from .admission import InputRejected
 from .agent_loop import BrokerReply, BrokerScopeDenied
 from .pilot_jobs import DocumentBroker, _text, PilotError
 from .workspace_sealing import _job_directory, _read_regular
+from .work_path_policy import (ensure_clean_work_entry, ensure_worker_work_name,
+                               artifact_target, ensure_unique_output_name)
 
 _COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z", re.ASCII)
 _RESERVED = {"con", "prn", "aux", "nul"} | {f"com{i}" for i in range(1, 10)} | {f"lpt{i}" for i in range(1, 10)}
@@ -36,6 +38,7 @@ def _parts(value):
     if not 1 <= len(parts) <= 6:
         raise BrokerScopeDenied("invalid work directory depth")
     for part in parts:
+        ensure_worker_work_name(part)
         if (not _COMPONENT.fullmatch(part) or part in (".", "..")
                 or part.endswith(".") or ".." in part
                 or part.split(".")[0].casefold() in _RESERVED):
@@ -112,14 +115,20 @@ def _write_new(fd, name, content):
             os.close(handle)
 
 
-def _inventory(fd, prefix="", depth=0):
+def _inventory(fd, prefix="", depth=0, budget=None):
     if depth > 6:
         raise BrokerScopeDenied("work directory depth exceeded")
+    if budget is None:
+        budget = [0]  # Shared by all recursive calls: directories count too.
     result = []
     names = os.listdir(fd)
     if len({name.casefold() for name in names}) != len(names):
         raise BrokerScopeDenied("ambiguous work filenames")
     for name in sorted(names):
+        budget[0] += 1
+        if budget[0] > 64:
+            raise BrokerScopeDenied('work total entry quota exceeded')
+        ensure_clean_work_entry(name)
         _parts(name)
         info = os.stat(name, dir_fd=fd, follow_symlinks=False)
         if info.st_dev != os.fstat(fd).st_dev:
@@ -128,7 +137,7 @@ def _inventory(fd, prefix="", depth=0):
         if stat.S_ISDIR(info.st_mode):
             child = os.open(name, _FLAGS, dir_fd=fd)
             try:
-                result.extend(_inventory(child, path + "/", depth + 1))
+                result.extend(_inventory(child, path + "/", depth + 1, budget))
             finally:
                 os.close(child)
         elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
@@ -158,6 +167,15 @@ class NativeWorkspaceBroker(DocumentBroker):
             raise BrokerScopeDenied("workspace not admitted")
         with _job_directory(self.execution.workspace, row, area) as fd:
             yield fd
+
+    def ensure_work_clean(self):
+        """Check all physical Work entries before a result becomes publishable."""
+        with self._zone('work') as root:
+            fcntl.flock(root, fcntl.LOCK_EX)
+            try:
+                return _inventory(root)
+            finally:
+                fcntl.flock(root, fcntl.LOCK_UN)
 
     def _execute(self, name, args, *, timeout_seconds):
         if name in ("report_progress", "ask_question"):
@@ -248,6 +266,7 @@ class NativeWorkspaceBroker(DocumentBroker):
         with self._zone("work") as root:
             fcntl.flock(root, fcntl.LOCK_EX)
             try:
+                verified_inventory = _inventory(root)
                 if name in ("create_work", "write_work"):
                     with _parent(root, parts) as (fd, basename):
                         existing = None
@@ -255,7 +274,7 @@ class NativeWorkspaceBroker(DocumentBroker):
                             existing = _read(fd, basename)
                             if type(args["expected_sha256"]) is not str or sha256(existing).hexdigest() != args["expected_sha256"]:
                                 raise BrokerScopeDenied("stale work version")
-                        inventory = _inventory(root)
+                        inventory = verified_inventory
                         current = sum(len(blob) for _, blob in inventory)
                         if len(inventory) >= _MAX_FILES and existing is None:
                             raise BrokerScopeDenied("work file-count quota exceeded")
@@ -329,8 +348,7 @@ class NativeWorkspaceBroker(DocumentBroker):
                     with _parent(root, parts) as (fd, basename):
                         content = _read(fd, basename)
                     target = parts[-1]  # Flat legacy output; nested Work source is still scoped.
-                    if target.casefold() in ("worker-io.jsonl", "job.log.jsonl"):
-                        raise BrokerScopeDenied("reserved manager output name")
+                    artifact_target(target)
                     digest = sha256(content).hexdigest()
                     try:
                         text_content = content.decode("utf-8")
@@ -339,9 +357,10 @@ class NativeWorkspaceBroker(DocumentBroker):
                     with self.m.owner._connection() as con:
                         con.execute("BEGIN IMMEDIATE")
                         self.m._current(con, self.job, self.cap)
-                        if con.execute("SELECT 1 FROM pilot_files WHERE job_id=? AND zone='output' AND name=?",
-                                       (self.job, target)).fetchone():
-                            raise BrokerScopeDenied("immutable output already exists")
+                        prior = [row[0] for row in con.execute(
+                            "SELECT name FROM pilot_files WHERE job_id=? AND zone='output'",
+                            (self.job,))]
+                        ensure_unique_output_name(prior, target)
                         con.execute("INSERT INTO pilot_files VALUES(?,?,?,?,?)",
                                     (self.job, "output", target, text_content, digest))
                     result = {"path": "output/" + target, "sha256": digest}

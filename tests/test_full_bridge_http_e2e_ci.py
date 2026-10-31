@@ -135,6 +135,16 @@ class ModelOverHTTP(BaseHTTPRequestHandler):
         elif n==2:
             name,args="publish_artifact",{"name":"result.txt"}
         else:
+            if self.server.mode=="inject_orphan" and n==3:
+                # Simulate another process losing power immediately after
+                # writing a Work broker staging file. Do not interfere with
+                # the model or the manager API: this exercises actual NTFS/
+                # POSIX terminal verification of the physical Work tree.
+                work_roots=list((self.server.project/".minionone"/"jobs").glob("JOB-*/work"))
+                if len(work_roots)!=1:
+                    self.send_error(500)
+                    return
+                (work_roots[0]/"pending-crashed-write").write_bytes(b"INCOMPLETE-WRITE")
             self.respond({"choices":[{"finish_reason":"stop",
                          "message":{"role":"assistant","content":"Published synthetic artifact.",
                          "reasoning_content":"SYNTHETIC-THINKING-END"}}],
@@ -161,6 +171,7 @@ class CompleteBridgeE2E(unittest.TestCase):
         self.model.daemon_threads=True
         self.model.synchronizer=threading.Lock()
         self.model.calls=[]
+        self.model.project=self.project
         self.model.loaded=True
         self.model.mode="success"
         threading.Thread(target=self.model.serve_forever,daemon=True).start()
@@ -347,6 +358,23 @@ class CompleteBridgeE2E(unittest.TestCase):
         self.assertEqual(status["state"],"FAILED",status)
         self.assertEqual(len(self.model.calls),0)
         self.assertTrue((self.root/"logs"/"minionone-errors.jsonl").is_file())
+
+    def test_orphaned_native_work_write_is_never_published_or_acknowledged(self):
+        # Actual MCP -> HTTP model -> native Work -> output path; an external
+        # synthetic crash artifact appears just before the model finishes.
+        self.model.mode="inject_orphan"
+        job=self.direct("e2e-pending-work-quarantine-001")
+        status=self.outcome(job)
+        self.assertEqual(status["state"],"NEEDS_RECONCILIATION",status)
+        self.assertEqual(len(self.model.calls),4)
+        root=self.project/".minionone"/"jobs"/job["job_id"]
+        self.assertEqual((root/"work"/"result.txt").read_bytes(),
+                         b"SYNTHETIC BRIDGE CONTENT")
+        self.assertEqual((root/"work"/"pending-crashed-write").read_bytes(),
+                         b"INCOMPLETE-WRITE")
+        self.assertFalse((root/"output"/"result.txt").exists(),
+                         "unfinished Work mutation must block publication")
+        self.rpc("minionone_workspace_result",{"job_id":job["job_id"]},error=True)
 
     def test_unpublished_model_finish_is_not_a_verified_result(self):
         self.model.mode="premature_finish"

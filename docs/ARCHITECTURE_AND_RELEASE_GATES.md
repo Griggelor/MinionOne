@@ -18,8 +18,8 @@ An independent extension for Unsloth Studio that delegates bounded jobs from an 
 ## Per-job visible folders (required target contract)
 
 - \`input/\`: parent-prepared, sealed, immutable and listed in trusted hash manifest; worker **read only**.
-- \`work/\`: worker can list/read and create new files through the broker, **no overwrite**, rename, delete, append or execution.
-- \`output/\`: exclusively manager-written result snapshots and a direct fsynced redacted job.log.jsonl; the opt-in sensitive worker-io.jsonl captures actual provider/tool bytes while the job runs. **No worker OS access**. Log files are intentionally append-only and differ from immutable published result snapshots; see ADR-029 v0.30. The target-host NTFS security gate is still NO-GO.
+- \`work/\` **(v0.31.1 owner-approved target, NOT implemented)**: worker has FULL file access within its scoped real job work directory — read, create, overwrite/edit, rename/move, delete and create/remove subdirectories. Filename/handle confinement and untrusted model isolation still apply; file CRUD does not grant unrestricted shell/network/process execution. Older Create-only ADR-020 clauses are superseded for work/.
+- \`output/\` **(v0.31.1 owner-approved target, NOT implemented)**: worker can request CREATE-ONLY publication of NEW immutable output artifacts, optionally READ already published artifact contents, but cannot edit, overwrite, rename, move or delete any existing output. The manager may perform actual filesystem writes on behalf of the worker through the safe broker. Protected manager-only logs \`job.log.jsonl\` and \`worker-io.jsonl\` remain outside worker file access (suggested isolated \`output/artifacts/\` subtree). Direct fsynced logging is separate from artifact publication; the target-host NTFS security gate remains NO-GO.
 
 **Windows gate:** lexical path checks alone do not provide sandboxing. Handle-bound filesystem operations must defend against reparse points, hardlinks, ADS, case folding, path aliases, race/swap attacks and non-owner ACL abuse. If unproven, worker file access stays disabled. Running a test on \`windows-latest\` does not prove this boundary.
 

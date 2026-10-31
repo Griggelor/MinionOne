@@ -46,6 +46,21 @@ class NativeWorkV031Contract(unittest.TestCase):
     staged=bridge.CompleteBridgeE2E.staged
     outcome=bridge.CompleteBridgeE2E.outcome
 
+    def assert_ready(self, status):
+        """When the target fails, report only pre-sanitized manager error metadata."""
+        if status["state"]=="RESULT_READY":
+            return
+        events=[]
+        logfile=self.root/"logs"/"minionone-errors.jsonl"
+        if logfile.exists():
+            for line in logfile.read_text(encoding="utf-8").splitlines()[-12:]:
+                item=json.loads(line)
+                events.append({"event":item.get("event"),
+                               "fields":item.get("fields"),
+                               "frames":item.get("frames")})
+        self.fail("workspace failed: "+str(status)+
+                  "\nREDacted manager failure evidence: "+str(events))
+
     def test_wf001_real_work_file_is_created_from_worker_tool_bytes(self):
         """WF-001: create_work must create a real disk file, not SQLite TEXT."""
         # Both customer-visible entry routes must result in the SAME real
@@ -63,7 +78,7 @@ class NativeWorkV031Contract(unittest.TestCase):
             # preparing the second route.
             job=start_job()
             status=self.outcome(job)
-            self.assertEqual(status["state"],"RESULT_READY",status)
+            self.assert_ready(status)
             work=self.project/".minionone"/"jobs"/job["job_id"]/"work"/"result.txt"
             if not work.is_file():
                 absent.append(route+": "+str(work))
@@ -77,7 +92,7 @@ class NativeWorkV031Contract(unittest.TestCase):
         """WF-002: output must derive from physical work file and preserve it."""
         job=self.direct("v031-work-publish-0001")
         status=self.outcome(job)
-        self.assertEqual(status["state"],"RESULT_READY",status)
+        self.assert_ready(status)
         folder=self.project/".minionone"/"jobs"/job["job_id"]
         work=folder/"work"/"result.txt"
         output=folder/"output"/"result.txt"
@@ -96,7 +111,7 @@ class NativeWorkV031Contract(unittest.TestCase):
         """WF-003: job control metadata may be SQL; Work document bytes may not."""
         job=self.direct("v031-work-sqlite-0001")
         status=self.outcome(job)
-        self.assertEqual(status["state"],"RESULT_READY",status)
+        self.assert_ready(status)
         # sqlite3.Connection.__exit__ commits; it does NOT close the handle.
         # Windows cannot remove the temp database until we explicitly close.
         with closing(sqlite3.connect(self.root/"jobs.sqlite")) as con:
@@ -113,7 +128,7 @@ class NativeWorkV031Contract(unittest.TestCase):
         self.model.mode="work_edit"
         job=self.direct("v031-work-edit-001")
         status=self.outcome(job)
-        self.assertEqual(status["state"],"RESULT_READY",status)
+        self.assert_ready(status)
         root=self.project/".minionone"/"jobs"/job["job_id"]
         self.assertTrue((root/"work"/"result.txt").is_file(),
             "WF-017 TARGET_NOT_MET: edit did not produce a real work/result.txt")
@@ -126,7 +141,7 @@ class NativeWorkV031Contract(unittest.TestCase):
         self.model.mode="work_delete"
         job=self.direct("v031-work-delete-001")
         status=self.outcome(job)
-        self.assertEqual(status["state"],"RESULT_READY",status)
+        self.assert_ready(status)
         root=self.project/".minionone"/"jobs"/job["job_id"]
         self.assertFalse((root/"work"/"discard.txt").exists())
         self.assertTrue((root/"work"/"result.txt").is_file(),
@@ -139,7 +154,7 @@ class NativeWorkV031Contract(unittest.TestCase):
         self.model.mode="work_rename"
         job=self.direct("v031-work-rename-001")
         status=self.outcome(job)
-        self.assertEqual(status["state"],"RESULT_READY",status)
+        self.assert_ready(status)
         root=self.project/".minionone"/"jobs"/job["job_id"]
         self.assertFalse((root/"work"/"draft.txt").exists())
         self.assertEqual((root/"work"/"result.txt").read_bytes(),b"RENAMED CONTENT")
@@ -150,7 +165,7 @@ class NativeWorkV031Contract(unittest.TestCase):
         self.model.mode="output_immutable"
         job=self.direct("v031-output-once-001")
         status=self.outcome(job)
-        self.assertEqual(status["state"],"RESULT_READY",status)
+        self.assert_ready(status)
         root=self.project/".minionone"/"jobs"/job["job_id"]
         self.assertEqual((root/"work"/"result.txt").read_bytes(),b"SECOND")
         self.assertEqual((root/"output"/"result.txt").read_bytes(),b"FIRST")
@@ -167,7 +182,7 @@ class NativeWorkV031Contract(unittest.TestCase):
         self.model.mode="input_readonly"
         job=self.direct("v031-input-readonly-001")
         status=self.outcome(job)
-        self.assertEqual(status["state"],"RESULT_READY",status)
+        self.assert_ready(status)
         root=self.project/".minionone"/"jobs"/job["job_id"]
         inp=root/"input"/"sample.txt"
         self.assertEqual(inp.read_bytes(),b"synthetic bridge content")
@@ -181,7 +196,7 @@ class NativeWorkV031Contract(unittest.TestCase):
         self.model.mode="work_nested"
         job=self.direct("v031-work-nested-001")
         status=self.outcome(job)
-        self.assertEqual(status["state"],"RESULT_READY",status)
+        self.assert_ready(status)
         root=self.project/".minionone"/"jobs"/job["job_id"]
         # The nested directory is created, populated, used and then removed
         # by the worker; a completed full-CRUD job must leave no stale tree.

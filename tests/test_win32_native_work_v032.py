@@ -33,12 +33,15 @@ class NativeNTFSFileOps(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root_path = Path(temp.name)
+        # The trusted admission manager, never the worker, creates the Work
+        # root before the broker receives its confined handle.
+        (self.root_path / "work").mkdir()
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
         self.root = self.api.root(self.root_path)
         self.stack.callback(self.api.close, self.root)
         self.volume = self.api.validate(self.root, directory=True)[0]
-        self.work = self.api.directory(self.root, "work", create=True)
+        self.work = self.api.directory(self.root, "work")
         self.assertIsNotNone(self.work)
         self.stack.callback(self.api.close, self.work)
         self.api.validate(self.work, directory=True, volume=self.volume)

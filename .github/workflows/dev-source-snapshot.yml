@@ -1,0 +1,30 @@
+# Temporary developer-only source snapshot for local offline regression diagnostics.
+name: Development source snapshot
+on:
+  pull_request:
+    paths:
+      - 'src/minionone/**'
+      - 'tests/**'
+      - 'product_acceptance/**'
+      - '.github/workflows/dev-source-snapshot.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: minionone-source-snapshot
+          path: |
+            src/
+            tests/
+            product_acceptance/
+            integration_tests/
+            scripts/
+            pyproject.toml
+          if-no-files-found: error

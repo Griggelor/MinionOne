@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from .agent_loop import ALLOWED_WORKER_TOOLS
+from .agent_loop import ALLOWED_WORKER_TOOLS, BrokerScopeDenied
 
 _LEGACY = frozenset({
     "list_files", "read_file", "create_work", "publish_artifact",
@@ -68,6 +68,28 @@ class WorkerToolGrant:
         if not self.permits(tool_name):
             raise BoxedRuntimeUnavailable("tool outside manager-approved profile")
         return tool_name
+
+
+class BoxedToolGateway:
+    """Second enforcement point between the agent coordinator and native broker.
+
+    No worker may supply a grant. The trusted manager constructs this gateway
+    once from the persisted job kind, then sends all worker tool calls through
+    it. The gateway does not run any subprocess or expose a host handle.
+    """
+
+    def __init__(self, grant, broker):
+        if type(grant) is not WorkerToolGrant or not callable(getattr(broker, "execute", None)):
+            raise BoxedRuntimeUnavailable("trusted boxed gateway configuration required")
+        self._grant = grant
+        self._broker = broker
+
+    def execute(self, name, args, *, timeout_seconds):
+        if (not self._grant.permits(name) or type(args) is not dict or
+                type(timeout_seconds) not in (int, float) or
+                not 0 < timeout_seconds <= 300):
+            raise BrokerScopeDenied("operation denied by immutable boxed tool grant")
+        return self._broker.execute(name, args, timeout_seconds=timeout_seconds)
 
 
 def profiles():

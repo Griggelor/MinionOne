@@ -4,7 +4,7 @@
 
 > **Public PRE-ALPHA · 0.25.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
-**v0.31 filesystem-first product reset (test-first only):** The real customer goal requires scoped physical files in each job's work/ directory. Current SQLite pilot_files document text is a synthetic execution backend, NOT the product work-file storage contract. The v0.31 spec and three real HTTP/MCP positive Work-file tests are intentionally RED until the native Work broker exists. SQLite remains a provisional manager-only transaction store; see [v0.31 specification](docs/SPEC_V031_FILESYSTEM_FIRST_TESTFIRST.md). A green evidence collector is not customer readiness.
+**v0.31.1 filesystem-first product reset (test-first only):** The owner explicitly requires **full file CRUD in the real job work/ folder** (create, read, overwrite/edit, rename/move, delete and nested directories); input/ is **read-only**, and output/ permits **new artifact creation and optional artifact reads** but never modification/deletion of existing files. Manager-owned worker and process logs are not worker-accessible. The current SQLite pilot_files document text is ONLY a synthetic execution backend, NOT the product work-file storage contract. [v0.31.1 specification](docs/SPEC_V031_FILESYSTEM_FIRST_TESTFIRST.md) and **nine** real HTTP/MCP target tests on Windows and Ubuntu intentionally remain red until these permissions are fully implemented. SQLite remains provisional for manager state transactions, not Work document bytes. A green evidence collector is not customer readiness.
 
 **New v0.19 WIP:** opt-in operator-approved project workspace staging with a durable PREPARING job ID (no seal, no worker file access, no Windows NTFS sandbox). See [target workflow](docs/PRODUCT_TARGET_WORKFLOW.md) and [live status evidence](evidence/product-status/PRODUCT_STATUS.md).
 
@@ -124,8 +124,8 @@ The current GitHub Actions coverage includes authenticated admission, pure lifec
 **No untrusted worker is allowed direct shell, network, generic file APIs, Git, other MCP capabilities, execution or project integration.** Required target folders:
 
 - `input/`: sealed, verified, read-only worker input.
-- `work/`: broker-scoped create-only worker output (no overwrite/delete).
-- `output/`: manager-only immutable publication and redacted log.
+- `work/`: **required product target**: real worker-owned job workspace with full file CRUD (write/edit/overwrite/rename/move/delete/subdirectories), confined to that job; native broker/Sandbox NOT implemented.
+- `output/`: **required product target**: Worker may request creating NEW immutable published artifacts and optionally read artifact contents; no overwrite, mutation, rename or delete. Manager owns protected JSONL logs; Worker cannot access their contents via file tools.
 
 These are **requirements**, not implemented Windows security guarantees. A fail-closed Windows NTFS handle broker, authenticated Unsloth MCP ownership and real LM Studio/Unsloth E2E evidence must be provided before a usable beta. Learn more in [Architecture and release gates](docs/ARCHITECTURE_AND_RELEASE_GATES.md).
 

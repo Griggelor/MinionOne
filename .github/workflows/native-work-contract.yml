@@ -1,5 +1,5 @@
 # TEST-FIRST: this collector is green when evidence is captured, even while
-# the substantive WF-001..003 target contract is red. The STRICT MODE exits 2.
+# substantive native Work CRUD/Input/Output permissions are still red. The STRICT MODE exits 2.
 # Never interpret this workflow as product-ready.
 name: Native Work product contract evidence (RED until implemented)
 on:
@@ -37,7 +37,7 @@ jobs:
           python-version: '3.13'
       - name: Install exact candidate; no real user content
         run: python -m pip install --disable-pip-version-check -e .
-      - name: Execute three positive real-work target cases; collect actual RED/PASS evidence
+      - name: Execute nine real-work/input/output permission target cases; collect RED/PASS evidence
         run: python scripts/run_workfiles_v031.py --out evidence/v031-workfiles
       - name: Verify evidence schema, all 3 cases really executed and no false release claim
         shell: python
@@ -46,13 +46,13 @@ jobs:
           from pathlib import Path
           p=Path('evidence/v031-workfiles/WORKFILES_V031_EVIDENCE.json')
           r=json.loads(p.read_text(encoding='utf-8'))
-          assert r['execution']['executed']==3,r['execution']
-          assert r['test_ids']==['WF-001','WF-002','WF-003'],r['test_ids']
+          assert r['execution']['executed']==9,r['execution']
+          assert r['test_ids']==['WF-001','WF-002','WF-003','WF-017','WF-018','WF-019','WF-020','WF-021','WF-022'],r['test_ids']
           assert r['product_release']=='NO_GO'
           assert r['customer_product_ready'] is False
-          assert len(r['cases'])==16
+          assert len(r['cases'])==22
           assert all(c['result'] in ('FAIL_TARGET_CONTRACT','PASS_SYNTH_HTTP_CONTRACT_NOT_TARGET_HOST')
-                     for c in r['cases'][:3])
+                     for c in r['cases'] if c['id'] in r['test_ids'])
           print('EVIDENCE_COLLECTED_ONLY; WORK_PRODUCT_GO=NO; RESULT='+r['contract_result'])
       - name: Verify strict product-contract gate fails only when real cases are red
         shell: python

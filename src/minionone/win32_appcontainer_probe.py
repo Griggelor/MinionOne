@@ -200,7 +200,7 @@ def run_fixed_appcontainer_token_probe():
                 ctypes.cast(ctypes.byref(startup),
                             ctypes.POINTER(_StartupInfo)),
                 ctypes.byref(process)):
-            raise JobProbeUnavailable("fixed AppContainer process creation denied")
+            raise JobProbeUnavailable("fixed AppContainer process creation denied; win32=" + str(ctypes.get_last_error()))
         process_created = True
         if not k.AssignProcessToJobObject(job, process.hProcess):
             raise JobProbeUnavailable("suspended AppContainer could not join Job Object")

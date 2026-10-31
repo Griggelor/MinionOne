@@ -127,7 +127,8 @@ class PilotJobs:
     def project(con,row):
         p=con.execute('SELECT * FROM pilot_runs WHERE job_id=?',(row['job_id'],)).fetchone()
         if p is None:raise PilotError('PILOT_STATE_INVALID')
-        return {'backend':'sqlite_documents','attempt_epoch':p['epoch'],'worker_model':p['model_id'],
+        return {'backend':('native_posix_work_sqlite_output' if row['job_kind']=='WORKSPACE' and os.name!='nt' else 'sqlite_documents'),
+                'attempt_epoch':p['epoch'],'worker_model':p['model_id'],
                 'model_turns':p['turns'],'tool_calls':p['tools'],'denials':p['denials'],
                 'tokens_used':p['tokens'],'progress_percent':p['percent'],
                 'provider_state_uncertain':bool(p['provider_inflight'] and not p['active']),

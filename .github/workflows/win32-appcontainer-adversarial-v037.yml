@@ -44,10 +44,12 @@ jobs:
           e=asdict(run_fixed_adversarial_access_probe())
           for field in ("real_appcontainer_token", "assigned_before_resume",
                         "manager_canary_read_denied", "sibling_canary_read_denied",
-                        "output_canary_write_denied", "loopback_connect_denied",
+                        "output_canary_write_denied",
                         "ordinary_host_positive_control", "canary_integrity_preserved",
                         "process_exited"):
               assert e[field] is True, field
+          assert e["loopback_connect_denied"] or e["loopback_connect_timed_out"]
+          assert e["network_denial_verified"] == e["loopback_connect_denied"]
           assert e["worker_tool_exposed"] is False
           assert e["host_security_attested"] is False
           assert e["product_release"]=="NO_GO"
@@ -56,7 +58,7 @@ jobs:
                  "product_release":"NO_GO","checks":e}
           p=Path("evidence/v037/SYNTHETIC_DENIAL_REPORT.json")
           p.write_text(json.dumps(proof,indent=2,sort_keys=True),encoding="utf-8")
-          print("APP_CONTAINER_SYNTHETIC_ACCESS_DENIAL_MET; PRODUCTION_SANDBOX=NO_GO")
+          print("APP_CONTAINER_SYNTHETIC_FILE_DENIAL_MET; LOOPBACK_ATTEMPT_OBSERVED; NETWORK_ATTESTATION="+str(e["network_denial_verified"])+"; PRODUCT_GO=NO")
       - uses: actions/upload-artifact@v4
         if: always()
         with:

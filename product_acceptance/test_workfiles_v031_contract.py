@@ -14,18 +14,20 @@ import sys
 import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"tests"))
-from test_full_bridge_http_e2e_ci import CompleteBridgeE2E
+# Import the bridge module, NOT a unittest.TestCase class into this module's
+# namespace. unittest discovery otherwise collects its unrelated dozen tests.
+import test_full_bridge_http_e2e_ci as bridge
 
 
 class NativeWorkV031Contract(unittest.TestCase):
     # Reuse the genuine transport fixture WITHOUT inheriting the existing
     # TestCase's dozen tests. These three tests exist precisely to expose the
     # gap hidden by the pilot document-store happy-path E2E checks.
-    setUp=CompleteBridgeE2E.setUp
-    rpc=CompleteBridgeE2E.rpc
-    direct=CompleteBridgeE2E.direct
-    staged=CompleteBridgeE2E.staged
-    outcome=CompleteBridgeE2E.outcome
+    setUp=bridge.CompleteBridgeE2E.setUp
+    rpc=bridge.CompleteBridgeE2E.rpc
+    direct=bridge.CompleteBridgeE2E.direct
+    staged=bridge.CompleteBridgeE2E.staged
+    outcome=bridge.CompleteBridgeE2E.outcome
 
     def test_wf001_real_work_file_is_created_from_worker_tool_bytes(self):
         """WF-001: create_work must create a real disk file, not SQLite TEXT."""

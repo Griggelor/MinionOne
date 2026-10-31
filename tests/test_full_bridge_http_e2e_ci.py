@@ -273,7 +273,10 @@ class CompleteBridgeE2E(unittest.TestCase):
         # A syntactically invalid response was received, but the model
         # boundary is deliberately conservative about unaccounted effects.
         self.assertEqual(status["state"],"NEEDS_RECONCILIATION",status)
-        self.assertIn('"choices":[]',json.dumps(self.transcript(job)))
+        responses=[json.loads(event["body_utf8"]) for event in self.transcript(job)
+                   if event["kind"]=="MODEL_RESPONSE"]
+        self.assertEqual(responses[0]["choices"],[],
+                         "the original malformed JSON must remain in exact transcript")
         self.assertFalse((self.project/".minionone"/"jobs"/job["job_id"]/
                           "output"/"result.txt").exists())
 

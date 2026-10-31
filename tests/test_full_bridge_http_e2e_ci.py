@@ -22,6 +22,51 @@ TOKEN="ci-bridge-parent-"+"P"*48
 MODEL="synthetic-loaded-flint"
 
 
+# v0.31.1 contract-only model scripts. They deliberately request newly
+# specified file operations which the production broker DOES NOT yet expose.
+# The E2E harness remains real HTTP+MCP; only the external model is scripted.
+_WORKSPACE_SCENARIOS = {
+    "work_edit": [
+        ("create_work", {"name":"result.txt","content":"ORIGINAL"}),
+        ("write_work", {"name":"result.txt","content":"REVISED",
+                         "expected_sha256":sha256(b"ORIGINAL").hexdigest()}),
+        ("read_file", {"path":"work/result.txt"}),
+        ("publish_artifact", {"name":"result.txt"}),
+    ],
+    "work_delete": [
+        ("create_work", {"name":"discard.txt","content":"TEMPORARY"}),
+        ("delete_work", {"path":"discard.txt"}),
+        ("create_work", {"name":"result.txt","content":"KEPT"}),
+        ("publish_artifact", {"name":"result.txt"}),
+    ],
+    "work_rename": [
+        ("create_work", {"name":"draft.txt","content":"RENAMED CONTENT"}),
+        ("rename_work", {"source":"draft.txt","destination":"result.txt"}),
+        ("publish_artifact", {"name":"result.txt"}),
+    ],
+    "output_immutable": [
+        ("create_work", {"name":"result.txt","content":"FIRST"}),
+        ("publish_artifact", {"name":"result.txt"}),
+        ("write_work", {"name":"result.txt","content":"SECOND",
+                          "expected_sha256":sha256(b"FIRST").hexdigest()}),
+        ("read_file", {"path":"output/result.txt"}),
+        ("publish_artifact", {"name":"result.txt"}), # MUST be denied: already exists
+    ],
+    "input_readonly": [
+        ("read_file", {"path":"input/sample.txt"}),
+        ("write_work", {"name":"input/sample.txt","content":"ILLEGAL",
+                          "expected_sha256":sha256(b"synthetic bridge content").hexdigest()}),
+        ("create_work", {"name":"result.txt","content":"INPUT REMAINS SEALED"}),
+        ("publish_artifact", {"name":"result.txt"}),
+    ],
+    "work_nested": [
+        ("mkdir_work", {"path":"nested"}),
+        ("create_work", {"name":"nested/result.txt","content":"NESTED WORK"}),
+        ("read_file", {"path":"work/nested/result.txt"}),
+    ],
+}
+
+
 class ModelOverHTTP(BaseHTTPRequestHandler):
     def log_message(self,*args):
         return
@@ -63,7 +108,17 @@ class ModelOverHTTP(BaseHTTPRequestHandler):
         messages=data["messages"]
         completed=[message for message in messages if message.get("role")=="tool"]
         n=len(completed)
-        if self.server.mode=="denied":
+        if self.server.mode in _WORKSPACE_SCENARIOS:
+            steps=_WORKSPACE_SCENARIOS[self.server.mode]
+            if n<len(steps):
+                name,args=steps[n]
+            else:
+                self.respond({"choices":[{"finish_reason":"stop",
+                   "message":{"role":"assistant","content":"Synthetic work operation sequence completed.",
+                   "reasoning_content":"synthetic worker thinking about work editing"}}],
+                   "usage":{"total_tokens":20}})
+                return
+        elif self.server.mode=="denied":
             name,args="execute_shell",{"command":"this must never execute"}
         elif self.server.mode=="question":
             name,args="ask_question",{"question":"Synthetic clarification?"}

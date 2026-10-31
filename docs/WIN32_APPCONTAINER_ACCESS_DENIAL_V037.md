@@ -27,15 +27,25 @@ one process and a 128 MiB memory cap. The child token is independently
 checked with `GetTokenInformation(TokenIsAppContainer)` before
 `ResumeThread`.
 
-The AppContainer result requires all four access attempts to be
-**explicitly denied** (`ERROR_ACCESS_DENIED` / `ERROR_PRIVILEGE_NOT_HELD`
-or `WSAEACCES`); missing files, absent network listeners, unexpected Win32
-errors, unstarted processes and malformed arguments are **failures**, not
-evidence of effective isolation.
+The AppContainer result requires **all three file operations** to be
+explicitly denied (`ERROR_ACCESS_DENIED` or
+`ERROR_PRIVILEGE_NOT_HELD`). Missing files, unexpected Windows errors,
+unstarted processes and malformed arguments always fail.
+
+The loopback socket has two **distinct** acceptable observations:
+`WSAEACCES` (explicit denial, `network_denial_verified=true`) or a
+bounded nonblocking timeout with an independently live positive-control
+listener (`loopback_connect_timed_out=true`,
+`network_denial_verified=false`). Windows Filtering Platform can drop
+loopback traffic until the client times out. A timeout is **not**
+recorded as an OS access-denied result; a successful connect, absent
+listener or unrelated socket error fails the isolation probe.
 
 The manager checks that all original synthetic canary SHA-256 hashes are
 unchanged. The native probe returns a fixed exit-code bitmap rather than
-opening a return-file path through the AppContainer. A separate fresh
+opening a return-file path through the AppContainer. A fixed bootstrap
+exit code must also succeed before the restricted canary invocation;
+both are verified under real AppContainer child tokens. A separate fresh
 AppContainer package SID is created and deleted for each run.
 
 ### Trusted build and execution
@@ -65,19 +75,23 @@ not uploaded as an artifact.
 
 ## What is still unproven
 
-The positive/negative canaries exercise **one finite probe instance on the
+The positive/negative canaries exercise **finite synthetic probes on the
 GitHub-hosted Windows CI machine**. They do not prove the full arbitrary
 code execution threat model, the operator's actual Windows installation,
 post-crash replay correctness, inherited kernel handles, process-group
 escape, privileged IPC, registry access, DNS/outbound internet, firewall
-policy or controlled output import. Loopback denial is not proof that
-every possible network path is blocked.
+policy or controlled output import. In particular, **a loopback timeout
+is not network-denial attestation**, and even explicit loopback denial
+does not prove every network path is blocked.
 
 Before enabling Flint `run_tests`, there must still be an approved tool
 protocol, signed/pinned executable selection, per-job security identity,
 safe input/scratch/output ACL and data-flow, no credential inheritance,
 no arbitrary network, full tree termination, adversarial race tests and
 host-specific admission gates. Target release **NO_GO**.
+
+Relevant Windows-loopback policy: [Microsoft UWP firewall troubleshooting](https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/troubleshooting-uwp-firewall)
+and [Project Zero analysis of AppContainer loopback timeouts](https://projectzero.google/2021/08/understanding-network-access-windows-app.html).
 
 See also: [ADR-034](ADR_034_BOXED_TOOL_EXECUTION.md),
 [v0.35 Job Object](WIN32_JOB_OBJECT_PROBE_V035.md),

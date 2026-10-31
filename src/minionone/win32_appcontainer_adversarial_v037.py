@@ -270,18 +270,24 @@ def _appcontainer_exit(helper, arguments, runnable, timeout_ms=4000):
                 raise JobProbeUnavailable("ephemeral AppContainer identity not removed")
 
 
-def run_fixed_adversarial_access_probe(helper_executable):
+def run_fixed_adversarial_access_probe():
     """Verify four synthetic denials WITH an unsandboxed positive control.
 
-    The ONE permitted exe is the fixed named C test helper produced by the
-    trusted Windows CI. The caller (trusted test harness) supplies no task
-    text, arbitrary target path, command or network endpoint.
+    The ONE permitted exe is the fixed C test helper built into the exact
+    repository checkout by trusted Windows CI. No caller-selected executable,
+    task text, target path, command or network endpoint is accepted.
     """
     if sys.platform != "win32":
         raise JobProbeUnavailable("native Windows required")
-    exe = Path(helper_executable).resolve(strict=True)
-    if exe.name != "appcontainer_adversary_v037.exe":
-        raise JobProbeUnavailable("only the fixed adversarial helper is allowed")
+    # Resolve only the expected test binary in this source checkout.
+    # No API parameter can point the trusted manager at an attacker binary.
+    expected = (Path(__file__).resolve().parents[2] / "evidence" / "v037" /
+                "appcontainer_adversary_v037.exe")
+    if not expected.is_file() or expected.is_symlink():
+        raise JobProbeUnavailable("trusted fixed MSVC test helper unavailable")
+    exe = expected.resolve(strict=True)
+    if exe != expected:
+        raise JobProbeUnavailable("unexpected native probe executable path")
     if not exe.is_file() or exe.stat().st_size > 2 * 1024 * 1024:
         raise JobProbeUnavailable("invalid or oversized native test helper")
     with tempfile.TemporaryDirectory(prefix="minionone-v037-") as root:

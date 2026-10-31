@@ -34,6 +34,8 @@ from .win32_output_publication import (
     _FILE_CREATE, _FILE_OPEN, _NORMAL, _NOT_FOUND,
 )
 from .win32_work_create_probe import _FILE_WRITE_DATA
+from .work_path_policy import (ensure_clean_work_entry, ensure_worker_work_name,
+                               artifact_target, ensure_unique_output_name)
 import re
 
 _MAX_FILE = 1_048_576
@@ -50,6 +52,7 @@ def _parts(path):
     if not 1 <= len(parts) <= 6:
         raise BrokerScopeDenied("invalid Work depth")
     for part in parts:
+        ensure_worker_work_name(part)
         if (not _COMPONENT.fullmatch(part) or part in (".", "..")
                 or part.endswith(".") or ".." in part
                 or part.split(".")[0].casefold() in _RESERVED):
@@ -199,6 +202,7 @@ def _inventory(api, root, volume, prefix="", depth=0):
     if len({name.casefold() for name in names}) != len(names):
         raise BrokerScopeDenied("Windows Work casefold collision")
     for name in sorted(names):
+        ensure_clean_work_entry(name)
         _parts(name)
         directory = None
         try:
@@ -426,8 +430,7 @@ class WindowsWorkspaceBroker(DocumentBroker):
                 with _parent(api, root, parts, volume) as (fd, basename):
                     data = api.read_work(fd, basename, volume)
                 target = parts[-1]
-                if target.casefold() in ("worker-io.jsonl", "job.log.jsonl"):
-                    raise BrokerScopeDenied("reserved output log name")
+                artifact_target(target)
                 try:
                     text_content = data.decode("utf-8")
                 except UnicodeError as exc:
@@ -436,10 +439,9 @@ class WindowsWorkspaceBroker(DocumentBroker):
                 with self.m.owner._connection() as db:
                     db.execute("BEGIN IMMEDIATE")
                     self.m._current(db, self.job, self.cap)
-                    if db.execute("""SELECT 1 FROM pilot_files
-                        WHERE job_id=? AND zone='output' AND name=?""",
-                        (self.job, target)).fetchone() is not None:
-                        raise BrokerScopeDenied("output already published")
+                    prior = [row[0] for row in db.execute("""SELECT name FROM pilot_files
+                        WHERE job_id=? AND zone='output'""", (self.job,))]
+                    ensure_unique_output_name(prior, target)
                     db.execute("INSERT INTO pilot_files VALUES (?,?,?,?,?)",
                                (self.job, "output", target, text_content, digest))
                 result = {"path": "output/" + target, "sha256": digest}

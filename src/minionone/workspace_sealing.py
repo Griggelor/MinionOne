@@ -94,6 +94,11 @@ def _job_directory(workspace, row, area):
                 raise InputRejected('workspace directory identity/boundary invalid')
         yield fd
     except OSError as exc:
+        # BrokerScopeDenied is a PermissionError and must survive the
+        # directory context boundary as a counted, safe worker denial.
+        from .agent_loop import BrokerScopeDenied
+        if isinstance(exc, BrokerScopeDenied):
+            raise
         raise InputRejected('workspace path not safely accessible') from exc
     finally:
         for handle in reversed(handles):os.close(handle)

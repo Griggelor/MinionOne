@@ -106,7 +106,9 @@ In einem zweiten Terminal (während der Manager läuft):
 Zusätzliche gesicherte Eingaben, LM-Studio-Serverlogs oder
 Unsloth-Chatverläufe werden **nicht** automatisch exportiert.
 
-Das vorhandene native \`output/job.log.jsonl\` bleibt vorläufig eine
+**Aktualisierung seit v0.30:** Das native Joblog wird während der tatsächlichen Worker-Laufzeit direkt und fsynced in output/job.log.jsonl ergänzt. Das vertrauliche exakte Worker-I/O (einschließlich tatsächlich gelieferter Thinking-Felder) steht sofort in output/worker-io.jsonl; beide Dateien sind unabhängig von SQLite direkt lesbar.
+
+Die ursprüngliche v0.28-Beschreibung war: Das vorhandene native \`output/job.log.jsonl\` bleibt vorläufig eine
 Projektion des ACCEPTED-Ereignisses (auf Windows nicht das komplette
 Laufzeitprotokoll). Die **autoritative neue Job-/Debug-Protokollierung
 liegt in \`jobs.sqlite\`** und ist über MCP/CLI zugänglich.

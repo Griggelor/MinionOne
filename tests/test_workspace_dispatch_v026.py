@@ -28,6 +28,7 @@ class DeterministicProvider:
     def __init__(self, *args, **kwargs):
         self._provider = SimpleNamespace(_opener=None)
         self.index = 0
+        self.sink = kwargs.get("io_sink")
 
     def next_step(self, *, timeout_seconds):
         choices = [
@@ -44,9 +45,15 @@ class DeterministicProvider:
             raise RuntimeError("unexpected extra provider step")
         reply=choices[self.index]
         self.index+=1
+        if self.sink is not None:
+            self.sink("MODEL_REQUEST",json.dumps({"synthetic":True,"turn":self.index}))
+            self.sink("MODEL_RESPONSE",json.dumps({"synthetic":True,"action":reply.action,
+                 "tool":reply.name if reply.action=="tool" else "none"}))
         return reply
 
     def observe_tool(self,name,reply):
+        if self.sink is not None:
+            self.sink("TOOL_RESPONSE",json.dumps({"tool":name,"data":reply.data}))
         if reply.status != "ok":
             raise RuntimeError("broker rejected normal synthetic tool")
 

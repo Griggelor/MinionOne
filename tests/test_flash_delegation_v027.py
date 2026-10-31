@@ -28,6 +28,8 @@ class ScriptedFlint:
     def __init__(self,base_url,*,model_id,approved_prompt,system_prompt,**kwargs):
         self.__class__.seen.append((model_id,system_prompt,approved_prompt))
         self._provider=SimpleNamespace(_opener=None)
+        self.sink=kwargs.get('io_sink')
+        self.turn=0
         self.steps=iter([
             ModelStep("tool",name="list_files",arguments={"zone":"input"},total_tokens=2),
             ModelStep("tool",name="read_file",arguments={"path":"input/source.txt"},total_tokens=2),
@@ -37,12 +39,22 @@ class ScriptedFlint:
             ModelStep("finish",text="published",total_tokens=2),
         ])
     def next_step(self,*,timeout_seconds):
-        return next(self.steps)
+        step=next(self.steps)
+        self.turn+=1
+        if self.sink is not None:
+            self.sink('MODEL_REQUEST',json.dumps({'synthetic':True,'turn':self.turn}))
+            self.sink('MODEL_RESPONSE',json.dumps({'synthetic':True,'action':step.action,
+                'tool':step.name if step.action=='tool' else 'none','turn':self.turn}))
+        return step
     def observe_tool(self,name,reply):
+        if self.sink is not None:
+            self.sink('TOOL_RESPONSE',json.dumps({'tool':name,'data':reply.data,
+                                                  'result_code':reply.result_code}))
         if reply.status!="ok":raise RuntimeError("synthetic worker broker denial")
 
 
-class FlashDelegationHTTP(unittest.TestCase):
+class FlashHTTPFixture:
+    """Only setup and MCP helpers; deliberately NO inherited test methods."""
     def setUp(self):
         tmp=tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -85,6 +97,7 @@ class FlashDelegationHTTP(unittest.TestCase):
             "operation_id":"direct-flash-bridge-20261030",
         }
 
+class FlashDelegationHTTP(FlashHTTPFixture,unittest.TestCase):
     def test_flash_delegates_one_call_seals_same_job_worker_publishes_and_parent_acks(self):
         self.assertIn("minionone_delegate",self.server.tool_map)
         with patch("minionone.pilot_jobs.PilotJobs._readiness",return_value=None), \

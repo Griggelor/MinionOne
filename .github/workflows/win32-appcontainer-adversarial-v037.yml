@@ -41,7 +41,7 @@ jobs:
           from dataclasses import asdict
           from pathlib import Path
           import json
-          e=asdict(run_fixed_adversarial_access_probe(Path("evidence/v037/appcontainer_adversary_v037.exe")))
+          e=asdict(run_fixed_adversarial_access_probe())
           for field in ("real_appcontainer_token", "assigned_before_resume",
                         "manager_canary_read_denied", "sibling_canary_read_denied",
                         "output_canary_write_denied", "loopback_connect_denied",

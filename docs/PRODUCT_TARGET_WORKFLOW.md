@@ -1,4 +1,6 @@
-# MinionOne – verbindlicher Zielablauf und Testgrenzen (v0.19 WIP)
+# MinionOne – historischer Zielablauf und Testgrenzen (v0.19 WIP)
+
+> **Historische WIP-IST-Aufnahme, nicht aktuelle Produktfreigabe.** Der ursprüngliche Dateivertrag aus ADR-020 v0.6 verlangt tatsächlich existierende input/work/output-Dateien; v0.31 konkretisiert diesen Vertrag mit einem test-first-Gate und bewertet SQLite-Dokumenttexte ausdrücklich als PILOT-Zwischenlösung. Aktuelle Sollbasis: [SPEC_V031_FILESYSTEM_FIRST_TESTFIRST.md](SPEC_V031_FILESYSTEM_FIRST_TESTFIRST.md). Abschnitt „Laufender Implementierungsstand“ unten beschreibt nur den damals dokumentierten v0.19-Stand; spätere v0.20–v0.30-Entwicklungen sind separat nachgewiesen.
 
 Stand 30.10.2026. Dieses Dokument konkretisiert die gewünschte **zweiphasige Job-Bedienlogik**. Gegenüber der normativen v0.6-Architektur ist `PREPARING` eine **neue, vorgeschaltete Reservierung**; keine bereits zugelassene oder versiegelte Jobinstanz. Die bisherige Unveränderlichkeits- und Trust-Grenze **ab Admission** bleibt bestehen. Bis zur Implementierung und Windows-Prüfung ist der Produkt-Release-Gate **NO-GO**.
 

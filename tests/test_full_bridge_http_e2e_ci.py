@@ -63,6 +63,7 @@ _WORKSPACE_SCENARIOS = {
         ("mkdir_work", {"path":"nested"}),
         ("create_work", {"name":"nested/result.txt","content":"NESTED WORK"}),
         ("read_file", {"path":"work/nested/result.txt"}),
+        ("publish_artifact", {"name":"nested/result.txt"}),
     ],
 }
 

@@ -194,14 +194,19 @@ def _parent(api, root, parts, volume):
         yield parent, parts[-1]
 
 
-def _inventory(api, root, volume, prefix="", depth=0):
+def _inventory(api, root, volume, prefix="", depth=0, budget=None):
     if depth > 6:
         raise BrokerScopeDenied("Windows Work nesting quota exceeded")
+    if budget is None:
+        budget = [0]  # Count empty dirs as well as real files across recursion.
     files = []
     names = api.list_names(root, max_names=32)
     if len({name.casefold() for name in names}) != len(names):
         raise BrokerScopeDenied("Windows Work casefold collision")
     for name in sorted(names):
+        budget[0] += 1
+        if budget[0] > 64:
+            raise BrokerScopeDenied('Windows total Work entry quota exceeded')
         ensure_clean_work_entry(name)
         _parts(name)
         directory = None
@@ -213,7 +218,7 @@ def _inventory(api, root, volume, prefix="", depth=0):
             try:
                 api.validate(directory, directory=True, volume=volume)
                 files.extend(_inventory(api, directory, volume,
-                                        prefix + name + "/", depth + 1))
+                                        prefix + name + "/", depth + 1, budget))
             finally:
                 api.close(directory)
         else:

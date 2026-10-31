@@ -55,6 +55,17 @@ class NativeWorkBoundaries(unittest.TestCase):
             _inventory(self.fd)
         self.assertEqual(foreign.read_bytes(), b"OUTSIDE")
 
+    def test_empty_directory_tree_cannot_exhaust_unbounded_enumeration(self):
+        from minionone.native_work import _inventory
+        from minionone.agent_loop import BrokerScopeDenied
+        for i in range(4):
+            parent = self.root / "work" / f"group{i}"
+            parent.mkdir()
+            for j in range(16):
+                (parent / f"empty{j}").mkdir()
+        with self.assertRaises(BrokerScopeDenied):
+            _inventory(self.fd)
+
     def test_create_is_exclusive_and_never_truncates(self):
         from minionone.native_work import _write_new, _read
         from minionone.agent_loop import BrokerScopeDenied

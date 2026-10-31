@@ -40,7 +40,7 @@ def main(argv=None):
     assert cases["schema"]=="minionone.workfiles.v031"
     recorded={x["id"] for x in cases["cases"]}
     assert len(recorded)==22 and recorded=={"WF-"+f"{n:03d}" for n in range(1,23)}, \
-        "v0.31 case registry must contain all 16 unique requirements"
+        "v0.31 case registry must contain all 22 unique requirements"
 
     loader=unittest.TestLoader()
     suite=loader.discover(str(ROOT/"product_acceptance"),pattern="test_workfiles_v031_contract.py")

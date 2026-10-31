@@ -137,7 +137,8 @@ class NativeWorkV031Contract(unittest.TestCase):
         # The attempted second publish of the same name MUST be rejected;
         # worker must be able to read published artifact, but not manager logs.
         transcript=(root/"output"/"worker-io.jsonl").read_text(encoding="utf-8")
-        self.assertIn("SCOPE_DENIED",transcript)
+        self.assertGreaterEqual(transcript.count("SCOPE_DENIED"),2,
+             "duplicate publication and attempted output deletion must both be denied")
         self.assertIn('output/result.txt',transcript)
 
     def test_wf021_input_is_readable_but_not_editable_by_worker(self):
@@ -149,7 +150,8 @@ class NativeWorkV031Contract(unittest.TestCase):
         root=self.project/".minionone"/"jobs"/job["job_id"]
         inp=root/"input"/"sample.txt"
         self.assertEqual(inp.read_bytes(),b"synthetic bridge content")
-        self.assertIn("SCOPE_DENIED",(root/"output"/"worker-io.jsonl").read_text())
+        self.assertGreaterEqual((root/"output"/"worker-io.jsonl").read_text().count("SCOPE_DENIED"),2,
+                                "both input overwrite and input deletion must be denied")
         self.assertEqual((root/"output"/"result.txt").read_bytes(),b"INPUT REMAINS SEALED")
 
     def test_wf022_worker_can_create_and_use_nested_work_directories(self):
@@ -159,8 +161,13 @@ class NativeWorkV031Contract(unittest.TestCase):
         status=self.outcome(job)
         self.assertEqual(status["state"],"RESULT_READY",status)
         root=self.project/".minionone"/"jobs"/job["job_id"]
-        self.assertEqual((root/"work"/"nested"/"result.txt").read_bytes(),b"NESTED WORK")
-        self.assertTrue((root/"work"/"nested").is_dir())
+        # The nested directory is created, populated, used and then removed
+        # by the worker; a completed full-CRUD job must leave no stale tree.
+        self.assertFalse((root/"work"/"nested").exists(),
+             "WF-022: worker must be able to delete nested files and directories")
+        transcript=(root/"output"/"worker-io.jsonl").read_text()
+        self.assertIn("nested/result.txt",transcript)
+        self.assertIn("rmdir_work",transcript)
 
 
 if __name__=="__main__":

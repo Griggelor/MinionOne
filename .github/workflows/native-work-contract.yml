@@ -54,6 +54,17 @@ jobs:
           assert all(c['result'] in ('FAIL_TARGET_CONTRACT','PASS_SYNTH_HTTP_CONTRACT_NOT_TARGET_HOST')
                      for c in r['cases'][:3])
           print('EVIDENCE_COLLECTED_ONLY; WORK_PRODUCT_GO=NO; RESULT='+r['contract_result'])
+      - name: Verify strict product-contract gate fails only when real cases are red
+        shell: python
+        run: |
+          import json, subprocess, sys
+          from pathlib import Path
+          evidence=json.loads(Path('evidence/v031-workfiles/WORKFILES_V031_EVIDENCE.json').read_text(encoding='utf-8'))
+          expected=2 if evidence['contract_result']=='CONTRACT_NOT_MET' else 0
+          result=subprocess.run([sys.executable,'scripts/run_workfiles_v031.py',
+                                 '--strict','--out','evidence/v031-workfiles-strict'],check=False)
+          assert result.returncode==expected,(result.returncode,expected)
+          print('STRICT_GATE_VERIFIED: exit='+str(result.returncode)+' expected='+str(expected))
       - uses: actions/upload-artifact@v4
         if: always()
         with:

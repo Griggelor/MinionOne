@@ -5,6 +5,7 @@ target hardware, and uses only synthetic, non-sensitive test text.
 """
 from contextlib import redirect_stderr,redirect_stdout
 from io import StringIO
+import json
 from pathlib import Path
 import tempfile
 import threading
@@ -22,6 +23,8 @@ TOKEN='workspace-standalone-test-'+('Q'*48)
 class DeterministicFlintFixture:
     def __init__(self,*args,**kwargs):
         self._provider=SimpleNamespace(_opener=None)
+        self.sink=kwargs.get("io_sink")
+        self.turn=0
         self.steps=iter((
             ModelStep('tool',name='read_file',arguments={'path':'input/sample.txt'},total_tokens=2),
             ModelStep('tool',name='create_work',
@@ -31,8 +34,16 @@ class DeterministicFlintFixture:
             ModelStep('finish',text='finished',total_tokens=2),
         ))
     def next_step(self,*,timeout_seconds):
-        return next(self.steps)
+        step=next(self.steps)
+        self.turn+=1
+        if self.sink is not None:
+            self.sink("MODEL_REQUEST",json.dumps({"synthetic":True,"turn":self.turn}))
+            self.sink("MODEL_RESPONSE",json.dumps({"synthetic":True,"action":step.action,
+                 "tool":step.name if step.action=="tool" else "none"}))
+        return step
     def observe_tool(self,name,reply):
+        if self.sink is not None:
+            self.sink("TOOL_RESPONSE",json.dumps({"tool":name,"data":reply.data}))
         if reply.status!='ok':
             raise RuntimeError('unexpected denied synthetic broker operation')
 

@@ -19,7 +19,7 @@ An independent extension for Unsloth Studio that delegates bounded jobs from an 
 
 - \`input/\`: parent-prepared, sealed, immutable and listed in trusted hash manifest; worker **read only**.
 - \`work/\`: worker can list/read and create new files through the broker, **no overwrite**, rename, delete, append or execution.
-- \`output/\`: exclusively manager-written immutable artifact snapshots plus redacted \`output/job.log.jsonl\`; **no worker access**.
+- \`output/\`: exclusively manager-written result snapshots and a direct fsynced redacted job.log.jsonl; the opt-in sensitive worker-io.jsonl captures actual provider/tool bytes while the job runs. **No worker OS access**. Log files are intentionally append-only and differ from immutable published result snapshots; see ADR-029 v0.30. The target-host NTFS security gate is still NO-GO.
 
 **Windows gate:** lexical path checks alone do not provide sandboxing. Handle-bound filesystem operations must defend against reparse points, hardlinks, ADS, case folding, path aliases, race/swap attacks and non-owner ACL abuse. If unproven, worker file access stays disabled. Running a test on \`windows-latest\` does not prove this boundary.
 

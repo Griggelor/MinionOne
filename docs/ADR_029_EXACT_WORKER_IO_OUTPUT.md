@@ -36,17 +36,28 @@ Unter dem bereits genehmigten Projektordner und derselben Job-ID:
         result.txt        # Beispiel einer geprüften Worker-Veröffentlichung
 \`\`\`
 
-\`worker-io.jsonl\` wird **ausschließlich vom Manager** über die
-bestehende Windows-NTFS-/POSIX-Publikationsschnittstelle erzeugt,
-no-replace und durch SQLite-Receipts abgesichert. Der Worker kann
+\`worker-io.jsonl\` wird **ausschließlich vom Manager** geschrieben. Im
+aktuellen Live-Modus nutzt er native, geprüfte CREATE-ONLY-Output-Handles und
+synchronisiert jeden einzelnen Eintrag. Nur bei einem Fehler **vor** dem
+Öffnen des Live-Handles bleibt die ältere SQLite-gestützte
+No-Replace-Publikation als ausdrücklich markierter Notfallpfad bestehen. Der Worker kann
 den Namen weder als Work-Dokument erzeugen noch als Artefakt fälschen.
 
-Das neue, append-only SQLite-Journal \`workspace_worker_io\` führt
-zuvor alle einzelnen Ereignisse mit laufender Sequenz und SHA-256-
-Hashverkettung. Die Datei in \`output/\` ist die verifizierte
-Projektion nach dem letzten Worker-Aufruf. Sie wird **vor** der
-\`RESULT_READY\`-Freigabe veröffentlicht. Sie bleibt auch nach
-dem Eltern-ACK und nach einem Neustart auf dem Dateisystem stehen.
+**Seit v0.30:** Der Manager legt `output/worker-io.jsonl` direkt
+beim Workerstart mit einem nativen CREATE-ONLY-Dateihandle im genehmigten
+Projektverzeichnis an. **Jeder einzelne I/O-Eintrag wird sofort geschrieben
+und mit `fsync` (POSIX) bzw. `FlushFileBuffers` (Windows) synchronisiert.**
+Anschließend wird derselbe Eintrag mit Hashkette in SQLite gesichert.
+Die JSONL-Datei ist somit die eigenständig lesbare Primärspur, nicht mehr
+eine nachträglich erzeugte Projektion. Ein fehlgeschlagener Dateischreibvorgang
+darf nicht in einen erfolgreichen Workerabschluss münden.
+
+`output/job.log.jsonl` erhält während der Ausführung redigierte
+Modell-/Werkzeug-/Jobereignisse. Die bisherige SQLite-Zustandsführung,
+Berechtigungs- und ACK-Transaktionen bleiben erhalten. Ein Absturz kann
+die letzte JSONL-Zeile unvollständig zurücklassen; vorherige synchronisierte
+Einträge sind separat lesbar. Es erfolgt kein blindes Überschreiben.
+
 
 ## Exakt aufgezeichnete Nutzdaten
 
@@ -127,3 +138,41 @@ vollständige Werkzeugergebnisse, Modellabschluss, Hashketten,
 Dateiänderungsschutz und persistentes Vorhandensein nach ACK.
 
 **Produktfreigabe bleibt NO-GO.**
+
+## v0.30 – unabhängige Prozess- und Fehlerdateien
+
+Bereits **vor der SQLite-Initialisierung** öffnet MinionOne zwei Dateien
+im lokalen State-Verzeichnis:
+
+```text
+<state>/logs/minionone-process.jsonl
+<state>/logs/minionone-errors.jsonl
+```
+
+Im Standard-Windows-Systemtest liegt `<state>` unter
+`%LOCALAPPDATA%\MinionOne\SystemTest`; bei `--state` gilt der
+angegebene Ordner. Die beiden Dateien werden direkt mit `fsync`
+geschrieben, bei 8 MiB in zeitgestempelte Archivsegmente rotiert und bis zu 16
+ältere Segmente pro Logtyp aufbewahrt. Bei Überschreiten werden nur
+die ältesten Archivsegmente gelöscht, **niemals** beim Jobabschluss. Sie sind ohne SQLite und
+ohne MinionOne direkt lesbar.
+
+Prozess- und Fehlerlogs verwenden nur ein streng zugelassenes
+Metadatenschema. Sie speichern keine HTTP-Header, Zugangsdaten,
+Prompts, Hostpfade, Dateiinhalte oder rohen Exceptions. Bei Fehlern
+werden der Exception-Typ und gekürzte Stackframes mit Modul-Basisnamen,
+Funktion und Zeilennummer dokumentiert. Das vollständige, vertrauliche
+Worker-I/O liegt **nur** in `output/worker-io.jsonl`.
+
+Vom Provider tatsächlich übergebene Thinking-Felder bleiben in der
+Original-Response erhalten. Nicht zurückgegebene Gedankentexte sind
+nicht rekonstruierbar. Der aktuelle Transport verwendet weiter
+`stream:false`; tokenweises Thinking-Streaming wird nicht behauptet.
+
+Alle Dateiprojektionen sind Manager-eigen, Worker bekommen keine
+OS-Dateihandles oder Schreibrechte auf `output/`. Byte- und
+Ereignisgrenzen bleiben aktiv. Das Modell kann die Dateilogik
+nicht über einen Prompt ändern.
+
+**Produktstatus NO-GO** bis zum echten Zielhostlauf und den weiteren
+Dateibroker-/Wiederanlaufnachweisen.

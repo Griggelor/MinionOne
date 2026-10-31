@@ -16,12 +16,13 @@ from .admission import _digest
 from .workspace_sealing import _name as _seal_name
 
 from .admission import InputRejected, VersionConflict, IdempotencyConflict, PermissionDenied, _field, _OP
-from .pilot_jobs import _name, _text
+from .pilot_jobs import _name, _text, PilotError
 from .lifecycle import Evidence
 from .workspace_input_snapshot import SealedWorkspaceInput
 from .workspace_publication import WorkspacePublisher
 from .win32_output_publication import WindowsOutputPublisher
 from .worker_io import page as io_page, jsonl as io_jsonl, append as io_append
+from .live_job_files import LiveJobFiles
 import os
 
 
@@ -187,7 +188,7 @@ class WorkspaceJobs:
                 raise InputRejected("workspace document quota exhausted")
             active = con.execute("SELECT 1 FROM pilot_runs WHERE active=1 OR provider_inflight=1").fetchone()
             if active is not None:
-                raise InputRejected("another worker has exclusive provider lease")
+                raise PilotError("PILOT_JOB_BUSY")
             con.execute("UPDATE jobs SET job_kind='WORKSPACE' WHERE job_id=? AND version=?",
                         (job_id, expected_version))
             con.execute("INSERT INTO pilot_runs(job_id,task,model_id) VALUES(?,?,?)",
@@ -214,6 +215,10 @@ class WorkspaceJobs:
         return self.pilot.cancel(token,thread,job_id,expected_version,
                                  operation_id,kind="WORKSPACE")
 
+    def open_live_logs(self,job_id):
+        """Manager-owned native pinned direct JSONL files, one worker per job."""
+        return LiveJobFiles(self,job_id)
+
     def worker_io(self,token,thread,job_id,after_seq=0,limit=10):
         """Content-bearing sensitive live transcript; authorized parent ONLY."""
         principal=self.workspace.store._principal(token,thread)
@@ -224,11 +229,12 @@ class WorkspaceJobs:
                 raise PermissionDenied("worker IO transcript requires a workspace job")
             return io_page(con,job_id,after_seq,limit)
 
-    def publish_worker_io(self,job_id):
-        """Project complete verified sensitive transcript as immutable output.
+    def publish_worker_io_fallback(self,job_id):
+        """Emergency pre-open failure projection for a job WITHOUT live handles.
 
-        Run only after the worker's final model/tool exchange has quiesced.
-        DB journal is the durable source, native publisher handles crash replay.
+        Normal v0.30 worker execution fsyncs output/worker-io.jsonl per event.
+        This separate legacy publisher is retained only when the native live
+        output could not be opened, and is never used to replace a live file.
         """
         principal=self.workspace.store._principal(self.token,self.thread)
         with self.workspace.store._connection() as con:

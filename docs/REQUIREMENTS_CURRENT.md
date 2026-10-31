@@ -83,6 +83,11 @@
   und Windows **9/9** bestanden (PR #50, 21/21 GitHub-CI-Checks am
   Implementierungs-Commit). **Nicht** gleichbedeutend mit G1b-Zielhost-
   Sicherheitsprüfung oder Freigabe.
+- v0.33: Crash-left `pending-*`-Work-Zwischenstände werden auf Windows und POSIX
+  erkannt; mutierende Worker-Aufrufe und `RESULT_READY` werden bei unklarem
+  Dateizustand verweigert. Die neue Operatorprobe verifiziert echte Work-Bytes
+  vor dem ACK. [Windows-Testanleitung](WINDOWS_NATIVE_WORK_SYSTEMTEST_V033.md).
+  Synthetische CI **23/23** für PR #51 erfolgreich; *kein* G1b-Zielhost-GO.
 - **Noch nicht erfüllt**: vollständiger Windows-Dateibroker mit nachgewiesener
   NTFS-Isolation; echte OS-Sandbox/ACL und nicht-kooperierende Race-Tests;
   Crash-Replay-/Idempotenz-Verträge für Work-Mutationen; sichere Wiederaufnahme

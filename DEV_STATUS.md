@@ -1,5 +1,14 @@
 # Development status — 2026-10-31
 
+## v0.36 – native Windows AppContainer token verified (host isolation NO_GO)
+
+- [PR #54](https://github.com/Griggelor/MinionOne/pull/54) merged into `main`. Exact implementation head `52b2bcbb97d852e88654a534ef7af85ca3550887`: **24/24 CI checks green** on Windows/Ubuntu, including the dedicated native Windows child-token probe, full regression and package build.
+- Per-run AppContainer profile is created and deleted, only a fixed OS-owned `whoami.exe` is launched suspended under `STARTUPINFOEX` with zero declared capabilities, a **128 MiB/one-process Job Object**, and no inherited handles.
+- The manager queries the actual suspended child process token using `GetTokenInformation(TokenIsAppContainer)` **before resuming**; the real Windows native CI proves `TokenIsAppContainer=1`. Minimal process environment gets the OS-resolved `LOCALAPPDATA` known-folder path because AppContainer profile initialization requires it; arbitrary parent environment/secrets remain excluded.
+- The original Windows launch returned 203 (`ERROR_ENVVAR_NOT_FOUND`); this was fixed using `SHGetKnownFolderPath(FOLDERID_LocalAppData)`. Independent native Windows CI passed with the fix.
+- The module remains **test-only**, not connected to the worker's MCP, AgentLoop or BoxedToolGateway. No untrusted executable, shell or `run_tests` is enabled. No file, cross-job or network denial has been independently tested; `os_sandbox_attested=false`, customer/product and native execution gates remain **NO_GO**.
+- [AppContainer token proof and limitations](docs/WIN32_APPCONTAINER_TOKEN_V036.md). Next is a real adversarial helper process proving host/manager/foreign-job read and network denial, then bounded IPC and crash-safe worker tool receipts.
+
 ## v0.35 – native Windows Job Object lifecycle verified (OS sandbox NO_GO)
 
 - [PR #53](https://github.com/Griggelor/MinionOne/pull/53) merged into `main`. Exact implementation head `9c95b26e9350f6aecd4fd93cf1c2123a91503a7c`: **22/22 GitHub Actions checks green**, including the first dedicated native Windows suspended-process Job Object proof.

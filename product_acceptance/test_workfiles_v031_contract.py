@@ -24,17 +24,31 @@ class NativeWorkV031Contract(unittest.TestCase):
     setUp=CompleteBridgeE2E.setUp
     rpc=CompleteBridgeE2E.rpc
     direct=CompleteBridgeE2E.direct
+    staged=CompleteBridgeE2E.staged
     outcome=CompleteBridgeE2E.outcome
 
     def test_wf001_real_work_file_is_created_from_worker_tool_bytes(self):
         """WF-001: create_work must create a real disk file, not SQLite TEXT."""
-        job=self.direct("v031-work-real-0001")
-        status=self.outcome(job)
-        self.assertEqual(status["state"],"RESULT_READY",status)
-        work=self.project/".minionone"/"jobs"/job["job_id"]/"work"/"result.txt"
-        self.assertTrue(work.is_file(),
-            "WF-001 TARGET_NOT_MET: no real work/result.txt after create_work")
-        self.assertEqual(work.read_bytes(),b"SYNTHETIC BRIDGE CONTENT")
+        # Both customer-visible entry routes must result in the SAME real
+        # filesystem semantics. Run the two routes even when the first
+        # lacks a work file, then report both missing results together.
+        cases=[
+            ("DIRECT",self.direct("v031-work-real-0001"),
+             b"SYNTHETIC BRIDGE CONTENT"),
+            ("STAGED",self.staged(),b"SYNTHETIC STAGED CONTENT"),
+        ]
+        absent=[]
+        for route,job,expected in cases:
+            status=self.outcome(job)
+            self.assertEqual(status["state"],"RESULT_READY",status)
+            work=self.project/".minionone"/"jobs"/job["job_id"]/"work"/"result.txt"
+            if not work.is_file():
+                absent.append(route+": "+str(work))
+            else:
+                self.assertEqual(work.read_bytes(),expected)
+        self.assertFalse(absent,
+            "WF-001 TARGET_NOT_MET: no physical work file on route(s): "+
+            "; ".join(absent))
 
     def test_wf002_published_result_is_a_snapshot_of_real_work_bytes(self):
         """WF-002: output must derive from physical work file and preserve it."""

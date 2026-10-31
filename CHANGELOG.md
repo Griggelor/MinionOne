@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.32 Win32 Work implementation milestone — 2026-10-31 (WIP; PRODUCT NO-GO)
+
+- Merged requirements v0.31.1, POSIX physical Work v0.31.2 and native NTFS Work broker v0.32 into main; `docs/REQUIREMENTS_CURRENT.md` is the current requirements index.
+- Worker now operates on real `work/` files through scoped native handles on both OSes, with write-with-expected-digest, rename, delete and nested directories. Input remains read-only and existing output artifacts immutable. Legacy isolated six-tool SQLite test mode remains independent.
+- Nine synthetic HTTP/MCP real-Work tests **PASS on Windows and Ubuntu**; v0.32 PR #50 exact-head CI **21/21 successful** including native Win32 feasibility and Windows package checks. This is NOT a real Unsloth/Flint target-host acceptance.
+- Native Win32 Work test fixtures cover NTFS create/replace/rename/delete, nested operations, hardlink denial and invalid names. Race/ACL/crash replay and original-chat delivery are OPEN; release gate NO-GO.
+- Package version tag intentionally remains `0.25.0.dev0` until version-coordinated installable development release is cut.
+
+
 ## 0.19.0.dev0 — 2026-10-30 (WIP: PREPARING job staging; PRODUCT NO-GO)
 
 - Operator-approved project IDs, durable PREPARING job-ID, three real folders, idempotent retries, quota and scoped MCP status, all disabled unless explicitly configured.

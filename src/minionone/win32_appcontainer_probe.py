@@ -15,6 +15,7 @@ import os
 import secrets
 import subprocess
 import sys
+import uuid
 
 from .win32_job_object_probe import (
     JobProbeUnavailable, _ExtendedLimits, _StartupInfo, _ProcessInfo,
@@ -44,6 +45,39 @@ class _StartupInfoEx(ctypes.Structure):
         ("StartupInfo", _StartupInfo),
         ("lpAttributeList", ctypes.c_void_p),
     ]
+
+
+class _Guid(ctypes.Structure):
+    _fields_ = [
+        ("Data1", wintypes.DWORD), ("Data2", wintypes.WORD),
+        ("Data3", wintypes.WORD), ("Data4", ctypes.c_ubyte * 8),
+    ]
+
+
+def _trusted_local_appdata():
+    """Resolve the per-user AppContainer package root via Windows, not env text."""
+    shell = ctypes.WinDLL("shell32", use_last_error=True)
+    ole = ctypes.WinDLL("ole32", use_last_error=True)
+    shell.SHGetKnownFolderPath.argtypes = [
+        ctypes.POINTER(_Guid), wintypes.DWORD, wintypes.HANDLE,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    shell.SHGetKnownFolderPath.restype = ctypes.c_long
+    ole.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+    ole.CoTaskMemFree.restype = None
+    guid = _Guid.from_buffer_copy(
+        uuid.UUID("F1B32785-6FBA-4FCF-9D55-7B8E7F157091").bytes_le)
+    path = ctypes.c_void_p()
+    if shell.SHGetKnownFolderPath(ctypes.byref(guid), 0, None,
+                                  ctypes.byref(path)) != 0 or not path.value:
+        raise JobProbeUnavailable("OS LocalAppData known folder unavailable")
+    try:
+        result = ctypes.wstring_at(path.value)
+    finally:
+        ole.CoTaskMemFree(path)
+    if not result or not os.path.isabs(result) or len(result) > 32767:
+        raise JobProbeUnavailable("OS LocalAppData known folder invalid")
+    return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,8 +172,12 @@ def run_fixed_appcontainer_token_probe():
     # No command parsing, PATH lookup, editable script or arbitrary host binary.
     executable = os.path.join(windir, "System32", "whoami.exe")
     command = ctypes.create_unicode_buffer(subprocess.list2cmdline([executable]))
+    # Windows resolves the per-user AppContainer profile through LOCALAPPDATA.
+    # Do NOT inherit the host environment wholesale (which may contain secrets).
+    local_appdata = _trusted_local_appdata()
     environment = ctypes.create_unicode_buffer(
-        "SystemRoot=" + windir + "\0WINDIR=" + windir + "\0\0")
+        "LOCALAPPDATA=" + local_appdata + "\0SystemRoot=" + windir +
+        "\0WINDIR=" + windir + "\0\0")
 
     sid = ctypes.c_void_p()
     name = "MinionOne.Probe." + secrets.token_hex(12)

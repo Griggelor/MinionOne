@@ -1,5 +1,14 @@
 # Development status — 2026-10-30
 
+## Development checkpoint — 2026-10-31 (v0.32 implementation, still NO-GO)
+
+- PR #47 (v0.30), #48 (v0.31.1 requirements) and #49 (v0.31.2 POSIX Work) and #50 (v0.32 Win32 Work) are merged into `main`. The single current requirements entrypoint is `docs/REQUIREMENTS_CURRENT.md`.
+- Both **Windows** and **Ubuntu** now pass all **9/9 scoped physical Work synthetic HTTP/MCP acceptance cases**. Win32 exact-head PR #50: **21/21 GitHub Actions checks passed**, including strict Work gate and Windows source/package CI. See `https://github.com/Griggelor/MinionOne/actions/runs/41243000929`.
+- Windows implementation uses anchored, native relative NT handles; implementation and tests are *synthetic development evidence*, not audited Windows target-host sandbox/ACL, race or crash-idempotency guarantees.
+- Still **NOT VERIFIED**: real Unsloth/Flint integration and same-chat wakeup, actual customer host, OS adversarial race/ACL, safe multi-attempt resume, advanced fault recovery, guided setup and full release gates. Customer beta and real data remain **NO-GO**.
+- Installed Python package still identifies as `0.25.0.dev0` by design of existing wheel tests; **v0.32 refers to the implementation milestone, not a published versioned release**. Coordinate package/version markers before the next Windows system-test distribution.
+
+
 **Version:** 0.25.0.dev0 (GitHub development; TARGET_PRODUCT NO-GO)
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
 

@@ -1,5 +1,15 @@
 # Development status — 2026-10-31
 
+## v0.34 – Boxed tool gateway (logical boundary, NO OS execution sandbox)
+
+- [PR #52](https://github.com/Griggelor/MinionOne/pull/52) merged into `main`, implementation HEAD `64eace18be7d91a653acf9568a131d300918d2bf`: **23/23 exact-commit GitHub Actions checks green** on Windows and Ubuntu, including native Work evidence, Windows full-system package, official MCP SDKs and full HTTP bridge.
+- Untrusted LM Studio tool proposals now pass immutable trusted job-kind grants in AgentLoop **and** `BoxedToolGateway` before reaching any native/SQLite broker. Provider tool-schema exposure is driven by the same source-of-truth (6 legacy isolated / 11 actual Workspace tools).
+- MCP `minionone_status` explicitly returns `worker_tool_boundary=MANAGER_BROKER_FILES_ONLY`, `boxed_execution_enabled=false`, `os_sandbox_attested=false`. No new executable tool, shell, arbitrary code, host filesystem or OS sandbox claim.
+- Added failure tests with intentionally permissive brokers and forged tool requests, including repeated `execute_shell` and `run_tests` attempts. Full Windows CI revealed a tight synthetic HTTP deadline; the CI fixture now allows 6s for legitimate responses while keeping an intentional 9s timeout to verify quarantine.
+- [ADR-034](docs/ADR_034_BOXED_TOOL_EXECUTION.md) specifies the future process-isolated tool runner with a separate Windows AppContainer/Job Object or VM design, sandbox admission tests, quotas, no-network default, durable receipts and target-host verification.
+- Actual AppContainer/VM execution, crash-safe Work tool receipts, target-host OS isolation and real Unsloth/Flint same-chat confirmation remain **NO_GO for code execution and real data**.
+
+
 ## v0.33 – incomplete Work mutation quarantine, Windows operator self-test, product NO-GO
 
 - [PR #51](https://github.com/Griggelor/MinionOne/pull/51) merged into `main`. Exact-head commit `dee4513476cc53f76645511884461e2801a9bff1`: **23/23 GitHub Actions checks passed** (Windows/Ubuntu). Native Work synthetic MCP/HTTP remains 9/9 on each OS.

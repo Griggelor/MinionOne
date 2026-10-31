@@ -118,7 +118,7 @@ class FlashDelegationHTTP(FlashHTTPFixture,unittest.TestCase):
         self.assertEqual(len(ScriptedFlint.seen),1,"must never duplicate provider attempt")
         model,system,user=ScriptedFlint.seen[0]
         self.assertEqual(model,MODEL)
-        self.assertEqual(system,WORKSPACE_SYSTEM_POLICY if os.name!='nt' else SYSTEM_POLICY)
+        self.assertEqual(system,WORKSPACE_SYSTEM_POLICY)
         self.assertIn("AVAILABLE SEALED INPUT DOCUMENTS",user)
         self.assertIn("input/source.txt",user)
         self.assertIn("acceptance_criteria",user)

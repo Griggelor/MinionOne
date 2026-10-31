@@ -1,5 +1,12 @@
 # MinionOne – Echtsystem-Test
 
+> **Achtung – Legacy-SQLite-Dokumenttest:** Diese Anleitung beschreibt den älteren
+> isolierten Test mit sechs SQLite-Dokumentwerkzeugen. Für die aktuellen echten
+> Windows-NTFS-Dateirechte in `work/` und den aktuellen `workspace-self-test`
+> gilt stattdessen [Windows Native Work Systemtest v0.33](../docs/WINDOWS_NATIVE_WORK_SYSTEMTEST_V033.md).
+> Beide Verfahren bleiben ausschließlich synthetische Entwicklungstests.
+
+
 Diese Version führt echte begrenzte Jobs mit einem bereits geladenen lokalen
 LM-Studio-/Flint-Modell aus. Der Parent kann über MCP in Unsloth delegieren,
 auf das Ergebnis warten, Dateien lesen und den Empfang bestätigen.

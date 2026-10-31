@@ -4,6 +4,8 @@
 
 > **Public PRE-ALPHA · 0.25.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
+**v0.31 filesystem-first product reset (test-first only):** The real customer goal requires scoped physical files in each job's work/ directory. Current SQLite pilot_files document text is a synthetic execution backend, NOT the product work-file storage contract. The v0.31 spec and three real HTTP/MCP positive Work-file tests are intentionally RED until the native Work broker exists. SQLite remains a provisional manager-only transaction store; see [v0.31 specification](docs/SPEC_V031_FILESYSTEM_FIRST_TESTFIRST.md). A green evidence collector is not customer readiness.
+
 **New v0.19 WIP:** opt-in operator-approved project workspace staging with a durable PREPARING job ID (no seal, no worker file access, no Windows NTFS sandbox). See [target workflow](docs/PRODUCT_TARGET_WORKFLOW.md) and [live status evidence](evidence/product-status/PRODUCT_STATUS.md).
 
 MinionOne aims to delegate bounded tasks from a primary local assistant to specialist workers (initially via LM Studio), while keeping authorization, state, resource budgets, files and final integration under the trusted manager's control. It is **not** an official Unsloth project or an endorsed Unsloth extension.

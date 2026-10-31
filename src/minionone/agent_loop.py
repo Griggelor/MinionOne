@@ -153,11 +153,20 @@ class AgentLoop:
     publish, perform disk I/O, launch models, or notify an Unsloth chat.
     """
 
-    def __init__(self, limits: AgentLimits | None = None, *, clock=None):
+    def __init__(self, limits: AgentLimits | None = None, *, clock=None,
+                 allowed_tools=None):
         self.limits = AgentLimits() if limits is None else limits
         if type(self.limits) is not AgentLimits:
             raise AgentConfigurationError('validated immutable limits required')
         self._clock = clock if clock is not None else time.monotonic
+        # The trusted manager sets this *before* receiving any model output.
+        # None is retained for independent legacy policy tests only.
+        if allowed_tools is None:
+            allowed_tools = ALLOWED_WORKER_TOOLS
+        if (type(allowed_tools) is not frozenset or not allowed_tools or
+                allowed_tools - ALLOWED_WORKER_TOOLS):
+            raise AgentConfigurationError("untrusted or invalid tool grant")
+        self._allowed_tools = allowed_tools
 
     def run(self, provider, broker, *, cancelled=None):
         loops = tools = denials = total = idle = 0
@@ -213,7 +222,7 @@ class AgentLoop:
             tools += 1
             start_tool = None
             tool_timeout = None
-            if step.name not in ALLOWED_WORKER_TOOLS:
+            if step.name not in self._allowed_tools:
                 denials += 1
                 reply = BrokerReply('DENIED', 'FORBIDDEN_TOOL')
             else:

@@ -258,6 +258,8 @@ class LocalMCP(ThreadingHTTPServer):
                     "worker_file_backend":(("native_win32_work_sqlite_output" if os.name=="nt" else "native_posix_work_sqlite_output")
                                            if self.enable_workspace_jobs else "sqlite_documents") if self.pilot else None,
                     "host_filesystem_tools_enabled":False,
+                    "worker_tool_boundary":"MANAGER_BROKER_FILES_ONLY",
+                    "boxed_execution_enabled":False,"os_sandbox_attested":False,
                     "windows_file_broker_verified":False,"auto_wakeup_enabled":False,
                     "workspace_preparation_enabled":self.workspace is not None,
                     "workspace_execution_enabled":self.workspace_jobs is not None,

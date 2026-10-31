@@ -13,6 +13,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request
 
 from .agent_loop import ModelStep, BrokerReply, ALLOWED_WORKER_TOOLS
+from .boxed_tool_policy import profiles
 from .lmstudio_probe import LMStudioProbe
 from .diagnostics import classify_provider_failure, diagnostic as provider_diagnostic
 
@@ -61,7 +62,7 @@ _TOOLS = [
        "parameters":{"type":"object","properties":{},
                      "additionalProperties":True}
      }}
-    for name in sorted({'list_files', 'read_file', 'create_work', 'publish_artifact', 'report_progress', 'ask_question'})
+    for name in sorted(profiles()['ISOLATED_TEST'])
 ]
 
 _PARAMETERS = {
@@ -84,10 +85,10 @@ _PARAMETERS = {
 _WORKSPACE_TOOLS = _TOOLS + [
     {'type': 'function', 'function': {
         'name': name,
-        'description': 'Job-scoped POSIX Work operation; never host filesystem access.',
+        'description': 'Manager-controlled job-scoped native Work operation; never general host access.',
         'parameters': {'type': 'object', 'properties': {}}
     }}
-    for name in ('write_work', 'delete_work', 'rename_work', 'mkdir_work', 'rmdir_work')
+    for name in sorted(profiles()['WORKSPACE'] - profiles()['ISOLATED_TEST'])
 ]
 for _tool in _WORKSPACE_TOOLS:
     _properties = _PARAMETERS[_tool['function']['name']]

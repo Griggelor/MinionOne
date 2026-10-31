@@ -20,6 +20,7 @@ from .lifecycle import Evidence
 from .lmstudio_agent import LMStudioAgentProvider, PlannerRejected
 from .pilot_transport import DeadlineOpener
 from .worker_contract import SYSTEM_POLICY, WORKSPACE_SYSTEM_POLICY, task_message
+from .boxed_tool_policy import WorkerToolGrant, BoxedToolGateway
 from .job_telemetry import append as log_event
 from .worker_io import append as append_worker_io
 
@@ -293,8 +294,10 @@ class PilotJobs:
                     broker=NativeWorkspaceBroker(self,job,cap,self.workspace_execution)
             else:
                 broker=DocumentBroker(self,job,cap)
+            grant=WorkerToolGrant.for_job_kind('WORKSPACE' if workspace_job else 'ISOLATED_TEST')
             run=AgentLoop(AgentLimits(wall_seconds=self.config.wall_seconds,
-                    model_call_seconds=self.config.model_call_seconds)).run(observed,broker,
+                    model_call_seconds=self.config.model_call_seconds),
+                    allowed_tools=grant.allowed).run(observed,BoxedToolGateway(grant,broker),
                     cancelled=lambda:self._cancelled(job))
             if workspace_job:
                 # Each exact event has already been fsynced into output/;

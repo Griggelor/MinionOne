@@ -83,7 +83,7 @@ class ModelOverHTTP(BaseHTTPRequestHandler):
         self.send_header("Content-Length",str(len(body)))
         self.end_headers()
         try:self.wfile.write(body)
-        except (BrokenPipeError,ConnectionResetError):
+        except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError):
             pass  # Deliberately timed-out inference request.
 
     def do_GET(self):
@@ -109,7 +109,8 @@ class ModelOverHTTP(BaseHTTPRequestHandler):
                 "usage":{"total_tokens":10}})
             return
         if self.server.mode=="timeout":
-            time.sleep(3)
+            # Long enough to exceed the *deliberate* 6s model call deadline.
+            time.sleep(9)
         messages=data["messages"]
         completed=[message for message in messages if message.get("role")=="tool"]
         n=len(completed)
@@ -182,7 +183,7 @@ class CompleteBridgeE2E(unittest.TestCase):
             workspace_projects={"demo":self.project},
             enable_workspace_jobs=True,worker_model=MODEL,min_free_mb=1,
             lmstudio_url=f"http://127.0.0.1:{self.model.server_port}",
-            model_call_seconds=2)
+            model_call_seconds=6)
         threading.Thread(target=self.manager.serve_forever,daemon=True).start()
         self.addCleanup(self.manager.server_close)
         self.addCleanup(self.manager.shutdown)
@@ -307,7 +308,8 @@ class CompleteBridgeE2E(unittest.TestCase):
 
     def test_staged_route_real_http_seal_start_publish_ack(self):
         job=self.staged()
-        self.assertEqual(self.outcome(job)["state"],"RESULT_READY")
+        status=self.outcome(job)
+        self.assertEqual(status["state"],"RESULT_READY",status)
         self.assert_output(job,"SYNTHETIC STAGED CONTENT")
         result=self.rpc("minionone_workspace_result",{"job_id":job["job_id"]})
         self.assertEqual(self.rpc("minionone_accept_workspace_result",{

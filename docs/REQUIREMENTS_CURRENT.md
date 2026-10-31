@@ -94,6 +94,16 @@
   `BoxedToolGateway` prüfen vor jedem Broker-Zugriff. Shell-/Code-/Testausführung
   ist **weiterhin nicht implementiert**. Die OS-Prozesssandbox ist separat zu
   bauen und auf dem Zielrechner zu verifizieren. PR #52: 23/23 CI.
+- v0.35–v0.36: Native Windows-Prozesskontrolle ist testweise implementiert:
+  `CreateProcessW(CREATE_SUSPENDED)` → beschränktes Job Object →
+  `ResumeThread`, Timeout und Kill-on-close (PR #53: 22/22 CI).
+  Danach echter AppContainer-Kindprozess per `STARTUPINFOEX` mit
+  zero capabilities und nachgewiesenem `TokenIsAppContainer=1`
+  (PR #54: 24/24 CI). Beide sind **ausschließlich interne Probes**,
+  weder Worker-Shell noch eine attestierte Sandbox. Daten-/Netzwerk-
+  Denialtests, sichere IPC, getrennte Hostrechte und Target-Host-Gate fehlen.
+  [Prozesskontrolle](WIN32_JOB_OBJECT_PROBE_V035.md) /
+  [AppContainer-Kindtoken](WIN32_APPCONTAINER_TOKEN_V036.md).
 - **Noch nicht erfüllt**: vollständiger Windows-Dateibroker mit nachgewiesener
   NTFS-Isolation; echte OS-Sandbox/ACL und nicht-kooperierende Race-Tests;
   Crash-Replay-/Idempotenz-Verträge für Work-Mutationen; sichere Wiederaufnahme

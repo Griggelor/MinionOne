@@ -33,15 +33,25 @@ def build(source, destination):
     ], text=True).splitlines()
     if len(found) != 1 or not Path(found[0]).is_file():
         raise RuntimeError("exact Visual C++ x64 toolchain unavailable")
-    # Trusted CI script arguments, never tool/model sourced. No shell input
-    # reaches the exposed agent/MCP boundary; all paths come from checkout.
+    # Avoid cmd.exe /S nested-quote stripping around vcvars64.bat.
+    # The temporary .cmd contains ONLY known checkout/compiler paths;
+    # never worker content, model text or arbitrary tool arguments.
+    batch_path = destination.parent / "v037_trusted_compile.cmd"
     batch = (
-        'call "' + found[0] + '" >nul && cl.exe /nologo /W4 /WX /O2 /MT '
+        '@echo off\r\n'
+        'call "' + found[0] + '" >nul\r\n'
+        'if errorlevel 1 exit /b 1\r\n'
+        'cl.exe /nologo /W4 /WX /O2 /MT '
         '/DUNICODE /D_UNICODE /Fe:"' + str(destination) + '" "'
-        + str(source) + '" ws2_32.lib'
+        + str(source) + '" ws2_32.lib\r\n'
+        'exit /b %errorlevel%\r\n'
     )
-    subprocess.run([os.environ["ComSpec"], "/d", "/s", "/c", batch],
-                   cwd=destination.parent, check=True, timeout=120)
+    try:
+        batch_path.write_text(batch, encoding="utf-8")
+        subprocess.run([os.environ["ComSpec"], "/d", "/c", str(batch_path)],
+                       cwd=destination.parent, check=True, timeout=120)
+    finally:
+        batch_path.unlink(missing_ok=True)
     if not destination.is_file() or destination.stat().st_size < 1024:
         raise RuntimeError("native helper missing or truncated")
     return destination

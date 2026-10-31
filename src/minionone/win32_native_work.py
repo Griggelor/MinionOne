@@ -39,7 +39,7 @@ import re
 _MAX_FILE = 1_048_576
 _MAX_TOTAL = 4_194_304
 _MAX_FILES = 16
-_COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\\Z", re.ASCII)
+_COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z", re.ASCII)
 _RESERVED = {"con", "prn", "aux", "nul"} | {f"com{i}" for i in range(1, 10)} | {f"lpt{i}" for i in range(1, 10)}
 
 

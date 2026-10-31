@@ -21,17 +21,17 @@ class AdversarialProbePolicyTests(unittest.TestCase):
 
     def test_never_exposes_caller_selected_program_arguments(self):
         signature = inspect.signature(run_fixed_adversarial_access_probe)
-        self.assertEqual(list(signature.parameters), ["helper_executable"])
+        self.assertEqual(list(signature.parameters), [])
         for extras in ({"command": "cmd.exe"}, {"python": "print('hi')"},
                        {"model_input": "run tests"}, {"network": "example.com"},
                        {"manager_path": "C:\\Users\\Other\\secret"}):
             with self.subTest(extras=extras), self.assertRaises(TypeError):
-                run_fixed_adversarial_access_probe(None, **extras)
+                run_fixed_adversarial_access_probe(**extras)
 
     def test_ordinary_non_windows_host_refuses_to_claim_os_isolation(self):
         if sys.platform != "win32":
             with self.assertRaises(JobProbeUnavailable):
-                run_fixed_adversarial_access_probe("appcontainer_adversary_v037.exe")
+                run_fixed_adversarial_access_probe()
 
 
 @unittest.skipUnless(sys.platform == "win32" and
@@ -44,7 +44,7 @@ class NativeAdversarialBoundaryTests(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent
         helper = root / "evidence" / "v037" / "appcontainer_adversary_v037.exe"
         self.assertTrue(helper.is_file(), "trusted MSVC helper must be compiled first")
-        ev = run_fixed_adversarial_access_probe(helper)
+        ev = run_fixed_adversarial_access_probe()
         self.assertTrue(ev.real_appcontainer_token)
         self.assertTrue(ev.assigned_before_resume)
         self.assertTrue(ev.manager_canary_read_denied)

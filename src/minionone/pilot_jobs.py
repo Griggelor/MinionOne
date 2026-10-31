@@ -19,7 +19,7 @@ from .diagnostics import diagnostic, safe_tool_fault
 from .lifecycle import Evidence
 from .lmstudio_agent import LMStudioAgentProvider, PlannerRejected
 from .pilot_transport import DeadlineOpener
-from .worker_contract import SYSTEM_POLICY, task_message
+from .worker_contract import SYSTEM_POLICY, WORKSPACE_SYSTEM_POLICY, task_message
 from .job_telemetry import append as log_event
 from .worker_io import append as append_worker_io
 
@@ -127,7 +127,8 @@ class PilotJobs:
     def project(con,row):
         p=con.execute('SELECT * FROM pilot_runs WHERE job_id=?',(row['job_id'],)).fetchone()
         if p is None:raise PilotError('PILOT_STATE_INVALID')
-        return {'backend':'sqlite_documents','attempt_epoch':p['epoch'],'worker_model':p['model_id'],
+        return {'backend':('native_posix_work_sqlite_output' if row['job_kind']=='WORKSPACE' and os.name!='nt' else 'sqlite_documents'),
+                'attempt_epoch':p['epoch'],'worker_model':p['model_id'],
                 'model_turns':p['turns'],'tool_calls':p['tools'],'denials':p['denials'],
                 'tokens_used':p['tokens'],'progress_percent':p['percent'],
                 'provider_state_uncertain':bool(p['provider_inflight'] and not p['active']),
@@ -276,12 +277,17 @@ class PilotJobs:
                     self._current(io_con,job,cap)
                     append_worker_io(io_con,job,kind,body,live_writer=live_logs)
             provider=LMStudioAgentProvider(self.config.base_url,model_id=self.config.model_id,
-                        approved_prompt=instructions,system_prompt=SYSTEM_POLICY,
+                        approved_prompt=instructions,system_prompt=(WORKSPACE_SYSTEM_POLICY if workspace_job and os.name!='nt' else SYSTEM_POLICY),
                         max_output_tokens=2048,api_key=self.config.api_key,
-                        io_sink=worker_io_sink if workspace_job else None)
+                        io_sink=worker_io_sink if workspace_job else None,
+                         workspace_tools=workspace_job and os.name != 'nt')
             provider._provider._opener=DeadlineOpener(self.config.base_url,self.config.api_key)
             observed=ObservedProvider(self,job,cap,provider,live_logs=live_logs)
-            broker=DocumentBroker(self,job,cap)
+            if workspace_job and os.name != 'nt':
+                from .native_work import NativeWorkspaceBroker
+                broker=NativeWorkspaceBroker(self,job,cap,self.workspace_execution)
+            else:
+                broker=DocumentBroker(self,job,cap)
             run=AgentLoop(AgentLimits(wall_seconds=self.config.wall_seconds,
                     model_call_seconds=self.config.model_call_seconds)).run(observed,broker,
                     cancelled=lambda:self._cancelled(job))

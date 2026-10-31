@@ -61,7 +61,7 @@ _TOOLS = [
        "parameters":{"type":"object","properties":{},
                      "additionalProperties":True}
      }}
-    for name in sorted(ALLOWED_WORKER_TOOLS)
+    for name in sorted({'list_files', 'read_file', 'create_work', 'publish_artifact', 'report_progress', 'ask_question'})
 ]
 
 _PARAMETERS = {
@@ -69,11 +69,27 @@ _PARAMETERS = {
     'read_file': {'path': {'type':'string','maxLength':96}},
     'create_work': {'name': {'type':'string','maxLength':64},
                     'content': {'type':'string','maxLength':3500}},
-    'publish_artifact': {'name': {'type':'string','maxLength':64}},
+    'publish_artifact': {'name': {'type':'string','maxLength':240}},
+    'write_work': {'name': {'type':'string','maxLength':240},
+                   'content': {'type':'string','maxLength':3500},
+                   'expected_sha256': {'type':'string','minLength':64,'maxLength':64}},
+    'delete_work': {'path': {'type':'string','maxLength':240}},
+    'rename_work': {'source': {'type':'string','maxLength':240},
+                    'destination': {'type':'string','maxLength':240}},
+    'mkdir_work': {'path': {'type':'string','maxLength':240}},
+    'rmdir_work': {'path': {'type':'string','maxLength':240}},
     'report_progress': {'percent': {'type':'integer','minimum':0,'maximum':100}},
     'ask_question': {'question': {'type':'string','maxLength':1000}},
 }
-for _tool in _TOOLS:
+_WORKSPACE_TOOLS = _TOOLS + [
+    {'type': 'function', 'function': {
+        'name': name,
+        'description': 'Job-scoped POSIX Work operation; never host filesystem access.',
+        'parameters': {'type': 'object', 'properties': {}}
+    }}
+    for name in ('write_work', 'delete_work', 'rename_work', 'mkdir_work', 'rmdir_work')
+]
+for _tool in _WORKSPACE_TOOLS:
     _properties = _PARAMETERS[_tool['function']['name']]
     _tool['function']['parameters'] = {
         'type':'object','properties':_properties,
@@ -91,7 +107,7 @@ class LMStudioAgentProvider:
 
     def __init__(self, base_url, *, model_id, approved_prompt,
                  max_output_tokens=1024, api_key=None, system_prompt=None,
-                 io_sink=None):
+                 io_sink=None, workspace_tools=False):
         if type(model_id) is not str or _MODEL.fullmatch(model_id) is None:
             raise PlannerRejected("invalid model identifier")
         if type(approved_prompt) is not str or not 1 <= len(approved_prompt) <= 8000:
@@ -112,6 +128,9 @@ class LMStudioAgentProvider:
         if io_sink is not None and not callable(io_sink):
             raise PlannerRejected("invalid manager worker IO sink")
         self._io_sink=io_sink
+        if type(workspace_tools) is not bool:
+            raise PlannerRejected('invalid workspace tool policy')
+        self._tools = _WORKSPACE_TOOLS if workspace_tools else _TOOLS
 
     def next_step(self, *, timeout_seconds):
         if (type(timeout_seconds) not in (int,float) or
@@ -125,7 +144,7 @@ class LMStudioAgentProvider:
         payload={
             "model":self._model_id,
             "messages":self._messages,
-            "tools":_TOOLS,
+            "tools":self._tools,
             "tool_choice":"auto",
             "stream":False,
             "max_tokens":self._max_output_tokens,

@@ -245,10 +245,12 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(result.status,"PROVIDER_INVALID")
         self.assertIsNone(result.candidate_sha256)
 
-    def test_worker_tools_are_exactly_six_and_no_general_os_io(self):
+    def test_worker_tools_are_bounded_job_scoped_and_no_general_os_io(self):
+        # v0.31.1 expands scoped Work CRUD; no shell/network/generic IO.
         self.assertEqual(ALLOWED_WORKER_TOOLS,frozenset({
-            "list_files","read_file","create_work","publish_artifact",
-            "report_progress","ask_question"}))
+            "list_files","read_file","create_work","write_work",
+            "delete_work","rename_work","mkdir_work","rmdir_work",
+            "publish_artifact","report_progress","ask_question"}))
         self.assertNotIn("shell",ALLOWED_WORKER_TOOLS)
         self.assertNotIn("python",ALLOWED_WORKER_TOOLS)
         self.assertNotIn("http",ALLOWED_WORKER_TOOLS)

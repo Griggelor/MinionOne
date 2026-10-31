@@ -80,7 +80,12 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(data["tool_choice"],"auto")
         self.assertEqual(data["stream"],False)
         self.assertEqual(data["max_tokens"],512)
-        self.assertEqual({t["function"]["name"] for t in data["tools"]},
+        # Legacy isolated document mode still advertises its six original tools.
+        base={"list_files","read_file","create_work","publish_artifact",
+              "report_progress","ask_question"}
+        self.assertEqual({t["function"]["name"] for t in data["tools"]},base)
+        from minionone.lmstudio_agent import _WORKSPACE_TOOLS
+        self.assertEqual({t["function"]["name"] for t in _WORKSPACE_TOOLS},
                          ALLOWED_WORKER_TOOLS)
         self.assertFalse(any(t["function"]["name"]=="shell" for t in data["tools"]))
         self.assertEqual(data["messages"][0]["content"],"synthetic work only")

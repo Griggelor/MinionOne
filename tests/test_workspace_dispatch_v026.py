@@ -7,6 +7,7 @@ publication; Linux runner exercises POSIX publication.
 import hashlib
 import http.client
 import json
+import os
 from pathlib import Path
 import tempfile
 import threading
@@ -140,8 +141,12 @@ class WorkspaceDispatchMCP(unittest.TestCase):
         self.assertIn("workspace_job",result)
         artifact=Path(self.prep["output_dir"]) / "summary.txt"
         self.assertEqual(artifact.read_text(encoding="utf-8"),"Sandbox result")
-        self.assertEqual(list(Path(self.prep["work_dir"]).iterdir()),[],
-                         "worker never receives a host work file capability")
+        if os.name=='nt':
+            self.assertEqual(list(Path(self.prep["work_dir"]).iterdir()),[],
+                             "Windows worker still has no native Work capability")
+        else:
+            self.assertEqual((Path(self.prep["work_dir"])/"summary.txt").read_text(encoding="utf-8"),
+                             "Sandbox result")
         ready=self.call("minionone_workspace_result",{"job_id":self.job})
         self.assertEqual(ready["files"][0]["text"],"Sandbox result")
         self.assertEqual(ready["job_id"],self.job)

@@ -19,7 +19,8 @@ _EVENTS=frozenset((
     "MODEL_REQUEST_FINISHED","MODEL_REQUEST_FAILED",
     "WORKER_TOOL_COMPLETED","RESULT_DELIVERED",
 ))
-_NAMES=frozenset(("list_files","read_file","create_work","publish_artifact",
+_NAMES=frozenset(("list_files","read_file","create_work","write_work","delete_work",
+                  "rename_work","mkdir_work","rmdir_work","publish_artifact",
                   "report_progress","ask_question","FORBIDDEN_TOOL"))
 _STATES=frozenset(("ACCEPTED","VALIDATING","QUEUED","RESOURCE_CHECK",
                    "RUNNING","WAITING_FOR_PARENT","PAUSED","INTERRUPTED",

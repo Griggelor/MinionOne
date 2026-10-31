@@ -1,5 +1,6 @@
 """v0.37 adversarial AppContainer rights regression (synthetic only)."""
 import inspect
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -33,8 +34,9 @@ class AdversarialProbePolicyTests(unittest.TestCase):
                 run_fixed_adversarial_access_probe("appcontainer_adversary_v037.exe")
 
 
-@unittest.skipUnless(sys.platform == "win32",
-                     "real native AppContainer execution requires Windows")
+@unittest.skipUnless(sys.platform == "win32" and
+                     os.environ.get("MINIONONE_V037_NATIVE") == "1",
+                     "native V037 helper is only built in the dedicated Windows CI")
 class NativeAdversarialBoundaryTests(unittest.TestCase):
     def test_fixed_compiled_helper_enforces_four_denials_with_positive_controls(self):
         # The trusted CI build step supplies the fixed artifact path,

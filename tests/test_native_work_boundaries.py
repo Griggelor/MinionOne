@@ -63,6 +63,20 @@ class NativeWorkBoundaries(unittest.TestCase):
             _write_new(self.fd, "result.txt", b"EVIL")
         self.assertEqual(_read(self.fd, "result.txt"), b"ORIGINAL")
 
+    def test_orphaned_pending_work_file_quarantines_the_entire_inventory(self):
+        from minionone.native_work import _inventory, _parts
+        from minionone.work_path_policy import WorkTransactionUncertain
+        from minionone.agent_loop import BrokerScopeDenied
+        (self.root / "work" / "result.txt").write_bytes(b"COMPLETE")
+        (self.root / "work" / "pending-deadworker").write_bytes(b"PARTIAL")
+        with self.assertRaises(WorkTransactionUncertain) as observed:
+            _inventory(self.fd)
+        self.assertEqual(observed.exception.diagnostic.code, "PILOT_FILE_CHANGED")
+        with self.assertRaises(BrokerScopeDenied):
+            _parts("pending-deadworker")
+        self.assertEqual((self.root / "work" / "result.txt").read_bytes(), b"COMPLETE")
+        self.assertEqual((self.root / "work" / "pending-deadworker").read_bytes(), b"PARTIAL")
+
     def test_intermediate_symlink_directory_is_denied(self):
         from minionone.native_work import _parent
         from minionone.agent_loop import BrokerScopeDenied

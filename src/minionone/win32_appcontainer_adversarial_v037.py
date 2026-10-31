@@ -40,6 +40,8 @@ class AdversarialAccessEvidence:
     sibling_canary_read_denied: bool
     output_canary_write_denied: bool
     loopback_connect_denied: bool
+    loopback_connect_timed_out: bool
+    network_denial_verified: bool
     ordinary_host_positive_control: bool
     canary_integrity_preserved: bool
     process_exited: bool
@@ -335,9 +337,13 @@ def run_fixed_adversarial_access_probe():
                     str(bootstrap))
             result, token, assigned = _appcontainer_exit(
                 deployed, args, runnable)
-        if result != 0x40:
+        # Windows AppContainer loopback filters can silently drop SYN/accept.
+        # A confirmed connect failure due to an actual OS denial (0x40)
+        # is stronger evidence than a live-listener connection timeout
+        # (0x90). Crucially neither implies global no-network attestation.
+        if result not in (0x40, 0x90):
             raise JobProbeUnavailable(
-                "AppContainer access-denial contract failed; helper code=" +
+                "AppContainer synthetic file/network contract failed; helper code=" +
                 str(result))
         preserved = tuple(_hash(path) for path in files) == before
         if not preserved:
@@ -348,7 +354,9 @@ def run_fixed_adversarial_access_probe():
             manager_canary_read_denied=True,
             sibling_canary_read_denied=True,
             output_canary_write_denied=True,
-            loopback_connect_denied=True,
+            loopback_connect_denied=result == 0x40,
+            loopback_connect_timed_out=result == 0x90,
+            network_denial_verified=result == 0x40,
             ordinary_host_positive_control=True,
             canary_integrity_preserved=True,
             process_exited=True,

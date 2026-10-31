@@ -6,7 +6,7 @@ from minionone.agent_loop import (
     AgentConfigurationError, AgentLoop, AgentLimits, BrokerReply, ModelStep,
 )
 from minionone.boxed_tool_policy import (
-    BoxedRuntimeUnavailable, WorkerToolGrant, profiles,
+    BoxedRuntimeUnavailable, BoxedToolGateway, WorkerToolGrant, profiles,
 )
 from minionone.lmstudio_agent import _TOOLS, _WORKSPACE_TOOLS
 
@@ -94,6 +94,21 @@ class BoxedToolGrantTests(unittest.TestCase):
         self.assertEqual(result.status, 'SECURITY_ABORT')
         self.assertEqual(result.denials, 3)
         self.assertEqual(broker.executed, [])
+
+    def test_gateway_never_delegates_unapproved_tool_even_when_called_directly(self):
+        broker = PermissiveBroker()
+        box = BoxedToolGateway(WorkerToolGrant.for_job_kind('WORKSPACE'), broker)
+        for name in ('execute_shell', 'run_tests', 'unknown', 'powershell'):
+            with self.subTest(name=name), self.assertRaises(PermissionError):
+                box.execute(name, {}, timeout_seconds=10)
+        self.assertEqual(broker.executed, [])
+        allowed = box.execute('read_file', {'path':'input/sample.txt'}, timeout_seconds=10)
+        self.assertEqual(allowed.status, 'ok')
+        self.assertEqual(broker.executed, ['read_file'])
+        with self.assertRaises(PermissionError):
+            box.execute('read_file', [], timeout_seconds=10)
+        with self.assertRaises(PermissionError):
+            box.execute('read_file', {}, timeout_seconds=0)
 
     def test_invalid_dynamic_grant_fails_before_receiving_a_model_step(self):
         for bad in (set(['read_file']), frozenset(['execute_shell']), frozenset()):

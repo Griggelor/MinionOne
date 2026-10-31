@@ -99,7 +99,7 @@ int wmain(int argc, wchar_t **argv) {
                 if (selected == 0) {
                     closesocket(sock);
                     WSACleanup();
-                    return 0xE9; /* Timeout is NOT counted as access denial. */
+                    return 0x90 | mask; /* Timeout observed; NOT access-denied proof. */
                 }
                 if (selected < 0) {
                     closesocket(sock);

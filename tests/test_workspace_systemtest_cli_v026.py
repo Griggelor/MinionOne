@@ -84,11 +84,8 @@ class WorkspaceExerciseTests(unittest.TestCase):
         folder=self.project/'.minionone'/'jobs'/report['job_id']
         self.assertEqual((folder/'output'/'result.txt').read_text(encoding='utf-8'),
                          'MINIONONE WORKSPACE OK')
-        if os.name=='nt':
-            self.assertEqual(list((folder/'work').iterdir()),[])
-        else:
-            self.assertEqual((folder/'work'/'result.txt').read_text(encoding='utf-8'),
-                             'MINIONONE WORKSPACE OK')
+        self.assertEqual((folder/'work'/'result.txt').read_text(encoding='utf-8'),
+                         'MINIONONE WORKSPACE OK')
         status=self.client.tool('minionone_job_status',{'job_id':report['job_id']})
         self.assertEqual(status['state'],'COMPLETED')
         self.assertIn('workspace_job',status)

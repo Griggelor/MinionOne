@@ -1,0 +1,41 @@
+# Strict G2 synthetic bridge contract for native Win32 Work. A successful
+# collector is NOT sufficient: these target cases must themselves pass.
+name: Win32 native Work v0.32 strict integration (not product release)
+on:
+  pull_request:
+    paths:
+      - 'src/minionone/**'
+      - 'tests/test_win32_native_work_v032.py'
+      - 'tests/test_full_bridge_http_e2e_ci.py'
+      - 'product_acceptance/**'
+      - 'scripts/run_workfiles_v031.py'
+      - '.github/workflows/win32-native-work-v032.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  win32-native-work:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Install exact candidate
+        run: python -m pip install --disable-pip-version-check -e .
+      - name: Native Win32 NTFS Work handle-boundary tests
+        run: python -m unittest discover -s tests -p test_win32_native_work_v032.py -v
+      - name: Require all 9 actual Work synthetic HTTP/MCP contracts
+        run: python scripts/run_workfiles_v031.py --strict --out evidence/v032-win32-work
+      - name: Preserve exact evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v032-win32-native-work-contract
+          path: evidence/v032-win32-work/
+          if-no-files-found: ignore

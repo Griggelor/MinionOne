@@ -118,7 +118,7 @@ class FlashDelegationHTTP(FlashHTTPFixture,unittest.TestCase):
         self.assertEqual(len(ScriptedFlint.seen),1,"must never duplicate provider attempt")
         model,system,user=ScriptedFlint.seen[0]
         self.assertEqual(model,MODEL)
-        self.assertEqual(system,WORKSPACE_SYSTEM_POLICY if os.name!='nt' else SYSTEM_POLICY)
+        self.assertEqual(system,WORKSPACE_SYSTEM_POLICY)
         self.assertIn("AVAILABLE SEALED INPUT DOCUMENTS",user)
         self.assertIn("input/source.txt",user)
         self.assertIn("acceptance_criteria",user)
@@ -126,11 +126,8 @@ class FlashDelegationHTTP(FlashHTTPFixture,unittest.TestCase):
         folder=self.project/".minionone"/"jobs"/job
         self.assertEqual((folder/"output"/"result.txt").read_text(encoding="utf-8"),
                          "FLASH FLINT BOUNDED TASK COMPLETE")
-        if os.name=='nt':
-            self.assertEqual(list((folder/"work").iterdir()),[])
-        else:
-            self.assertEqual((folder/"work"/"result.txt").read_text(encoding="utf-8"),
-                             "FLASH FLINT BOUNDED TASK COMPLETE")
+        self.assertEqual((folder/"work"/"result.txt").read_text(encoding="utf-8"),
+                         "FLASH FLINT BOUNDED TASK COMPLETE")
         seal=self.call("minionone_verify_workspace_input",{"job_id":job})
         self.assertTrue(seal.get("verified",True),seal)
         result=self.call("minionone_workspace_result",{"job_id":job})

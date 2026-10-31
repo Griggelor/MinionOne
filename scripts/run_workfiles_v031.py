@@ -18,7 +18,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE="product_acceptance/test_workfiles_v031_contract.py"
 PATTERN=re.compile(r"test_wf(\d{3})_")
-EXPECTED={"WF-001","WF-002","WF-003"}
+EXPECTED={"WF-001","WF-002","WF-003","WF-017","WF-018","WF-019","WF-020","WF-021","WF-022"}
 
 
 def flatten(suite):
@@ -32,14 +32,14 @@ def flatten(suite):
 def main(argv=None):
     parser=argparse.ArgumentParser(description="v0.31 explicit RED work-folder contracts")
     parser.add_argument("--strict",action="store_true",
-                        help="return nonzero if ANY WF-001..003 target assertion fails")
+                        help="return nonzero if ANY nine executable native-work target assertions fail")
     parser.add_argument("--out",type=Path,default=ROOT/"evidence"/"v031-workfiles")
     args=parser.parse_args(argv)
 
     cases=json.loads((ROOT/"product_acceptance"/"WORKFILES_V031.json").read_text(encoding="utf-8"))
     assert cases["schema"]=="minionone.workfiles.v031"
     recorded={x["id"] for x in cases["cases"]}
-    assert len(recorded)==16 and recorded=={"WF-"+f"{n:03d}" for n in range(1,17)}, \
+    assert len(recorded)==22 and recorded=={"WF-"+f"{n:03d}" for n in range(1,23)}, \
         "v0.31 case registry must contain all 16 unique requirements"
 
     loader=unittest.TestLoader()
@@ -54,7 +54,7 @@ def main(argv=None):
             raise RuntimeError("duplicate contract test "+ident)
         discovered[ident]=test.id()
     if set(discovered)!=EXPECTED:
-        raise RuntimeError("WF-001..003 must have concrete running positive tests")
+        raise RuntimeError("WF-001..003 and WF-017..022 must have nine concrete running tests")
 
     stream=io.StringIO()
     result=unittest.TextTestRunner(stream=stream,verbosity=2).run(suite)
@@ -97,7 +97,7 @@ def main(argv=None):
         "contract_result":("CONTRACT_NOT_MET" if gaps else "SYNTH_HTTP_CONTRACT_MET_NOT_TARGET_APPROVED"),
         "customer_product_ready":False,
         "product_release":"NO_GO",
-        "gate_caveat":"a green evidence collection workflow does NOT mean the Work file contract passed",
+        "gate_caveat":"green evidence collection does NOT mean input/work/output filesystem permissions passed",
         "test_ids":sorted(discovered),
         "cases":observed}
     args.out.mkdir(parents=True,exist_ok=True)

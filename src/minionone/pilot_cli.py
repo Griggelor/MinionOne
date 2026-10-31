@@ -204,7 +204,7 @@ def _synthetic_workspace_folder(project_root, job):
         raise PilotError('PILOT_FILE_CHANGED')
     folder=root/'.minionone'/'jobs'/job
     for p in (root,root/'.minionone',root/'.minionone'/'jobs',folder,
-              folder/'input',folder/'output'):
+              folder/'input',folder/'work',folder/'output'):
         item=p.lstat()
         if not stat.S_ISDIR(item.st_mode) or p.is_symlink():
             raise PilotError('PILOT_FILE_CHANGED')
@@ -254,9 +254,12 @@ def workspace_exercise(client, *, project_id, project_root, model, timeout=900):
                  getattr(stat,'FILE_ATTRIBUTE_REPARSE_POINT',0x400))):
             raise PilotError('CONFIGURATION_INVALID')
         gate=client.tool('minionone_status',{})
+        expected_backend=('native_win32_work_sqlite_output' if os.name=='nt'
+                          else 'native_posix_work_sqlite_output')
         if (gate.get('release_gate')!='NO_GO' or
                 gate.get('workspace_execution_enabled') is not True or
                 gate.get('workspace_execution_mode')!='OPT_IN_DEV_SQLITE_SANDBOX' or
+                gate.get('worker_file_backend')!=expected_backend or
                 gate.get('host_filesystem_tools_enabled') is not False):
             raise PilotError('PILOT_TEST_MODE_DISABLED')
         report['steps'].append({'step':'opt_in_server_gate','passed':True})
@@ -309,12 +312,27 @@ def workspace_exercise(client, *, project_id, project_root, model, timeout=900):
         expected=b'MINIONONE WORKSPACE OK'
         if record['name']!='result.txt' or record['text'].encode('utf-8')!=expected:
             raise PilotError('PILOT_RESULT_UNEXPECTED')
+        # Native Work is not just an SQLite document mirror: validate the
+        # actual physical Worker bytes BEFORE accepting the result/ACK.
+        work=folder/'work'/'result.txt'
+        work_details=work.lstat()
+        work_blob=work.read_bytes()
+        if (not stat.S_ISREG(work_details.st_mode) or work.is_symlink() or
+                work_details.st_nlink!=1 or
+                (os.name=='nt' and work_details.st_file_attributes &
+                 getattr(stat,'FILE_ATTRIBUTE_REPARSE_POINT',0x400)) or
+                work_blob!=expected or
+                sha256(work_blob).hexdigest()!=record['sha256']):
+            raise PilotError('PILOT_FILE_CHANGED')
+        report['worker_file_backend']=expected_backend
+        report['steps'].append({'step':'real_native_work_file_and_digest_verified','passed':True})
         artifact=folder/'output'/'result.txt'
         details=artifact.lstat()
         if (not stat.S_ISREG(details.st_mode) or artifact.is_symlink() or
                 (os.name=='nt' and details.st_file_attributes &
                 getattr(stat,'FILE_ATTRIBUTE_REPARSE_POINT',0x400)) or
-                sha256(artifact.read_bytes()).hexdigest()!=record['sha256']):
+                sha256(artifact.read_bytes()).hexdigest()!=record['sha256'] or
+                artifact.read_bytes()!=work_blob):
             raise PilotError('PILOT_FILE_CHANGED')
         report['result_digest']=result['result_digest']
         report['steps'].append({'step':'published_file_and_digest_verified','passed':True})

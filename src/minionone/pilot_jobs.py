@@ -127,7 +127,8 @@ class PilotJobs:
     def project(con,row):
         p=con.execute('SELECT * FROM pilot_runs WHERE job_id=?',(row['job_id'],)).fetchone()
         if p is None:raise PilotError('PILOT_STATE_INVALID')
-        return {'backend':('native_posix_work_sqlite_output' if row['job_kind']=='WORKSPACE' and os.name!='nt' else 'sqlite_documents'),
+        return {'backend':(('native_win32_work_sqlite_output' if os.name=='nt' else 'native_posix_work_sqlite_output')
+                            if row['job_kind']=='WORKSPACE' else 'sqlite_documents'),
                 'attempt_epoch':p['epoch'],'worker_model':p['model_id'],
                 'model_turns':p['turns'],'tool_calls':p['tools'],'denials':p['denials'],
                 'tokens_used':p['tokens'],'progress_percent':p['percent'],
@@ -277,15 +278,19 @@ class PilotJobs:
                     self._current(io_con,job,cap)
                     append_worker_io(io_con,job,kind,body,live_writer=live_logs)
             provider=LMStudioAgentProvider(self.config.base_url,model_id=self.config.model_id,
-                        approved_prompt=instructions,system_prompt=(WORKSPACE_SYSTEM_POLICY if workspace_job and os.name!='nt' else SYSTEM_POLICY),
+                        approved_prompt=instructions,system_prompt=(WORKSPACE_SYSTEM_POLICY if workspace_job else SYSTEM_POLICY),
                         max_output_tokens=2048,api_key=self.config.api_key,
                         io_sink=worker_io_sink if workspace_job else None,
-                         workspace_tools=workspace_job and os.name != 'nt')
+                         workspace_tools=workspace_job)
             provider._provider._opener=DeadlineOpener(self.config.base_url,self.config.api_key)
             observed=ObservedProvider(self,job,cap,provider,live_logs=live_logs)
-            if workspace_job and os.name != 'nt':
-                from .native_work import NativeWorkspaceBroker
-                broker=NativeWorkspaceBroker(self,job,cap,self.workspace_execution)
+            if workspace_job:
+                if os.name == 'nt':
+                    from .win32_native_work import WindowsWorkspaceBroker
+                    broker=WindowsWorkspaceBroker(self,job,cap,self.workspace_execution)
+                else:
+                    from .native_work import NativeWorkspaceBroker
+                    broker=NativeWorkspaceBroker(self,job,cap,self.workspace_execution)
             else:
                 broker=DocumentBroker(self,job,cap)
             run=AgentLoop(AgentLimits(wall_seconds=self.config.wall_seconds,

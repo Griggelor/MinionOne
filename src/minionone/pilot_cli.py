@@ -315,8 +315,11 @@ def workspace_exercise(client, *, project_id, project_root, model, timeout=900):
         # Native Work is not just an SQLite document mirror: validate the
         # actual physical Worker bytes BEFORE accepting the result/ACK.
         work=folder/'work'/'result.txt'
-        work_details=work.lstat()
-        work_blob=work.read_bytes()
+        try:
+            work_details=work.lstat()
+            work_blob=work.read_bytes()
+        except OSError as exc:
+            raise PilotError('PILOT_FILE_CHANGED') from exc
         if (not stat.S_ISREG(work_details.st_mode) or work.is_symlink() or
                 work_details.st_nlink!=1 or
                 (os.name=='nt' and work_details.st_file_attributes &
@@ -328,11 +331,12 @@ def workspace_exercise(client, *, project_id, project_root, model, timeout=900):
         report['steps'].append({'step':'real_native_work_file_and_digest_verified','passed':True})
         artifact=folder/'output'/'result.txt'
         details=artifact.lstat()
+        artifact_blob=artifact.read_bytes()
         if (not stat.S_ISREG(details.st_mode) or artifact.is_symlink() or
                 (os.name=='nt' and details.st_file_attributes &
                 getattr(stat,'FILE_ATTRIBUTE_REPARSE_POINT',0x400)) or
-                sha256(artifact.read_bytes()).hexdigest()!=record['sha256'] or
-                artifact.read_bytes()!=work_blob):
+                sha256(artifact_blob).hexdigest()!=record['sha256'] or
+                artifact_blob!=work_blob):
             raise PilotError('PILOT_FILE_CHANGED')
         report['result_digest']=result['result_digest']
         report['steps'].append({'step':'published_file_and_digest_verified','passed':True})

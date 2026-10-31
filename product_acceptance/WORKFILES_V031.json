@@ -1,6 +1,6 @@
 {
   "schema": "minionone.workfiles.v031",
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "NORMATIVE_TARGET_NOT_EVIDENCE",
   "source_documents": [
     "docs/spec_baseline/20_NORMATIVE_ARCHITECTURE_V06.md",
@@ -8,7 +8,7 @@
     "docs/spec_baseline/07_TESTSTRATEGIE_TRACEABILITY.md",
     "docs/SPEC_V031_FILESYSTEM_FIRST_TESTFIRST.md"
   ],
-  "implementation_start_allowed_only_after": "WF-001..003 observed red by exact-code CI and strict mode nonzero",
+  "implementation_start_allowed_only_after": "WF-001..003 RED proven on Windows and Ubuntu; WF-017..022 are added independent TDD contracts",
   "product_release": "NO_GO",
   "metadata": {
     "target_platforms": [
@@ -19,8 +19,38 @@
     "product_parent": "Unsloth Flash actual target pending",
     "canonical_work_storage": "on_disk_work_directory",
     "manager_control_store": "transactional store, SQLite provisional, not document data",
-    "file_policy": "CREATE_ONLY_NO_OVERWRITE",
-    "path_output_policy": "flat output interim; output/artifacts from ADR-020 requires explicit final decision"
+    "file_policy": "INPUT_READ_ONLY_WORK_FULL_CRUD_OUTPUT_CREATE_ONLY_ARTIFACT_READ",
+    "path_output_policy": "flat output interim; output/artifacts from ADR-020 requires explicit final decision",
+    "work_rights": [
+      "list",
+      "read",
+      "create",
+      "overwrite",
+      "edit",
+      "rename",
+      "move_within_work",
+      "delete",
+      "mkdir",
+      "rmdir"
+    ],
+    "input_rights": [
+      "list",
+      "read"
+    ],
+    "output_artifact_rights": [
+      "create_new_only_via_broker",
+      "read_published_artifact"
+    ],
+    "output_forbidden": [
+      "overwrite",
+      "modify",
+      "delete",
+      "rename",
+      "move",
+      "read_or_modify_manager_logs"
+    ],
+    "security_boundary": "job-scoped filesystem confinement; no implicit shell or host file access",
+    "owner_override": "Owner instruction 2026-10-31 supersedes create-only in historical ADR-020 for work and manager-only output artifacts"
   },
   "cases": [
     {
@@ -52,20 +82,20 @@
     },
     {
       "id": "WF-004",
-      "baseline": "T-113 T-114",
-      "intent": "Keine Ueberschreibung/Casename-Kollision",
-      "level": "WIN32_NATIVE",
-      "status": "PLANNED",
-      "invariant": "no_overwrite",
+      "baseline": "T-113 T-114 (superseded by 2026-10-31 owner override where inconsistent)",
+      "intent": "Work darf gezielt bestehende Datei ueberschreiben; nur korrekte Dateiidentitaet, keine Ausbrueche; Output-Overwrite verweigert",
+      "level": "NATIVE_G2",
+      "status": "PLANNED_REVISED",
+      "invariant": "work_overwrite_scoped",
       "verified": false
     },
     {
       "id": "WF-005",
-      "baseline": "T-115 T-116",
-      "intent": "Replays idempotent, geaenderte Bytes denied",
+      "baseline": "T-115 T-116 (superseded by 2026-10-31 owner override where inconsistent)",
+      "intent": "Work-Replay mit Version/Digest und sicherer Rename/Delete-Idempotenz; kein unbeabsichtigtes Ueberschreiben bei Race",
       "level": "NATIVE_G2",
-      "status": "PLANNED",
-      "invariant": "idempotency",
+      "status": "PLANNED_REVISED",
+      "invariant": "work_mutation_idempotent",
       "verified": false
     },
     {
@@ -79,11 +109,11 @@
     },
     {
       "id": "WF-007",
-      "baseline": "T-118 T-123",
-      "intent": "Worker kann Output oder Logs weder lesen noch veraendern",
+      "baseline": "T-118 T-123 (superseded by 2026-10-31 owner override where inconsistent)",
+      "intent": "Output-Artefakte duerfen einmalig neu geschrieben und danach gelesen, aber niemals geaendert/geloescht werden; Manager-Logs unantastbar",
       "level": "NATIVE_G2",
-      "status": "PLANNED",
-      "invariant": "output_isolation",
+      "status": "PLANNED_REVISED",
+      "invariant": "output_create_only_and_manager_log_isolation",
       "verified": false
     },
     {
@@ -165,6 +195,60 @@
       "level": "ADVERSARIAL",
       "status": "PARTIAL_V030",
       "invariant": "execution_denial",
+      "verified": false
+    },
+    {
+      "id": "WF-017",
+      "baseline": "OWNER_2026-10-31",
+      "intent": "Bestehende reale Work-Datei unter gleichem Namen aendern, erneut lesen und die neuen Bytes publizieren",
+      "level": "SYNTH_HTTP_E2E",
+      "status": "IMPLEMENTATION_MISSING",
+      "invariant": "work_edit_overwrite",
+      "verified": false
+    },
+    {
+      "id": "WF-018",
+      "baseline": "OWNER_2026-10-31",
+      "intent": "Reale Work-Datei durch Worker loeschen; nach Delete ist sie nicht mehr vorhanden",
+      "level": "SYNTH_HTTP_E2E",
+      "status": "IMPLEMENTATION_MISSING",
+      "invariant": "work_delete",
+      "verified": false
+    },
+    {
+      "id": "WF-019",
+      "baseline": "OWNER_2026-10-31",
+      "intent": "Reale Work-Datei innerhalb des Work-Roots umbenennen oder verschieben",
+      "level": "SYNTH_HTTP_E2E",
+      "status": "IMPLEMENTATION_MISSING",
+      "invariant": "work_rename",
+      "verified": false
+    },
+    {
+      "id": "WF-020",
+      "baseline": "OWNER_2026-10-31",
+      "intent": "Output-Artefakte koennen einmalig erstellt und gelesen, aber nicht modifiziert, geloescht oder neu unter gleichem Namen publiziert werden; unabhaengig von Work-Aenderung",
+      "level": "SYNTH_HTTP_E2E",
+      "status": "IMPLEMENTATION_MISSING",
+      "invariant": "output_immutable_after_publish",
+      "verified": false
+    },
+    {
+      "id": "WF-021",
+      "baseline": "OWNER_2026-10-31",
+      "intent": "Input-Dateien lesbar; Schreib-/Delete-/Rename-Versuche verweigert, Originalbytes bleiben unveraendert",
+      "level": "SYNTH_HTTP_E2E",
+      "status": "IMPLEMENTATION_MISSING",
+      "invariant": "sealed_input_read_only",
+      "verified": false
+    },
+    {
+      "id": "WF-022",
+      "baseline": "OWNER_2026-10-31",
+      "intent": "Worker darf Unterverzeichnisse im Work-Root anlegen, nutzen und verwalten; keine Flucht aus Work",
+      "level": "SYNTH_HTTP_E2E",
+      "status": "IMPLEMENTATION_MISSING",
+      "invariant": "nested_work_directories",
       "verified": false
     }
   ]

@@ -1,4 +1,13 @@
-# Development status — 2026-10-30
+# Development status — 2026-10-31
+
+## v0.33 – incomplete Work mutation quarantine, Windows operator self-test, product NO-GO
+
+- [PR #51](https://github.com/Griggelor/MinionOne/pull/51) merged into `main`. Exact-head commit `dee4513476cc53f76645511884461e2801a9bff1`: **23/23 GitHub Actions checks passed** (Windows/Ubuntu). Native Work synthetic MCP/HTTP remains 9/9 on each OS.
+- An interrupted `pending-*` Work write is quarantined before further mutations or `RESULT_READY`: remaining bytes are **preserved for reconciliation**, never silently deleted or published. Tool receipt uncertainty maps to `NEEDS_RECONCILIATION`; **not** a complete crash-replay/idempotency solution.
+- Work inventory now limits 64 total filesystem entries across recursive subdirectories, preventing unbounded enumeration of empty directories. Internal output/log and pending names, and casefold-duplicate artifact destinations are blocked.
+- Real workspace CLI `workspace-self-test` now verifies a **physical native Work file** with expected content, file type, single-link identity and SHA-256 before the output copy and ACK. A regression test removes Work after publishing and verifies **no ACK**.
+- [Operator test procedure](docs/WINDOWS_NATIVE_WORK_SYSTEMTEST_V033.md); actual Unsloth/Flint/Windows target-host tests, adversarial ACL/races, safe Work journaling and original-chat wakeup remain unverified. **NO_GO for real data.**
+
 
 ## Development checkpoint — 2026-10-31 (v0.32 implementation, still NO-GO)
 

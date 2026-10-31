@@ -115,14 +115,19 @@ def _write_new(fd, name, content):
             os.close(handle)
 
 
-def _inventory(fd, prefix="", depth=0):
+def _inventory(fd, prefix="", depth=0, budget=None):
     if depth > 6:
         raise BrokerScopeDenied("work directory depth exceeded")
+    if budget is None:
+        budget = [0]  # Shared by all recursive calls: directories count too.
     result = []
     names = os.listdir(fd)
     if len({name.casefold() for name in names}) != len(names):
         raise BrokerScopeDenied("ambiguous work filenames")
     for name in sorted(names):
+        budget[0] += 1
+        if budget[0] > 64:
+            raise BrokerScopeDenied('work total entry quota exceeded')
         ensure_clean_work_entry(name)
         _parts(name)
         info = os.stat(name, dir_fd=fd, follow_symlinks=False)
@@ -132,7 +137,7 @@ def _inventory(fd, prefix="", depth=0):
         if stat.S_ISDIR(info.st_mode):
             child = os.open(name, _FLAGS, dir_fd=fd)
             try:
-                result.extend(_inventory(child, path + "/", depth + 1))
+                result.extend(_inventory(child, path + "/", depth + 1, budget))
             finally:
                 os.close(child)
         elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:

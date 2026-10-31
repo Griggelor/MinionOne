@@ -1,0 +1,171 @@
+{
+  "schema": "minionone.workfiles.v031",
+  "schema_version": 1,
+  "kind": "NORMATIVE_TARGET_NOT_EVIDENCE",
+  "source_documents": [
+    "docs/spec_baseline/20_NORMATIVE_ARCHITECTURE_V06.md",
+    "docs/spec_baseline/23_TEST_PLAN_V06.md",
+    "docs/spec_baseline/07_TESTSTRATEGIE_TRACEABILITY.md",
+    "docs/SPEC_V031_FILESYSTEM_FIRST_TESTFIRST.md"
+  ],
+  "implementation_start_allowed_only_after": "WF-001..003 observed red by exact-code CI and strict mode nonzero",
+  "product_release": "NO_GO",
+  "metadata": {
+    "target_platforms": [
+      "Windows native NTFS",
+      "Ubuntu POSIX"
+    ],
+    "test_provider": "local deterministic LM-Studio-compatible real HTTP server",
+    "product_parent": "Unsloth Flash actual target pending",
+    "canonical_work_storage": "on_disk_work_directory",
+    "manager_control_store": "transactional store, SQLite provisional, not document data",
+    "file_policy": "CREATE_ONLY_NO_OVERWRITE",
+    "path_output_policy": "flat output interim; output/artifacts from ADR-020 requires explicit final decision"
+  },
+  "cases": [
+    {
+      "id": "WF-001",
+      "baseline": "T-112 / ADR-020 §3",
+      "intent": "Echte work/result.txt enthaelt Worker-Toolbytes",
+      "level": "SYNTH_HTTP_E2E",
+      "status": "IMPLEMENTATION_MISSING",
+      "invariant": "file_bytes_exact",
+      "verified": false
+    },
+    {
+      "id": "WF-002",
+      "baseline": "T-112 T-121",
+      "intent": "Publizierte output/result.txt entstammt echter unveraenderter Work-Datei",
+      "level": "SYNTH_HTTP_E2E",
+      "status": "IMPLEMENTATION_MISSING",
+      "invariant": "output_hash_matches_work",
+      "verified": false
+    },
+    {
+      "id": "WF-003",
+      "baseline": "ADR-020 §3",
+      "intent": "Work-Inhalt ist nicht lediglich die SQLite-pilot_files-Textspalte",
+      "level": "SYNTH_HTTP_E2E",
+      "status": "IMPLEMENTATION_MISSING",
+      "invariant": "no_virtual_primary_work",
+      "verified": false
+    },
+    {
+      "id": "WF-004",
+      "baseline": "T-113 T-114",
+      "intent": "Keine Ueberschreibung/Casename-Kollision",
+      "level": "WIN32_NATIVE",
+      "status": "PLANNED",
+      "invariant": "no_overwrite",
+      "verified": false
+    },
+    {
+      "id": "WF-005",
+      "baseline": "T-115 T-116",
+      "intent": "Replays idempotent, geaenderte Bytes denied",
+      "level": "NATIVE_G2",
+      "status": "PLANNED",
+      "invariant": "idempotency",
+      "verified": false
+    },
+    {
+      "id": "WF-006",
+      "baseline": "T-119 T-120 T-144..T-148",
+      "intent": "Traversal, Junction, Hardlink, ADS, UNC, Fremdnutzer denied",
+      "level": "WINDOWS_TARGET",
+      "status": "PLANNED",
+      "invariant": "scoped_access",
+      "verified": false
+    },
+    {
+      "id": "WF-007",
+      "baseline": "T-118 T-123",
+      "intent": "Worker kann Output oder Logs weder lesen noch veraendern",
+      "level": "NATIVE_G2",
+      "status": "PLANNED",
+      "invariant": "output_isolation",
+      "verified": false
+    },
+    {
+      "id": "WF-008",
+      "baseline": "T-121 T-122",
+      "intent": "Keine Publikation ohne echt verifizierte Work-Quelle",
+      "level": "SYNTH_HTTP_E2E",
+      "status": "PLANNED",
+      "invariant": "source_proof",
+      "verified": false
+    },
+    {
+      "id": "WF-009",
+      "baseline": "T-125 T-149..T-152",
+      "intent": "Nach Crash an File-fsync/Receipt-Grenze keine falsche Wiederholung",
+      "level": "OS_KILL_G2",
+      "status": "PLANNED",
+      "invariant": "crash_quarantine",
+      "verified": false
+    },
+    {
+      "id": "WF-010",
+      "baseline": "T-007 FR-09",
+      "intent": "Frage Antwort Resume dieselbe Job-ID",
+      "level": "PARENT_E2E",
+      "status": "PLANNED",
+      "invariant": "resume",
+      "verified": false
+    },
+    {
+      "id": "WF-011",
+      "baseline": "T-008 T-100..T-103",
+      "intent": "Exaktes Worker-I/O/Thinking und redigierte Managerlogs",
+      "level": "SYNTH_HTTP_E2E",
+      "status": "PARTIAL_V030",
+      "invariant": "log_fidelity",
+      "verified": false
+    },
+    {
+      "id": "WF-012",
+      "baseline": "T-009 T-104 T-155",
+      "intent": "Elternchat prueft, integriert und ACKt tatsaechliche Dateien",
+      "level": "UNSLOTH_TARGET",
+      "status": "PLANNED",
+      "invariant": "real_parent_ack",
+      "verified": false
+    },
+    {
+      "id": "WF-013",
+      "baseline": "NEW_USER",
+      "intent": "Gefuehrte Einrichtung statt manuellem MCP/Token-Frickeln",
+      "level": "WINDOWS_UX",
+      "status": "PLANNED",
+      "invariant": "setup",
+      "verified": false
+    },
+    {
+      "id": "WF-014",
+      "baseline": "NEW_USER",
+      "intent": "Kundenauftrag Ergebnis und verstaendliche Fehlerbehandlung",
+      "level": "WINDOWS_UX",
+      "status": "PLANNED",
+      "invariant": "customer_journey",
+      "verified": false
+    },
+    {
+      "id": "WF-015",
+      "baseline": "ADR-020 §4",
+      "intent": "Zustandsbank-Recovery ohne Worker-Bytes ausschliesslich in DB",
+      "level": "NATIVE_G2",
+      "status": "PLANNED",
+      "invariant": "state_recovery",
+      "verified": false
+    },
+    {
+      "id": "WF-016",
+      "baseline": "ADR-020 §6",
+      "intent": "Keine unautorisierte Shell/Git/Codeausfuehrung",
+      "level": "ADVERSARIAL",
+      "status": "PARTIAL_V030",
+      "invariant": "execution_denial",
+      "verified": false
+    }
+  ]
+}

@@ -1,5 +1,13 @@
 # Development status — 2026-10-31
 
+## v0.35 – native Windows Job Object lifecycle verified (OS sandbox NO_GO)
+
+- [PR #53](https://github.com/Griggelor/MinionOne/pull/53) merged into `main`. Exact implementation head `9c95b26e9350f6aecd4fd93cf1c2123a91503a7c`: **22/22 GitHub Actions checks green**, including the first dedicated native Windows suspended-process Job Object proof.
+- Added a **test-only** manager-owned native Win32 process-control probe: fixed benign scripts only, no model-provided command/executable, suspended creation then Job Object attachment before resume, kill-on-close, 256 MiB process memory, two active processes maximum, short timeout and hard termination. Minimal explicit child environment, no arbitrary inherited handles.
+- A Job Object is a process/resource fence, **NOT** a filesystem or network sandbox. Probe reports `worker_tool_exposed=false` and `os_sandbox_attested=false`. No Flint tool privilege change or code execution available to workers.
+- [Native Windows process proof and limitations](docs/WIN32_JOB_OBJECT_PROBE_V035.md). Next separate development increment: AppContainer child token verification and adversarial file/network access-denial gates, without claiming product GO.
+
+
 ## v0.34 – Boxed tool gateway (logical boundary, NO OS execution sandbox)
 
 - [PR #52](https://github.com/Griggelor/MinionOne/pull/52) merged into `main`, implementation HEAD `64eace18be7d91a653acf9568a131d300918d2bf`: **23/23 exact-commit GitHub Actions checks green** on Windows and Ubuntu, including native Work evidence, Windows full-system package, official MCP SDKs and full HTTP bridge.

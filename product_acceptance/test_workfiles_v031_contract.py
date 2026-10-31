@@ -9,6 +9,7 @@ Sources: ADR-020 §3, 23_TEST_PLAN_V06 T-112/T-121, SPEC_V031.
 """
 from contextlib import closing
 from hashlib import sha256
+import json
 from pathlib import Path
 import sqlite3
 import sys
@@ -18,6 +19,21 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"tests"))
 # Import the bridge module, NOT a unittest.TestCase class into this module's
 # namespace. unittest discovery otherwise collects its unrelated dozen tests.
 import test_full_bridge_http_e2e_ci as bridge
+
+
+def _denied_tool_replies(path):
+    """Return exact manager-broker DENIED results from the worker JSONL wire log."""
+    events=[json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    replies=[]
+    for event in events:
+        if event["kind"]!="TOOL_RESPONSE":
+            continue
+        raw=json.loads(event["body_utf8"])
+        if type(raw) is dict and type(raw.get("content")) is str:
+            value=json.loads(raw["content"])
+            if value.get("status")=="DENIED":
+                replies.append(value["result_code"])
+    return replies
 
 
 class NativeWorkV031Contract(unittest.TestCase):
@@ -99,6 +115,8 @@ class NativeWorkV031Contract(unittest.TestCase):
         status=self.outcome(job)
         self.assertEqual(status["state"],"RESULT_READY",status)
         root=self.project/".minionone"/"jobs"/job["job_id"]
+        self.assertTrue((root/"work"/"result.txt").is_file(),
+            "WF-017 TARGET_NOT_MET: edit did not produce a real work/result.txt")
         self.assertEqual((root/"work"/"result.txt").read_bytes(),b"REVISED")
         self.assertEqual((root/"output"/"result.txt").read_bytes(),b"REVISED")
         self.assertIn("write_work", (root/"output"/"worker-io.jsonl").read_text())
@@ -111,6 +129,8 @@ class NativeWorkV031Contract(unittest.TestCase):
         self.assertEqual(status["state"],"RESULT_READY",status)
         root=self.project/".minionone"/"jobs"/job["job_id"]
         self.assertFalse((root/"work"/"discard.txt").exists())
+        self.assertTrue((root/"work"/"result.txt").is_file(),
+            "WF-018 TARGET_NOT_MET: worker did not complete work deletion and final file creation")
         self.assertEqual((root/"work"/"result.txt").read_bytes(),b"KEPT")
         self.assertEqual((root/"output"/"result.txt").read_bytes(),b"KEPT")
 
@@ -137,7 +157,8 @@ class NativeWorkV031Contract(unittest.TestCase):
         # The attempted second publish of the same name MUST be rejected;
         # worker must be able to read published artifact, but not manager logs.
         transcript=(root/"output"/"worker-io.jsonl").read_text(encoding="utf-8")
-        self.assertGreaterEqual(transcript.count("SCOPE_DENIED"),2,
+        denied=_denied_tool_replies(root/"output"/"worker-io.jsonl")
+        self.assertGreaterEqual(len(denied),2,
              "duplicate publication and attempted output deletion must both be denied")
         self.assertIn('output/result.txt',transcript)
 
@@ -150,7 +171,8 @@ class NativeWorkV031Contract(unittest.TestCase):
         root=self.project/".minionone"/"jobs"/job["job_id"]
         inp=root/"input"/"sample.txt"
         self.assertEqual(inp.read_bytes(),b"synthetic bridge content")
-        self.assertGreaterEqual((root/"output"/"worker-io.jsonl").read_text().count("SCOPE_DENIED"),2,
+        denied=_denied_tool_replies(root/"output"/"worker-io.jsonl")
+        self.assertGreaterEqual(len(denied),2,
                                 "both input overwrite and input deletion must be denied")
         self.assertEqual((root/"output"/"result.txt").read_bytes(),b"INPUT REMAINS SEALED")
 

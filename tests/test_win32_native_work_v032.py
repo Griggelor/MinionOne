@@ -101,6 +101,16 @@ class NativeNTFSFileOps(unittest.TestCase):
         self.assertEqual(self.api.read_work(self.work, "result.txt", self.volume),
                          b"COMPLETE")
 
+    def test_native_work_inventory_counts_empty_directory_nodes(self):
+        from minionone.win32_native_work import _inventory
+        for i in range(4):
+            folder = self.root_path / "work" / f"group{i}"
+            folder.mkdir()
+            for j in range(16):
+                (folder / f"empty{j}").mkdir()
+        with self.assertRaises(BrokerScopeDenied):
+            _inventory(self.api, self.work, self.volume)
+
     def test_refuse_hardlink_alias_to_another_file(self):
         foreign = self.root_path / "foreign.txt"
         foreign.write_bytes(b"OUTSIDE SECRET")

@@ -34,7 +34,27 @@ from .win32_output_publication import (
     _FILE_CREATE, _FILE_OPEN, _NORMAL, _NOT_FOUND,
 )
 from .win32_work_create_probe import _FILE_WRITE_DATA
-from .native_work import _MAX_FILE, _MAX_TOTAL, _MAX_FILES, _parts
+import re
+
+_MAX_FILE = 1_048_576
+_MAX_TOTAL = 4_194_304
+_MAX_FILES = 16
+_COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\\Z", re.ASCII)
+_RESERVED = {"con", "prn", "aux", "nul"} | {f"com{i}" for i in range(1, 10)} | {f"lpt{i}" for i in range(1, 10)}
+
+
+def _parts(path):
+    if type(path) is not str or len(path) > 240:
+        raise BrokerScopeDenied("invalid Work path")
+    parts = path.split("/")
+    if not 1 <= len(parts) <= 6:
+        raise BrokerScopeDenied("invalid Work depth")
+    for part in parts:
+        if (not _COMPONENT.fullmatch(part) or part in (".", "..")
+                or part.endswith(".") or ".." in part
+                or part.split(".")[0].casefold() in _RESERVED):
+            raise BrokerScopeDenied("unsafe Work path component")
+    return tuple(parts)
 
 _SHARE_ALL = 0x1 | 0x2 | 0x4
 _DISPOSITION_INFO = 13

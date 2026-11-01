@@ -14,8 +14,9 @@ STARTUPINFOEX HANDLE_LIST.
   inheritable Win32 event, verifies it is signalled AND actually marked
   inheritable, passes its numeric value only as a test marker, but does not
   include it in the child HANDLE_LIST. The real AppContainer child must
-  observe ERROR_INVALID_HANDLE from both GetHandleInformation and
-  WaitForSingleObject. The two anonymous IPC pipe handles remain the
+  observe ERROR_INVALID_HANDLE (or the exact equivalent Windows
+  STATUS_INVALID_HANDLE exception) from GetHandleInformation. The parent
+  separately checks that its valid event is signalled and inheritable. The two anonymous IPC pipe handles remain the
   only intentional inherited handles. This tests a known canary, not all
   possible handles or handle-duplication attacks.
 - **Process breakaway attempt:** Child first verifies IsProcessInJob(TRUE)

@@ -1,5 +1,13 @@
 # Development status — 2026-11-01
 
+## v0.39 – real fixed-child Windows AppContainer IPC transport (NO WORKER EXEC)
+
+- [PR #57](https://github.com/Griggelor/MinionOne/pull/57): added real OS anonymous pipes passed only to a fixed MSVC synthetic AppContainer child through an explicit two-handle STARTUPINFOEX handle list, together with the verified AppContainer token and pre-resume Job Object.
+- The v0.38 durable attempt fence is committed before child resume. Only the fixed PROBE_PING/PONG schema is supported; manager verifies process exit, exact bounded bytes and attempt identities, then records RESPONSE_OBSERVED (not RESULT_READY).
+- [Dedicated v0.39 Windows/Linux CI](https://github.com/Griggelor/MinionOne/actions/runs/41291316587) **passed at implementation commit 312786702eff8d7eb611c597ce5b707416d2c698**: native Windows MSVC compile, actual real AppContainer child roundtrip, v0.38 protocol regressions, Linux fail-closed controls. The synthetic CI observation is **not** actual target-host security approval.
+- Explicit limitations: fixed test-only child and ephemeral per-probe manager journal; no production Job/AgentLoop/Flint IPC wiring, no general worker executable, no named-pipe DACL attestation, no comprehensive no-network/process-tree isolation. \`run_tests\` and \`execute_shell\` remain prohibited; \`boxed_execution_enabled=false\`, \`os_sandbox_attested=false\`, product **NO_GO**.
+- [Implementation/limitations](docs/WIN32_BOXED_IPC_V039.md). Next v0.40: hostile separate-child and process-tree, network, handle-leak and crash-boundary negative tests before designing any executable worker capability.
+
 ## v0.38 – bounded boxed IPC contract and durable no-replay journal (NO OS IPC yet)
 
 - [PR #56](https://github.com/Griggelor/MinionOne/pull/56) merged into `main`. Exact implementation head `c7dde129f2b94e2677642f13fc326cfac0029a52`: **25/25 GitHub Actions checks green**, including targeted Windows/Ubuntu boxed IPC hostile-frame/recovery tests, existing native Work/MCP E2E, and Windows wheel build.

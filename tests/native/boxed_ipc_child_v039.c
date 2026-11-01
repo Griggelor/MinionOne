@@ -172,6 +172,48 @@ done:
     return status;
 }
 
+
+/* Fixed v0.42 synthetic per-attempt file handoff. No paths from the model. */
+#define IO_INPUT "V042_SYNTHETIC_SEALED_INPUT\n"
+#define IO_RESULT "V042_SYNTHETIC_RESULT_FROM_INPUT_V1\n"
+static int deny_write(const wchar_t *relative) {
+    HANDLE f = CreateFileW(relative, FILE_WRITE_DATA,
+                          FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                          NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    DWORD error;
+    if (f != INVALID_HANDLE_VALUE) { CloseHandle(f); return 0; }
+    error = GetLastError();
+    return error == ERROR_ACCESS_DENIED || error == ERROR_PRIVILEGE_NOT_HELD;
+}
+static int run_fixed_file_handoff(int bad_result) {
+    HANDLE f;
+    unsigned char input[sizeof(IO_INPUT)];
+    DWORD got = 0, written = 0;
+    const char *result = bad_result ? "V042_CORRUPTED_OUTPUT\n" : IO_RESULT;
+    const DWORD result_length = (DWORD)strlen(result);
+    /* Stage is the trusted CreateProcessW working directory. */
+    f = CreateFileW(L"input\\sealed.bin", GENERIC_READ, FILE_SHARE_READ,
+                    NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (f == INVALID_HANDLE_VALUE) return 101;
+    if (!ReadFile(f, input, sizeof(input), &got, NULL) ||
+        got != sizeof(IO_INPUT) - 1 ||
+        memcmp(input, IO_INPUT, sizeof(IO_INPUT) - 1) != 0) {
+        CloseHandle(f);
+        return 102;
+    }
+    CloseHandle(f);
+    if (!deny_write(L"input\\sealed.bin")) return 103;
+    if (!deny_write(L"output\\immutable.bin")) return 104;
+    f = CreateFileW(L"work\\result.bin", GENERIC_WRITE, 0, NULL, CREATE_NEW,
+                    FILE_ATTRIBUTE_NORMAL, NULL);
+    if (f == INVALID_HANDLE_VALUE) return 105;
+    if (!WriteFile(f, result, result_length, &written, NULL) ||
+        written != result_length) { CloseHandle(f); return 106; }
+    if (!FlushFileBuffers(f)) { CloseHandle(f); return 107; }
+    CloseHandle(f);
+    return 0;
+}
+
 int wmain(int argc, wchar_t **argv) {
     /* Developer-owned CI scenarios only. No worker-facing API or commands. */
     const wchar_t *mode = (argc == 1) ? L"ok" : ((argc == 2 || argc == 3) ? argv[1] : L"invalid");
@@ -181,7 +223,8 @@ int wmain(int argc, wchar_t **argv) {
         wcscmp(mode, L"hang") && wcscmp(mode, L"truncated") &&
         wcscmp(mode, L"oversized") && wcscmp(mode, L"wrong_nonce") &&
         wcscmp(mode, L"trailing") && wcscmp(mode, L"handle") &&
-        wcscmp(mode, L"breakaway") && wcscmp(mode, L"network")) return 42;
+        wcscmp(mode, L"breakaway") && wcscmp(mode, L"network") &&
+        wcscmp(mode, L"file_ok") && wcscmp(mode, L"file_bad")) return 42;
     if ((wcscmp(mode, L"handle") == 0 || wcscmp(mode, L"network") == 0)
           ? argc != 3 : argc > 2) return 43;
     HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
@@ -228,6 +271,10 @@ int wmain(int argc, wchar_t **argv) {
         if (status != 0) return status;
         result_digest = (strcmp(result_token, "PONG") == 0) ? DIGEST :
             "0000000000000000000000000000000000000000000000000000000000000000";
+    }
+    if (wcscmp(mode, L"file_ok") == 0 || wcscmp(mode, L"file_bad") == 0) {
+        int status = run_fixed_file_handoff(wcscmp(mode, L"file_bad") == 0);
+        if (status != 0) return status;
     }
     if (wcscmp(mode, L"wrong_nonce") == 0)
         nonce[0] = (nonce[0] == 'a') ? 'b' : 'a';

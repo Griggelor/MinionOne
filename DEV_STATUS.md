@@ -1,5 +1,14 @@
 # Development status — 2026-11-01
 
+## v0.38 – bounded boxed IPC contract and durable no-replay journal (NO OS IPC yet)
+
+- [PR #56](https://github.com/Griggelor/MinionOne/pull/56) merged into `main`. Exact implementation head `c7dde129f2b94e2677642f13fc326cfac0029a52`: **25/25 GitHub Actions checks green**, including targeted Windows/Ubuntu boxed IPC hostile-frame/recovery tests, existing native Work/MCP E2E, and Windows wheel build.
+- New `boxed_ipc_v038` defines a canonical versioned **2 KiB maximum** fixed `PROBE_PING` wire format; job/attempt/operation/nonce scoping; unambiguous one-frame incremental stream parser; reject malformed/duplicated JSON keys, unsupported tool names, wrong hashes and wrong-scope replies.
+- New `boxed_ipc_journal_v038` persists a pre-dispatch `IN_FLIGHT` fence in SQLite WAL with `synchronous=FULL`. Crash after fence or ambiguous provider/transport status **never permits automatic replay**. Exact repeated observations are idempotent; conflicting/malformed observations persist `NEEDS_RECONCILIATION`.
+- Native Windows/Ubuntu tests simulate actual manager process exit, concurrent dispatch attempts, truncated EOF, oversized frames and forged identifiers. Even valid observed `PONG` bytes remain `RESPONSE_OBSERVED`, **not** a verified sandbox result or parent ACK.
+- There is **no** actual pipe/socket connecting the manager to an AppContainer child in this increment; no child-process identity binding, worker-side execution, artifact import, G1b host attestation or live model same-chat evidence. `boxed_execution_enabled=false`, `os_sandbox_attested=false` and **product NO_GO** remain unchanged.
+- [ADR-038 protocol, state machine and remaining gates](docs/ADR_038_BOXED_IPC_AND_RECOVERY.md). Next: real Windows per-attempt AppContainer-authenticated IPC plus process-tree and no-network negative tests; keep worker shell/`run_tests` disabled.
+
 ## v0.37 – real Windows AppContainer synthetic cross-scope file denials
 
 - [PR #55](https://github.com/Griggelor/MinionOne/pull/55) merged into `main`. Exact implementation head `811bf28da8b400cc9cb8c8497fb26d3bfe4c386e`: **22/22 CI checks green**, including dedicated native Windows AppContainer adversarial probe, full Work/MCP Windows+Ubuntu regression and isolated wheel build.

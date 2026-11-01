@@ -1,0 +1,71 @@
+name: v0.40 Windows AppContainer fault and hostile IPC gates (NO EXEC)
+on:
+  pull_request:
+    paths:
+      - "src/minionone/win32_boxed_ipc_v039.py"
+      - "tests/native/boxed_ipc_child_v039.c"
+      - "tests/test_win32_boxed_faults_v040.py"
+      - ".github/workflows/boxed-ipc-faults-v040.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-windows-fault-matrix:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+      - name: Install exact source
+        run: python -m pip install --disable-pip-version-check -e .
+      - name: Compile fixed native IPC child
+        run: python scripts/build_win32_ipc_v039.py
+      - name: Real AppContainer IPC baseline must still work
+        env:
+          MINIONONE_V039_NATIVE: "1"
+        run: python -m unittest discover -s tests -p test_win32_boxed_ipc_v039.py -v
+      - name: Six hostile real-process IPC faults must all fail closed
+        env:
+          MINIONONE_V040_NATIVE: "1"
+        run: python -m unittest discover -s tests -p test_win32_boxed_faults_v040.py -v
+      - name: Existing durable hostile-frame and no-replay journal gates
+        run: python -m unittest discover -s tests -p test_boxed_ipc_v038.py -v
+      - name: Compile separate fixed AppContainer access-denial canary
+        run: python scripts/build_win32_adversary_v037.py --out evidence/v037/appcontainer_adversary_v037.exe
+      - name: Native host/sibling/immutable-output access-denial regression
+        env:
+          MINIONONE_V037_NATIVE: "1"
+        run: python -m unittest discover -s tests -p test_win32_appcontainer_adversarial_v037.py -v
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v040-fixed-child-hostile-ipc-observations
+          path: |
+            evidence/v040/HOSTILE_IPC_EVIDENCE.json
+            evidence/v039/IPC_RESULT.json
+          if-no-files-found: ignore
+
+  linux-fail-closed-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+      - name: Install exact source
+        run: python -m pip install --disable-pip-version-check -e .
+      - name: Ensure unsupported modes and worker execution remain disabled
+        run: python -m unittest discover -s tests -p test_win32_boxed_faults_v040.py -v
+      - name: Existing v0.38 protocol and no-replay regressions
+        run: python -m unittest discover -s tests -p test_boxed_ipc_v038.py -v

@@ -1,5 +1,9 @@
 # MinionOne – Owner-Klarstellung und Optimierung v0.44
 
+## Superseded handoff decision
+
+The owner correction in [OWNER_REQUIREMENTS_V045.md](OWNER_REQUIREMENTS_V045.md) replaces the third text/role path with one universal job system and exactly two handoffs. Original sources and other owner requirements below remain historical traceability.
+
 Stand: 01.11.2026. Verbindliche neue Owner-Entscheidung; Produkt weiterhin PRE-ALPHA / NO_GO.
 
 ## Originalquellen und Rangfolge

@@ -1,4 +1,4 @@
-"""Authenticated localhost MCP; optional bounded text roles, no native chat wakeup."""
+"""Authenticated localhost MCP; optional common workspace execution, no native chat wakeup."""
 from __future__ import annotations
 import argparse
 import errno
@@ -15,9 +15,11 @@ def main(argv=None):
     p.add_argument("--db",default=None,help="Private state database (operator-controlled path)")
     p.add_argument("--lmstudio-url",default="http://127.0.0.1:1234")
     p.add_argument('--worker-profiles',type=Path,
-                   help='Operator-owned JSON text roles for LM Studio, Unsloth or approved cloud APIs')
+                   help='Operator-owned JSON backend/model profiles for LM Studio, Unsloth or approved cloud APIs')
     p.add_argument("--project",action="append",default=[],metavar="ID=ABSOLUTE_DIR",
                    help="Opt in to PREPARING-only job workspaces under a trusted project. No worker file permissions.")
+    p.add_argument('--experimental-workspace-jobs',action='store_true',
+                   help='Enable the common bounded job executor for configured projects')
     args=p.parse_args(argv)
     token=os.environ.get("MINIONONE_MCP_TOKEN")
     if token is None or len(token)<32:
@@ -44,7 +46,8 @@ def main(argv=None):
         profiles=load_profiles(args.worker_profiles) if args.worker_profiles else None
         server=LocalMCP(("127.0.0.1",args.port),token=token,
                         database_path=db,lmstudio_url=args.lmstudio_url,
-                        workspace_projects=(projects or None),worker_profiles=profiles)
+                        workspace_projects=(projects or None),worker_profiles=profiles,
+                        enable_workspace_jobs=args.experimental_workspace_jobs)
     except Exception as exc:
         fault=safe_tool_fault(exc)
         if isinstance(exc,OSError) and exc.errno==errno.EADDRINUSE:
@@ -57,10 +60,10 @@ def main(argv=None):
     print(f"MinionOne PILOT: http://127.0.0.1:{server.server_port}/mcp",flush=True)
     print("PRE-ALPHA: no verified Unsloth chat ownership or Windows sandbox.",flush=True)
     if profiles:
-        print('Configured text roles enabled: explicit inputs only; no automatic context transfer or worker tools.',flush=True)
+        print('Configured worker backends enabled for direct and prepared-file tasks.',flush=True)
         print('Native parent wakeup/restore requires a verified host integration; not supplied by a bearer token.',flush=True)
-    else:print('Connection/admission only; worker execution disabled.',flush=True)
-    if args.project:
+    elif not args.experimental_workspace_jobs:print('Connection/admission only; worker execution disabled.',flush=True)
+    if args.project and not args.experimental_workspace_jobs:
         print("PREPARING workspace staging enabled; input is NOT sealed; no worker file access.",flush=True)
     try:
         server.serve_forever(poll_interval=0.2)

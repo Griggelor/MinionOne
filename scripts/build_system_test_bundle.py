@@ -24,7 +24,7 @@ def build(wheel,output,app=None,evidence=None):
     with tempfile.TemporaryDirectory(prefix='minionone-bundle-') as tmp:
         stage=Path(tmp)/('MinionOne_SystemTest_'+version);stage.mkdir()
         (stage/'packages').mkdir();shutil.copyfile(wheel,stage/'packages'/wheel.name)
-        for name in ('README_DE.md','README_LEGACY_DE.md','WORKER_ROLES_DE.md','bootstrap.py'):
+        for name in ('README_DE.md','README_LEGACY_DE.md','WORKER_BACKENDS_DE.md','bootstrap.py'):
             shutil.copyfile(root/'system_test'/name,stage/name)
         for name in ('local','cloud'):
             shutil.copyfile(root/'examples'/('worker_profiles.'+name+'.json'),
@@ -35,7 +35,7 @@ def build(wheel,output,app=None,evidence=None):
                   'source_commit':os.environ.get('GITHUB_SHA','local-unattested'),
                   'worker_file_backend':'native_win32_work_sqlite_output' if app else 'native_platform_work_sqlite_output',
                   'legacy_document_pilot_available':True,
-                  'text_roles_supported':True,'native_parent_return_driver_available':False,
+                  'handoff_paths':['direct','prepared_workspace'],'profiled_handoffs_supported':True,'native_parent_return_driver_available':False,
                   'host_filesystem_tools_enabled':False,
                   'boxed_execution_enabled':False,'product_release':'NO_GO'}
         (stage/'bundle.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')

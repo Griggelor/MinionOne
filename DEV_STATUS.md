@@ -1,5 +1,9 @@
 # Development status — 2026-11-01
 
+## v0.45 – universal Flash tasks, two handoffs, shared providers
+
+Removed the separate consult execution surface. Direct task and optional files or prepared TASK.md now share WORKSPACE jobs, trusted provider/model selection, bounded AgentLoop, native broker, publication and ACK. Provider selection is immutably bound to sealed input. No automatic context transfer. Native parent driver and actual load/unload remain open. See docs/OWNER_REQUIREMENTS_V045.md.
+
 ## v0.44 – owner requirements, three-provider text roles and automatic-return contract
 
 - Original FR/test traceability re-fetched from GitHub and compared with explicit
@@ -15,7 +19,7 @@
 - Native Unsloth original-chat driver, resource-controlled load/unload, applying
   profiles to existing file routes, cloud PII/real cost gate and actual host proof
   remain OPEN. No claim that polling or mocked restore satisfies the product.
-- Package/runtime version `0.44.0.dev0`. See docs/OWNER_REQUIREMENTS_V044.md.
+- Package/runtime version `0.45.0.dev0`. See docs/OWNER_REQUIREMENTS_V044.md.
 
 ## v0.43 – current Windows workspace package and CI diagnostics
 
@@ -134,7 +138,7 @@
 - Installed Python package still identifies as `0.25.0.dev0` by design of existing wheel tests; **v0.32 refers to the implementation milestone, not a published versioned release**. Coordinate package/version markers before the next Windows system-test distribution.
 
 
-**Version:** 0.44.0.dev0 (GitHub development; TARGET_PRODUCT NO-GO)
+**Version:** 0.45.0.dev0 (GitHub development; TARGET_PRODUCT NO-GO)
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
 
 ## v0.18.0.dev0 — complete test-document job path

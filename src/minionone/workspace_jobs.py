@@ -42,17 +42,23 @@ class WorkspaceJobs:
                 FOREIGN KEY(job_id) REFERENCES workspace_reservations(job_id))""")
 
     def delegate(self, token, thread, project_id, goal, context, acceptance_criteria,
-                 files, operation_id):
+                 files, operation_id, *, task=None, profile_id=None, allow_cloud=False):
         """One parent MCP operation: stage -> seal -> execute on SAME job ID.
 
-        Only operator-configured project IDs, UTF-8 documents and the already
-        configured LM Studio worker model are allowed. Never accepts host paths,
-        external URLs, arbitrary resource policy or a second model selection.
+        Flash supplies the task; optional documents and a trusted worker profile
+        use the same sealed job. No host paths, provider URLs or policy overrides.
         """
         _field(_OP, operation_id, "operation")
-        task=delegation_task(goal,context,acceptance_criteria)
-        if type(files) is not dict or not 1<=len(files)<=4:
-            raise InputRejected("delegation needs one to four input documents")
+        from .worker_selection import resolve
+        profile, model_id = resolve(self.pilot,profile_id,allow_cloud=allow_cloud)
+        if task is None:
+            task=delegation_task(goal,context,acceptance_criteria)
+        else:
+            if goal is not None or acceptance_criteria is not None or context:
+                raise InputRejected('provide either task or structured goal, not both')
+            task=_text(task,4096)
+        if type(files) is not dict or not 0<=len(files)<=4:
+            raise InputRejected('at most four input documents')
         documents={}
         for name,content in files.items():
             if type(name) is not str or type(content) is not str:
@@ -70,7 +76,10 @@ class WorkspaceJobs:
         document_bytes["manifest.json"]=json.dumps(
             manifest,sort_keys=True,separators=(",",":")).encode("ascii")
         # Bind all request fields and exact bytes durably before ANY stage write.
-        request_sha=_digest([project_id,task,documents])
+        if profile is not None and len((task+''.join(documents.values())).encode('utf-8'))>profile.max_input_bytes:
+            raise InputRejected('configured worker input budget exceeded')
+        from dataclasses import asdict
+        request_sha=_digest([project_id,task,documents]+([asdict(profile),allow_cloud] if profile else []))
         op_base="delegate-"+sha256(operation_id.encode('ascii')).hexdigest()
         prepared=self.workspace.reserve(token,thread,project_id,op_base+"-reserve")
         job_id=prepared["job_id"]
@@ -95,7 +104,7 @@ class WorkspaceJobs:
         # model attempt. Queued-start recovery uses the SAME operation marker.
         if sealed["state"]=="ACCEPTED":
             return self.start(token,thread,job_id,sealed["version"],
-                              op_base+"-start",self.pilot.config.model_id)
+                              op_base+"-start",model_id,profile_id=profile_id,allow_cloud=allow_cloud)
         # Replays must return the original durable START receipt regardless of
         # whether the asynchronous worker has since advanced its job state.
         with self.workspace.store._connection() as con:
@@ -108,10 +117,10 @@ class WorkspaceJobs:
             # A process interruption between QUEUED and START receipt may
             # retry ONLY its identical, already persisted operation marker.
             return self.start(token,thread,job_id,sealed["version"]-1,
-                              op_base+"-start",self.pilot.config.model_id)
+                              op_base+"-start",model_id,profile_id=profile_id,allow_cloud=allow_cloud)
         raise InputRejected("delegation has no safely replayable worker start")
 
-    def start(self, token, thread, job_id, expected_version, operation_id, model_id):
+    def start(self, token, thread, job_id, expected_version, operation_id, model_id=None, *, profile_id=None, allow_cloud=False):
         """Start on SAME sealed job ID, with per-job CAS and retry safety.
 
         The on-disk input is checked before QUEUED. Provider/model readiness is
@@ -121,13 +130,15 @@ class WorkspaceJobs:
         _field(_OP, operation_id, "operation")
         if type(expected_version) is not int or expected_version < 0:
             raise InputRejected("invalid workspace version")
-        if type(model_id) is not str or model_id != self.pilot.config.model_id:
-            raise InputRejected("unapproved workspace worker model")
+        from .worker_selection import resolve, identity, save
+        profile, model_id = resolve(self.pilot,profile_id,model_id,allow_cloud)
         principal = self.workspace.store._principal(token, thread)
         # Idempotent replay must not run a second worker or reissue a capability.
         with self.workspace.store._connection() as con:
             row = self.workspace.store._owned_row(con,principal,thread,job_id)
-            previous = self.pilot._receipt(con,job_id,"START",operation_id,[expected_version+1])
+            selection = identity(row['input_digest'],profile,allow_cloud)
+            request = [expected_version+1]+([selection] if selection else [])
+            previous = self.pilot._receipt(con,job_id,"START",operation_id,request)
             if previous is not None:
                 if row["job_kind"] != "WORKSPACE":
                     raise IdempotencyConflict("workspace operation kind conflict")
@@ -147,6 +158,10 @@ class WorkspaceJobs:
                                row["version"] != expected_version):
                 raise VersionConflict("workspace not accepted at expected version")
         if queued:
+            with self.workspace.store._connection() as con:
+                binding=con.execute('SELECT worker_profile_sha256 FROM pilot_runs WHERE job_id=?',(job_id,)).fetchone()
+                if binding is None or binding[0]!=selection:
+                    raise IdempotencyConflict('queued worker selection changed')
             self.workspace.verify_input(token,thread,job_id)
             return self.pilot.start(token,thread,job_id,expected_version+1,
                                     operation_id,kind="WORKSPACE")
@@ -155,7 +170,7 @@ class WorkspaceJobs:
         with self.workspace.store._connection() as con:
             con.execute("BEGIN IMMEDIATE")
             row = self.workspace.store._owned_row(con,principal,thread,job_id)
-            prior = self.pilot._receipt(con,job_id,"START",operation_id,[expected_version+1])
+            prior = self.pilot._receipt(con,job_id,"START",operation_id,request)
             if prior is not None:
                 if row["job_kind"] != "WORKSPACE":
                     raise IdempotencyConflict("workspace operation kind conflict")
@@ -182,10 +197,12 @@ class WorkspaceJobs:
                     others[canonical] = _text(blob.decode("utf-8"),4096)
                 except UnicodeError as exc:
                     raise InputRejected("binary workspace input not supported") from exc
-            if not 1 <= len(others) <= 4:
-                raise InputRejected("workspace requires one to four UTF-8 documents")
+            if not 0 <= len(others) <= 4:
+                raise InputRejected('workspace supports at most four UTF-8 documents')
             if sum(len(x.encode("utf-8")) for x in others.values()) > 8192:
                 raise InputRejected("workspace document quota exhausted")
+            if profile is not None and len((task+''.join(others.values())).encode('utf-8'))>profile.max_input_bytes:
+                raise InputRejected('configured worker input budget exceeded')
             active = con.execute("SELECT 1 FROM pilot_runs WHERE active=1 OR provider_inflight=1").fetchone()
             if active is not None:
                 raise PilotError("PILOT_JOB_BUSY")
@@ -193,6 +210,7 @@ class WorkspaceJobs:
                         (job_id, expected_version))
             con.execute("INSERT INTO pilot_runs(job_id,task,model_id) VALUES(?,?,?)",
                         (job_id,task,model_id))
+            save(con,job_id,row['input_digest'],profile,allow_cloud)
             for name,content in {"task.md":task,**others}.items():
                 con.execute("INSERT INTO pilot_files VALUES(?,?,?,?,?)",
                             (job_id,"input",name,content,sha256(content.encode("utf-8")).hexdigest()))

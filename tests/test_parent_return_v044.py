@@ -30,9 +30,9 @@ class SyntheticHost:
 
 
 class ParentReturnTests(unittest.TestCase):
-    setUp=fixtures.TextMCPTests.setUp
-    consult=fixtures.TextMCPTests.consult
-    terminal=fixtures.TextMCPTests.terminal
+    setUp=fixtures.WorkerMCPFixture.setUp
+    consult=fixtures.WorkerMCPFixture.submit
+    terminal=fixtures.WorkerMCPFixture.terminal
 
     def attach(self,**settings):
         self.host=SyntheticHost()
@@ -70,8 +70,8 @@ class ParentReturnTests(unittest.TestCase):
         self.assertTrue(state['restore_needed'])
         self.assertEqual(self.host.restores[0][0],'original-flash-model')
         self.assertEqual(self.host.deliveries[0][0],'configured-pilot')
-        result=self.client.tool('minionone_consult_result',{'job_id':job['job_id']})
-        ack=self.client.tool('minionone_accept_consult_result',{
+        result=self.client.tool('minionone_workspace_result',{'job_id':job['job_id']})
+        ack=self.client.tool('minionone_accept_workspace_result',{
             'job_id':job['job_id'],'expected_version':result['version'],
             'result_digest':result['result_digest'],'operation_id':'parent-restore-ack-001'})
         self.assertEqual(ack['state'],'COMPLETED')
@@ -85,7 +85,7 @@ class ParentReturnTests(unittest.TestCase):
         self.host.busy=False
         self.assertTrue(self.host.delivered.wait(10))
         self.await_return(job,'DELIVERED')
-        self.assertEqual(len(self.http.requests),1)
+        self.assertEqual(len(self.http.requests),3)
 
     def test_unverified_original_parent_prevents_worker_start(self):
         self.attach()
@@ -102,9 +102,9 @@ class ParentReturnTests(unittest.TestCase):
         self.returns.tick();self.returns.tick()
         self.assertEqual(len(self.host.restores),1)
         self.assertFalse(self.host.deliveries)
-        result=self.client.tool('minionone_consult_result',{'job_id':job['job_id']})
+        result=self.client.tool('minionone_workspace_result',{'job_id':job['job_id']})
         with self.assertRaises(PilotError):
-            self.client.tool('minionone_accept_consult_result',{
+            self.client.tool('minionone_accept_workspace_result',{
                 'job_id':job['job_id'],'expected_version':result['version'],
                 'result_digest':result['result_digest'],'operation_id':'must-not-ack-001'})
         self.assertEqual(self.terminal(job)['state'],'RESULT_READY')

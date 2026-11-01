@@ -1,5 +1,9 @@
 # MinionOne WORKLOG — 2026-10-29
 
+## v0.45 owner correction
+
+The owner rejected the separate reviewer/text role path. Unified provider selection under the two existing handoffs. Flash supplies task content; backend configuration grants no new filesystem or context rights. Added provider/selection/replay tests, migrated parent-return tests to the universal workspace and extended frozen Windows tests to both profiled handoffs. No live target-host or Cloud evidence is claimed.
+
 ## v0.44 – owner requirements and bounded text workers
 
 Reconcile original FR/test sources with current owner decisions. Preserve explicit

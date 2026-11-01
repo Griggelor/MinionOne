@@ -43,7 +43,7 @@ _CATALOG = {
     "PILOT_RESOURCE_UNVERIFIED": ("Available host memory could not meet the configured test budget.",
                                   "Check available memory and the already-loaded worker model. Do not automatically unload the parent model.",False),
     "PILOT_MODEL_NOT_LOADED": ("The selected worker model is not confirmed as loaded.",
-                               "Load the exact configured model in LM Studio, enable its local API and check GET /api/v0/models. Disable automatic model eviction during this test.",False),
+                               "Load the exact configured model in its selected backend and enable its API. For LM Studio check /api/v0/models; for native Unsloth check active model_identifier in /api/inference/status. Disable automatic eviction during this test.",False),
     "PILOT_STATE_INVALID": ("The persisted test job is inconsistent.",
                             "Stop the pilot and preserve its state for diagnosis. Do not restart a provider operation automatically.",False),
     "PILOT_RESULT_MISSING": ("The worker finished without a published result file.",

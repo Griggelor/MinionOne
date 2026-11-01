@@ -24,7 +24,7 @@ class SystemBundleTests(unittest.TestCase):
             self.assertFalse(result['native'])
             with zipfile.ZipFile(output) as archive:
                 names=archive.namelist();prefix=names[0].split('/')[0]+'/'
-                for required in ('1_START.cmd','2_UNSLOTH.cmd','3_SYSTEMTEST.cmd','bootstrap.py','README_DE.md','README_LEGACY_DE.md','WORKER_ROLES_DE.md','worker_profiles.local.example.json','worker_profiles.cloud.example.json','bundle.json','LEGACY_1_START.cmd','LEGACY_3_SYSTEMTEST.cmd'):
+                for required in ('1_START.cmd','2_UNSLOTH.cmd','3_SYSTEMTEST.cmd','bootstrap.py','README_DE.md','README_LEGACY_DE.md','WORKER_BACKENDS_DE.md','worker_profiles.local.example.json','worker_profiles.cloud.example.json','bundle.json','LEGACY_1_START.cmd','LEGACY_3_SYSTEMTEST.cmd'):
                     self.assertIn(prefix+required,names)
                 manifest=json.loads(archive.read(prefix+'bundle.json'))
                 self.assertEqual(manifest['wheel']['sha256'],sha256(wheel.read_bytes()).hexdigest())

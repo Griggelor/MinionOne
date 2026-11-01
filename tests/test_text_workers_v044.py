@@ -1,6 +1,7 @@
-"""Real MCP + bounded HTTP text workers; cloud uses a synthetic transport only."""
+"""Regression fixtures: backend configuration now uses the universal workspace job."""
 from contextlib import closing
 from dataclasses import replace
+from hashlib import sha256
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -16,19 +17,30 @@ from minionone.admission import AdmissionStore, InputRejected, _JOB_TABLE
 from minionone.mcp_server import LocalMCP
 from minionone.pilot_cli import PilotClient
 from minionone.pilot_jobs import PilotError
-from minionone.worker_profiles import WorkerProfile, TextWorker, load_profiles
+from minionone.worker_profiles import WorkerProfile, ConfiguredWorker, load_profiles
 
-TOKEN='text-worker-fixture-'+('t'*48)
-MODEL='synthetic-text-model'
+TOKEN='universal-worker-fixture-'+('t'*48)
+MODEL='synthetic-worker-model'
+
+
+def completion(data, mode='ok'):
+    n=sum(m['role']=='tool' for m in data['messages'])
+    if mode=='forbidden':name,args='execute_shell',{'command':'never execute'}
+    elif n==0:name,args='create_work',{'name':'result.txt','content':'SYNTHETIC RESULT'}
+    elif n==1:name,args='publish_artifact',{'name':'result.txt'}
+    else:
+        return {'model':MODEL,'choices':[{'finish_reason':'stop',
+            'message':{'role':'assistant','content':'Published.'}}],'usage':{'total_tokens':12}}
+    return {'model':MODEL,'choices':[{'finish_reason':'tool_calls','message':{
+        'role':'assistant','content':None,'tool_calls':[{'id':'call-'+str(n),'type':'function',
+        'function':{'name':name,'arguments':json.dumps(args)}}]}}],'usage':{'total_tokens':12}}
 
 
 class HTTPModel(BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def send(self,value,status=200):
-        data=json.dumps(value).encode()
-        self.send_response(status)
-        self.send_header('Content-Type','application/json')
-        self.send_header('Content-Length',str(len(data)))
+        data=json.dumps(value).encode();self.send_response(status)
+        self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(data)))
         self.end_headers();self.wfile.write(data)
     def do_GET(self):
         if self.path=='/api/inference/status':
@@ -39,234 +51,208 @@ class HTTPModel(BaseHTTPRequestHandler):
         data=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
         self.server.requests.append(data)
         if self.server.mode=='error':return self.send({},503)
-        message={'role':'assistant','content':'Synthetic review: check the assumptions.'}
-        if self.server.mode=='tools':message['tool_calls']=[{'function':{'name':'execute_shell'}}]
-        self.send({'model':MODEL,'choices':[{'finish_reason':'stop','message':message}],
-                   'usage':{'total_tokens':32}})
+        value=completion(data,self.server.mode)
+        if self.server.mode=='wrong_model':value['model']='another-model'
+        self.send(value)
 
 
-class TextMCPTests(unittest.TestCase):
+class WorkerMCPFixture:
     def setUp(self):
         temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup)
-        self.root=Path(temp.name)
+        self.root=Path(temp.name);self.project=self.root/'project';self.project.mkdir()
         (self.root/'parent-private-history.txt').write_text('NEVER-SEND-PARENT-HISTORY')
         self.http=ThreadingHTTPServer(('127.0.0.1',0),HTTPModel)
         self.http.daemon_threads=True;self.http.requests=[];self.http.mode='ok'
         threading.Thread(target=self.http.serve_forever,daemon=True).start()
         self.addCleanup(self.http.server_close);self.addCleanup(self.http.shutdown)
         endpoint=f'http://127.0.0.1:{self.http.server_port}'
-        self.profiles={name:WorkerProfile(name,provider,MODEL,endpoint,
-            'Return a concise critical review.',timeout_seconds=15)
-            for name,provider in (('fast','lmstudio'),('native','unsloth'))}
+        self.profiles={name:WorkerProfile(name,provider,MODEL,endpoint,timeout_seconds=15)
+            for name,provider in (('local','lmstudio'),('native','unsloth'))}
         self.server=LocalMCP(('127.0.0.1',0),token=TOKEN,database_path=self.root/'jobs.sqlite',
-                             worker_profiles=self.profiles,min_free_mb=1)
+            worker_profiles=self.profiles,min_free_mb=1,enable_workspace_jobs=True,
+            workspace_projects={'demo':self.project},worker_model='unused-default-model')
         threading.Thread(target=self.server.serve_forever,daemon=True).start()
         self.addCleanup(self.server.server_close);self.addCleanup(self.server.shutdown)
         self.client=PilotClient(self.server.server_port,TOKEN)
 
-    def consult(self,profile='fast',op='text-review-operation-001',**extra):
-        return self.client.tool('minionone_consult',dict(profile_id=profile,
-            prompt='Review only this supplied proposal.',operation_id=op,**extra))
+    def submit(self,profile='local',op='universal-job-operation-001',**extra):
+        return self.client.tool('minionone_delegate',dict(profile_id=profile,project_id='demo',
+            task='Perform exactly the task supplied by Flash.',operation_id=op,**extra))
 
     def terminal(self,job):
         until=time.monotonic()+40
         while time.monotonic()<until:
             status=self.client.tool('minionone_job_status',{'job_id':job['job_id']})
-            if status['state'] in ('RESULT_READY','FAILED','NEEDS_RECONCILIATION'):
+            if status['state'] in ('RESULT_READY','FAILED','NEEDS_RECONCILIATION','WAITING_FOR_PARENT'):
                 return status
             time.sleep(.05)
-        self.fail('bounded text fixture did not finish')
+        self.fail('bounded worker did not finish')
 
-    def test_two_local_provider_roles_one_call_no_files_no_implicit_context_and_ack(self):
-        for profile in ('fast','native'):
-            with self.subTest(profile=profile):
-                job=self.consult(profile,op='text-'+profile+'-operation-001')
-                status=self.terminal(job)
-                self.assertEqual(status['state'],'RESULT_READY',status)
-                self.assertEqual(status['text_job']['backend'],'bounded_text_no_worker_tools')
-                self.assertEqual(status['text_job']['model_turns'],1)
-                self.assertEqual(status['text_job']['tool_calls'],0)
-                result=self.client.tool('minionone_consult_result',{'job_id':job['job_id']})
-                self.assertTrue(result['untrusted_model_output'])
-                self.assertIn('Synthetic review',result['text'])
-                ack=self.client.tool('minionone_accept_consult_result',{
-                    'job_id':job['job_id'],'expected_version':result['version'],
-                    'result_digest':result['result_digest'],'operation_id':'ack-'+profile+'-operation-001'})
-                self.assertEqual(ack['state'],'COMPLETED')
-        self.assertEqual(len(self.http.requests),2)
-        for index,request in enumerate(self.http.requests):
-            if index==0:self.assertNotIn('tools',request)
-            else:
-                self.assertEqual(request['tools'],[])
-                self.assertEqual(request['tool_choice'],'none')
-                self.assertIs(request['enable_tools'],False)
-                self.assertIs(request['mcp_enabled'],False)
-                self.assertEqual(request['enabled_tools'],[])
-                self.assertEqual(request['max_tool_calls_per_message'],0)
-                self.assertIs(request['deep_research_armed'],False)
-                self.assertIs(request['run_tools_locally'],False)
-                self.assertEqual(request['context_overflow'],'error')
-                self.assertIsNone(request['thread_id'])
-                self.assertIsNone(request['session_id'])
-                self.assertIsNone(request['rag_scope'])
-            self.assertEqual(len(request['messages']),2)
-            supplied=json.loads(request['messages'][1]['content'])
-            self.assertEqual(supplied['context'],'')
-            self.assertNotIn('NEVER-SEND-PARENT-HISTORY',json.dumps(request))
-        self.assertFalse(any(self.root.rglob('work')))
+    def staged(self,profile='local',op='staged-start-operation-001',**extra):
+        job=self.client.tool('minionone_prepare_workspace',{'project_id':'demo','operation_id':'prepare-'+op})
+        folder=self.project/'.minionone'/'jobs'/job['job_id']/'input'
+        payload={'TASK.md':b'Perform exactly the task supplied by Flash.'}
+        for name,body in payload.items():(folder/name).write_bytes(body)
+        (folder/'manifest.json').write_text(json.dumps({'files':{n:sha256(b).hexdigest() for n,b in payload.items()}}))
+        sealed=self.client.tool('minionone_seal_workspace',{'job_id':job['job_id'],
+            'expected_version':0,'operation_id':'seal-'+op})
+        args=dict(job_id=job['job_id'],expected_version=sealed['version'],operation_id=op,profile_id=profile,**extra)
+        return self.client.tool('minionone_start_workspace_job',args),args
 
-    def test_replay_does_not_repeat_inference_and_changed_explicit_context_conflicts(self):
-        job=self.consult(context='Only this explicit background.')
+
+class UniversalWorkerTests(WorkerMCPFixture,unittest.TestCase):
+    def test_task_only_quick_job_also_works_with_the_existing_default_worker(self):
+        self.server.pilot.config=replace(self.server.pilot.config,model_id=MODEL,
+            base_url=f'http://127.0.0.1:{self.http.server_port}')
+        job=self.client.tool('minionone_delegate',{'project_id':'demo','task':'Flash supplies this task.',
+            'operation_id':'default-quick-operation-001'})
         self.assertEqual(self.terminal(job)['state'],'RESULT_READY')
-        self.assertEqual(self.consult(context='Only this explicit background.'),job)
-        with self.assertRaises(PilotError) as failure:self.consult(context='Changed background')
-        self.assertEqual(failure.exception.diagnostic.code,'IDEMPOTENCY_CONFLICT')
-        self.assertEqual(len(self.http.requests),1)
+        self.assertEqual(len(self.http.requests),3)
 
-    def test_provider_tool_request_never_executes_or_creates_a_result(self):
-        self.http.mode='tools'
-        job=self.consult()
+    def test_configured_input_budget_applies_before_any_staging_or_request(self):
+        self.server.pilot.worker_profiles['tiny']=replace(self.profiles['local'],profile_id='tiny',max_input_bytes=5)
+        with self.assertRaises(PilotError):self.submit('tiny')
+        self.assertFalse((self.project/'.minionone').exists())
+        self.assertFalse(self.http.requests)
+
+    def test_both_handoffs_use_same_workspace_lifecycle_for_both_local_backends(self):
+        for profile in ('local','native'):
+            for path in ('direct','file'):
+                with self.subTest(profile=profile,path=path):
+                    op='universal-'+profile+'-'+path+'-001'
+                    job=self.submit(profile,op) if path=='direct' else self.staged(profile,op)[0]
+                    status=self.terminal(job);self.assertEqual(status['state'],'RESULT_READY',status)
+                    self.assertNotIn('text_job',status)
+                    self.assertEqual(status['workspace_job']['worker_model'],MODEL)
+                    result=self.client.tool('minionone_workspace_result',{'job_id':job['job_id']})
+                    self.assertEqual(result['files'][0]['text'],'SYNTHETIC RESULT')
+                    folder=self.project/'.minionone'/'jobs'/job['job_id']
+                    self.assertEqual((folder/'input'/'TASK.md').read_text(),'Perform exactly the task supplied by Flash.')
+                    self.assertEqual((folder/'output'/'result.txt').read_text(),'SYNTHETIC RESULT')
+                    ack=self.client.tool('minionone_accept_workspace_result',dict(job_id=job['job_id'],
+                        expected_version=result['version'],result_digest=result['result_digest'],operation_id='ack-'+op))
+                    self.assertEqual(ack['state'],'COMPLETED')
+        self.assertEqual(len(self.http.requests),12)
+        for request in self.http.requests:
+            self.assertNotIn('NEVER-SEND-PARENT-HISTORY',json.dumps(request))
+            self.assertNotIn(str(self.project),json.dumps(request))
+        native=self.http.requests[6]
+        self.assertFalse(native['enable_tools']);self.assertFalse(native['mcp_enabled'])
+        self.assertFalse(native['run_tools_locally']);self.assertIsNone(native['thread_id'])
+        self.assertEqual(native['max_tool_calls_per_message'],1)
+        self.assertIsNone(native['session_id']);self.assertIsNone(native['rag_scope'])
+        self.assertEqual(native['tool_choice'],'auto')
+        self.assertIn('create_work',{t['function']['name'] for t in native['tools']})
+
+    def test_no_separate_review_consult_or_role_surface(self):
+        self.assertNotIn('minionone_consult',self.server.tool_map)
+        self.assertFalse(any('consult' in x for x in self.server.tool_map))
+        workers=self.client.tool('minionone_workers',{})
+        self.assertEqual(workers['handoff_paths'],['direct','prepared_workspace'])
+        info=self.client.request('initialize',{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'flash','version':'1'}})['result']['instructions']
+        self.assertNotIn('minionone_consult',info)
+        self.assertNotIn('Third text-only',info)
+
+    def test_direct_replay_and_backend_change_are_fenced(self):
+        job=self.submit();self.assertEqual(self.terminal(job)['state'],'RESULT_READY')
+        self.assertEqual(self.submit(),job)
+        with self.assertRaises(PilotError):self.submit(profile='native')
+        self.assertEqual(len(self.http.requests),3)
+
+    def test_staged_replay_and_backend_change_are_fenced(self):
+        job,args=self.staged();self.assertEqual(self.terminal(job)['state'],'RESULT_READY')
+        self.assertEqual(self.client.tool('minionone_start_workspace_job',args),job)
+        with self.assertRaises(PilotError):self.client.tool('minionone_start_workspace_job',{**args,'profile_id':'native'})
+        self.assertEqual(len(self.http.requests),3)
+
+    def test_missing_or_ambiguous_task_or_injected_endpoint_is_rejected_before_staging(self):
+        base={'project_id':'demo','operation_id':'reject-ambiguous-task-001','profile_id':'local'}
+        for fields in ({},{'task':'task','goal':'other'},{'task':'task','base_url':'https://evil.example'},
+                       {'task':'task','profile_id':'missing'}):
+            with self.assertRaises(PilotError):self.client.tool('minionone_delegate',{**base,**fields})
+        self.assertFalse((self.project/'.minionone').exists())
+
+    def test_provider_uncertainty_blocks_both_handoff_paths(self):
+        self.http.mode='error';job=self.submit()
         self.assertEqual(self.terminal(job)['state'],'NEEDS_RECONCILIATION')
-        with self.assertRaises(PilotError):
-            self.client.tool('minionone_consult_result',{'job_id':job['job_id']})
-        self.assertFalse(any(self.root.rglob('work')))
-
-    def test_local_text_worker_respects_manager_memory_floor_before_inference(self):
-        with patch('minionone.pilot_jobs.available_memory_mb',return_value=0):
-            job=self.consult()
-            status=self.terminal(job)
-        self.assertEqual(status['state'],'FAILED')
-        self.assertEqual(status['text_job']['error']['code'],'PILOT_RESOURCE_UNVERIFIED')
-        self.assertFalse(self.http.requests)
-
-    def test_replaced_profile_snapshot_fails_before_any_provider_request(self):
-        captured=[]
-        with patch.object(self.server.pilot,'_run',side_effect=lambda job,cap:captured.append((job,cap))):
-            job=self.consult()
-            until=time.monotonic()+5
-            while not captured and time.monotonic()<until:time.sleep(.01)
-        self.assertTrue(captured)
-        with self.server.store._connection() as con:
-            config=json.loads(con.execute('SELECT profile_json FROM pilot_text_profiles WHERE job_id=?',
-                                          (job['job_id'],)).fetchone()[0])
-            config['instructions']='A replaced role must not inherit the sealed request.'
-            con.execute('DELETE FROM pilot_text_profiles WHERE job_id=?',(job['job_id'],))
-            con.execute('INSERT INTO pilot_text_profiles VALUES(?,?)',
-                        (job['job_id'],json.dumps(config)))
-        self.server.pilot._run_text(*captured[0])
-        status=self.terminal(job)
-        self.assertEqual(status['state'],'FAILED')
-        self.assertEqual(status['text_job']['error']['code'],'PILOT_FILE_CHANGED')
-        self.assertFalse(self.http.requests)
-
-    def test_uncertain_post_is_fenced_and_blocks_next_worker(self):
-        self.http.mode='error';job=self.consult()
-        status=self.terminal(job)
-        self.assertEqual(status['state'],'NEEDS_RECONCILIATION')
-        self.assertTrue(status['text_job']['provider_state_uncertain'])
-        with self.assertRaises(PilotError) as failure:
-            self.consult(op='text-second-operation-001')
-        self.assertEqual(failure.exception.diagnostic.code,'PILOT_JOB_BUSY')
+        with self.assertRaises(PilotError):self.staged('native')
         self.assertEqual(len(self.http.requests),1)
 
-    def test_explicit_context_optional_and_no_profile_endpoint_can_be_supplied(self):
-        reply=self.client.request('tools/call',{'name':'minionone_consult','arguments':{
-            'profile_id':'fast','prompt':'Allowed text','operation_id':'extra-field-operation-001',
-            'base_url':'https://unapproved.invalid'}})
-        self.assertTrue(reply['result']['isError'])
-        catalog=self.client.tool('minionone_workers',{})
-        self.assertEqual({x['provider'] for x in catalog['workers']},{'lmstudio','unsloth'})
-        self.assertTrue(all(x['worker_tools']==[] for x in catalog['workers']))
-        self.assertTrue(all(x['readiness']=='CONFIGURED_NOT_PROBED' for x in catalog['workers']))
-        self.assertNotIn('base_url',json.dumps(catalog))
+    def test_native_wrong_model_never_publishes_output(self):
+        self.http.mode='wrong_model';job=self.submit('native')
+        self.assertEqual(self.terminal(job)['state'],'NEEDS_RECONCILIATION')
+        self.assertFalse((self.project/'.minionone'/'jobs'/job['job_id']/'output'/'result.txt').exists())
 
-    def test_cloud_mcp_needs_explicit_permission_and_never_logs_header_credentials(self):
-        profile=WorkerProfile('cloud','cloud','synthetic-cloud','https://cloud.invalid',
-            'Review only supplied input.',secret_env='MINIONONE_CLOUD_FIXTURE_KEY',cloud_approved=True)
-        self.server.pilot.text_profiles['cloud']=profile
-        with self.assertRaises(PilotError) as failure:self.consult('cloud')
-        self.assertEqual(failure.exception.diagnostic.code,'INVALID_INPUT')
-        calls=[]
-        def fake_transport(url,body,key,timeout):
-            calls.append(json.loads(body))
-            self.assertEqual(key,'cloud-key-never-in-transcript')
-            return json.dumps({'choices':[{'finish_reason':'stop','message':{
-                'role':'assistant','content':'Synthetic cloud review'}}],
-                'usage':{'total_tokens':20}}).encode()
-        original=TextWorker
-        with patch.dict(os.environ,{'MINIONONE_CLOUD_FIXTURE_KEY':'cloud-key-never-in-transcript'}), \
-             patch('minionone.worker_profiles.TextWorker',side_effect=lambda p:original(p,transport=fake_transport)):
-            job=self.consult('cloud',allow_cloud=True)
-            self.assertEqual(self.terminal(job)['state'],'RESULT_READY')
-            io=self.client.tool('minionone_consult_io',{'job_id':job['job_id']})
-        self.assertEqual(len(calls),1)
-        self.assertNotIn('cloud-key-never-in-transcript',json.dumps(io))
-        self.assertEqual(json.loads(calls[0]['messages'][1]['content'])['context'],'')
+    def test_resource_floor_prevents_local_inference(self):
+        with patch('minionone.pilot_jobs.available_memory_mb',return_value=0):
+            job=self.submit();self.assertEqual(self.terminal(job)['state'],'FAILED')
+        self.assertFalse(self.http.requests)
+
+    def test_forbidden_tool_is_never_executed(self):
+        self.http.mode='forbidden';job=self.submit()
+        self.assertEqual(self.terminal(job)['state'],'FAILED')
+        self.assertFalse((self.project/'.minionone'/'jobs'/job['job_id']/'output'/'result.txt').exists())
+
+    def test_cloud_approval_and_exact_private_io_on_both_paths(self):
+        cloud=WorkerProfile('cloud','cloud',MODEL,'https://synthetic.invalid/v1',
+            secret_env='MINIONONE_SYNTHETIC_CLOUD_KEY',cloud_approved=True,token_parameter='max_completion_tokens')
+        self.server.pilot.worker_profiles['cloud']=cloud
+        seen=[]
+        def transport(url,body,key,timeout):
+            self.assertEqual(key,'SYNTHETIC-SECRET');self.assertEqual(url,'https://synthetic.invalid/v1/chat/completions')
+            data=json.loads(body);seen.append(data)
+            self.assertIn('max_completion_tokens',data);self.assertNotIn('max_tokens',data)
+            return json.dumps(completion(data)).encode()
+        with self.assertRaises(PilotError):self.submit('cloud')
+        with patch.dict(os.environ,{'MINIONONE_SYNTHETIC_CLOUD_KEY':'SYNTHETIC-SECRET'}),patch('minionone.worker_profiles.bounded_request',transport):
+            for path in ('direct','file'):
+                job=(self.submit('cloud','cloud-direct-operation-001',allow_cloud=True) if path=='direct'
+                     else self.staged('cloud','cloud-file-operation-001',allow_cloud=True)[0])
+                self.assertEqual(self.terminal(job)['state'],'RESULT_READY')
+                io=self.client.tool('minionone_worker_io',{'job_id':job['job_id']})
+                self.assertNotIn('SYNTHETIC-SECRET',json.dumps(io))
+        self.assertEqual(len(seen),6)
+
+    def test_worker_profile_snapshot_is_immutable_and_bound_to_admitted_input(self):
+        from minionone.worker_selection import load
+        job=self.submit();self.terminal(job)
+        with self.server.store._connection() as con:
+            with self.assertRaises(sqlite3.IntegrityError):con.execute('DELETE FROM pilot_worker_profiles WHERE job_id=?',(job['job_id'],))
+            con.execute('DROP TRIGGER worker_profile_no_update')
+            bad=json.dumps(replace(self.profiles['local'],base_url='http://127.0.0.1:9').__dict__)
+            con.execute('UPDATE pilot_worker_profiles SET profile_json=? WHERE job_id=?',(bad,job['job_id']))
+            with self.assertRaises(InputRejected):load(con,job['job_id'])
 
 
-class ProfileAndCloudTests(unittest.TestCase):
-    def profile(self,**changes):
-        values=dict(profile_id='review',provider='cloud',model_id='test-cloud-model',
-            base_url='https://provider.invalid/v1',instructions='Critically review supplied text.',
-            secret_env='MINIONONE_SYNTHETIC_CLOUD_KEY',cloud_approved=True)
-        return WorkerProfile(**(values|changes))
-
-    def test_cloud_contract_only_explicit_payload_and_credentials_never_in_io(self):
-        requests=[];events=[];key='synthetic-cloud-key-canary'
-        def fake_https(url,body,credential,timeout):
-            self.assertEqual(url,'https://provider.invalid/v1/chat/completions')
-            self.assertEqual(credential,key)
-            requests.append(json.loads(body))
-            return json.dumps({'choices':[{'finish_reason':'stop','message':{
-                'role':'assistant','content':'A bounded synthetic cloud review.'}}],
-                'usage':{'total_tokens':20}}).encode()
-        with patch.dict(os.environ,{'MINIONONE_SYNTHETIC_CLOUD_KEY':key}):
-            worker=TextWorker(self.profile(),transport=fake_https);worker.preflight()
-            text,tokens=worker.complete('EXPLICIT INPUT ONLY',sink=lambda k,b:events.append((k,b)))
-        self.assertEqual(len(requests),1)
-        self.assertEqual(tokens,20)
-        self.assertIn('review',text)
-        self.assertNotIn(key,json.dumps(events))
-        self.assertEqual(requests[0]['messages'][1]['content'],'EXPLICIT INPUT ONLY')
-
-    def test_cloud_without_operator_approval_or_https_and_local_nonloopback_rejected(self):
-        for changes in ({'cloud_approved':False},{'base_url':'http://provider.invalid'},
-                        {'provider':'lmstudio','base_url':'http://host.invalid:1234'}):
-            with self.subTest(changes=changes),self.assertRaises(InputRejected):self.profile(**changes)
-
-    def test_profile_file_rejects_duplicate_keys_names_and_raw_credential_fields(self):
+class ProfileValidationTests(unittest.TestCase):
+    def test_no_role_instruction_is_required_and_credentials_cannot_be_embedded(self):
+        p=WorkerProfile('model','lmstudio',MODEL,'http://127.0.0.1:1234')
+        self.assertEqual(p.instructions,'')
+        for url in ('http://localhost:1234','http://127.0.0.1:1234?key=secret','http://a:b@127.0.0.1:1234'):
+            with self.assertRaises(InputRejected):replace(p,base_url=url)
         with tempfile.TemporaryDirectory() as tmp:
-            path=Path(tmp)/'profiles.json'
-            for text in ('{"profiles":[],"profiles":[]}',
-                         '{"profiles":[{"api_key":"must-not-be-configured-here"}]}'):
-                path.write_text(text)
-                with self.assertRaises(InputRejected):load_profiles(path)
+            path=Path(tmp)/'profiles.json';path.write_text('{"profiles":[],"profiles":[]}')
+            with self.assertRaises(InputRejected):load_profiles(path)
+            path.write_text(json.dumps({'profiles':[dict(p.__dict__,api_key='forbidden')]}))
+            with self.assertRaises(InputRejected):load_profiles(path)
 
-    def test_local_readiness_rejects_unloaded_or_inactive_models_before_inference(self):
-        for provider,response in (
-            ('lmstudio',{'data':[{'id':'chosen','state':'not-loaded'}]}),
-            ('unsloth',{'model_identifier':'other','loaded':['chosen'],'loading':[]})):
-            with self.subTest(provider=provider):
-                profile=WorkerProfile('local',provider,'chosen','http://127.0.0.1:1234','Review')
-                worker=TextWorker(profile,transport=lambda *args:json.dumps(response).encode())
-                with self.assertRaises(Exception) as failure:worker.preflight()
-                self.assertEqual(failure.exception.diagnostic.code,'PILOT_MODEL_NOT_LOADED')
+    def test_unloaded_or_inactive_local_models_are_not_implicitly_loaded(self):
+        for provider,state in (('lmstudio',{'data':[{'id':MODEL,'state':'unloaded'}]}),
+                               ('unsloth',{'model_identifier':'other','loaded':[MODEL],'loading':[]})):
+            p=WorkerProfile('worker',provider,MODEL,'http://127.0.0.1:1234')
+            worker=ConfiguredWorker(p,transport=lambda *a:json.dumps(state).encode())
+            with self.assertRaises(Exception):worker.preflight()
 
-    def test_v043_database_migration_retains_job_identity_and_foreign_keys(self):
+    def test_v043_schema_migration_preserves_jobs_and_foreign_keys(self):
         with tempfile.TemporaryDirectory() as tmp:
-            path=Path(tmp)/'jobs.sqlite'
+            path=Path(tmp)/'old.sqlite'
             with closing(sqlite3.connect(path)) as con:
-                con.execute(_JOB_TABLE.format(name='jobs').replace(",'TEXT'",''))
-                con.execute('INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?,?)',
-                    ('JOB-existing','owner','thread','a'*64,'COMPLETED',7,'WORKSPACE',1,'old','old'))
-                con.execute('CREATE TABLE preserved_ref(job TEXT REFERENCES jobs(job_id))')
-                con.execute("INSERT INTO preserved_ref VALUES('JOB-existing')");con.commit()
-            owner=AdmissionStore(path,credentials={TOKEN:('owner',{'thread'})})
-            with owner._connection() as con:
-                self.assertEqual(con.execute('SELECT job_kind FROM jobs').fetchone()[0],'WORKSPACE')
-                self.assertEqual(con.execute('SELECT job FROM preserved_ref').fetchone()[0],'JOB-existing')
-                self.assertIsNone(con.execute('PRAGMA foreign_key_check').fetchone())
-                self.assertIn("'TEXT'",con.execute("SELECT sql FROM sqlite_master WHERE name='jobs'").fetchone()[0])
+                con.execute(_JOB_TABLE.format(name='jobs').replace(",'TEXT'",''));con.commit()
+            store=AdmissionStore(path,credentials={TOKEN:('parent',{'thread'})})
+            job=store.admit(TOKEN,'thread','a'*64,'schema-job-operation-001')
+            store=AdmissionStore(path,credentials={TOKEN:('parent',{'thread'})})
+            self.assertEqual(store.status(TOKEN,'thread',job['job_id'])['state'],'ACCEPTED')
+            with store._connection() as con:self.assertFalse(con.execute('PRAGMA foreign_key_check').fetchall())
 
 
 if __name__=='__main__':unittest.main()

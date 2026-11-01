@@ -1,5 +1,9 @@
 # MinionOne – aktueller Requirements-Einstiegspunkt (Stand 2026-11-01)
 
+## Owner correction v0.45 takes precedence
+
+See [OWNER_REQUIREMENTS_V045.md](OWNER_REQUIREMENTS_V045.md): one universal job system, direct task or prepared files, no separate Consult/role path, no automatic parent context transfer. Original backend/automatic-return/model-lifecycle targets remain binding.
+
 > **Status: Development / PRE-ALPHA / PRODUCT NO-GO.**
 > v0.44 setzt die [aktuelle Owner-Klarstellung](OWNER_REQUIREMENTS_V044.md) um:
 > neuer Textpfad und Rollen, persistierte automatische Rückgabe-Steuerung;

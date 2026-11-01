@@ -4,6 +4,9 @@ No real AppContainer IPC, Flint execution, output publishing or model tool use
 is claimed. All tests use synthetic frame bytes or a temporary SQLite DB.
 """
 import dataclasses
+from concurrent.futures import ThreadPoolExecutor
+import subprocess
+import sys
 import hashlib
 import json
 from pathlib import Path
@@ -185,6 +188,38 @@ class DurableReceiptJournalTests(unittest.TestCase):
             BoxedProbeJournal(self.db).before_dispatch(g)
         with self.assertRaises(ProtocolUncertain):
             BoxedProbeJournal(self.db).prepare(JOB, ATT, OP)
+
+    def test_actual_manager_process_exit_after_pre_dispatch_commit_is_not_retried(self):
+        # A separate manager process disappears without graceful teardown;
+        # a replacement instance may inspect, never relaunch, the attempt.
+        script = (
+            "from minionone.boxed_ipc_journal_v038 import BoxedProbeJournal;"
+            "import os;"
+            f"j=BoxedProbeJournal({str(self.db)!r});"
+            f"g=j.prepare({JOB!r},{ATT!r},{OP!r});"
+            "j.before_dispatch(g);os._exit(0)"
+        )
+        proc = subprocess.run([sys.executable, "-c", script],
+                              timeout=15, capture_output=True, check=False)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        reopened = BoxedProbeJournal(self.db)
+        self.assertEqual(reopened.status(JOB, ATT, OP).state, "IN_FLIGHT")
+        with self.assertRaises(ProtocolUncertain):
+            reopened.prepare(JOB, ATT, OP)
+
+    def test_two_concurrent_dispatch_attempts_only_one_crosses_fence(self):
+        g = self.j.prepare(JOB, ATT, OP)
+        def try_dispatch(_):
+            try:
+                BoxedProbeJournal(self.db).before_dispatch(g)
+                return "launched"
+            except ProtocolUncertain:
+                return "denied"
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            outcomes = list(pool.map(try_dispatch, range(8)))
+        self.assertEqual(outcomes.count("launched"), 1)
+        self.assertEqual(outcomes.count("denied"), 7)
+        self.assertEqual(self.j.status(JOB, ATT, OP).state, "IN_FLIGHT")
 
     def test_wrong_nonce_cannot_dispatch_or_replay(self):
         g = self.j.prepare(JOB, ATT, OP)

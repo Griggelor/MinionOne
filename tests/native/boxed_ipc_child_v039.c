@@ -65,13 +65,18 @@ static int deny_inherited_event(const wchar_t *number) {
     if (raw == 0 || !end || *end != L'\0' || (unsigned long long)(ULONG_PTR)raw != raw)
         return 80;
     candidate = (HANDLE)(ULONG_PTR)raw;
-    SetLastError(0);
-    if (GetHandleInformation(candidate, &flags)) return 81;
-    if (GetLastError() != ERROR_INVALID_HANDLE) return 82;
-    /* Windows can raise STATUS_INVALID_HANDLE on a deliberately invalid
-       WaitForSingleObject; GetHandleInformation's ERROR_INVALID_HANDLE is
-       the sufficient kernel-level noninheritance test. */
-    return 0;
+    /* Windows CI can raise STATUS_INVALID_HANDLE as an SEH exception
+       instead of returning ERROR_INVALID_HANDLE. Catch ONLY that exact
+       kernel status. Do not accept any other exception as isolation. */
+    __try {
+        SetLastError(0);
+        if (GetHandleInformation(candidate, &flags)) return 81;
+        if (GetLastError() != ERROR_INVALID_HANDLE) return 82;
+        return 0;
+    } __except (GetExceptionCode() == 0xC0000008UL ?
+                EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) {
+        return 0;
+    }
 }
 
 static int deny_job_breakaway(void) {

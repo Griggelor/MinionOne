@@ -106,6 +106,14 @@ class FramedProbeTests(unittest.TestCase):
                 with self.assertRaises(FrameRejected):
                     decode_frame(struct.pack(">I", len(raw))+raw)
 
+    def test_canonical_float_version_is_rejected_by_schema_not_json_parser(self):
+        obj = decode_frame(request_frame(grant()))
+        obj["version"] = 1.0
+        wire = encode_frame(obj)
+        self.assertEqual(decode_frame(wire)["version"], 1.0)
+        with self.assertRaises(FrameRejected):
+            validate_request(wire)
+
     def test_streaming_reader_accepts_exactly_one_split_frame(self):
         wire = request_frame(grant())
         reader = FrameReader()

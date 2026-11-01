@@ -99,6 +99,8 @@ def _configure_pipe_apis(k):
     k.CreateEventW.argtypes = [ctypes.POINTER(_SecurityAttributes),
                                wintypes.BOOL, wintypes.BOOL, wintypes.LPCWSTR]
     k.CreateEventW.restype = wintypes.HANDLE
+    k.GetHandleInformation.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    k.GetHandleInformation.restype = wintypes.BOOL
     k.CreatePipe.argtypes = [ctypes.POINTER(wintypes.HANDLE),
                              ctypes.POINTER(wintypes.HANDLE),
                              ctypes.POINTER(_SecurityAttributes), wintypes.DWORD]
@@ -231,10 +233,13 @@ def _run_fixed_boxed_ipc_case(case):
             if not sentinel:
                 raise JobProbeUnavailable("cannot allocate manager handle canary")
             handles.append(sentinel)
-            if k.WaitForSingleObject(sentinel, 0) != _WAIT_OBJECT_0:
-                raise JobProbeUnavailable("normal host event positive control failed")
+            flags = wintypes.DWORD()
+            if (k.WaitForSingleObject(sentinel, 0) != _WAIT_OBJECT_0 or
+                    not k.GetHandleInformation(sentinel, ctypes.byref(flags)) or
+                    not flags.value & _HANDLE_FLAG_INHERIT):
+                raise JobProbeUnavailable("manager inheritable event positive control failed")
             canary_confirmed = True
-            boundary_arg = str(int(sentinel))
+            boundary_arg = str(sentinel.value if hasattr(sentinel, "value") else int(sentinel))
         elif case == "network":
             # Live listener, local-only; positive control proves target exists.
             listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

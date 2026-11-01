@@ -88,6 +88,6 @@ int wmain(void) {
     frame[3] = (unsigned char)size;
     memcpy(frame + 4, reply, size);
     if (!write_exact(output, frame, size+4)) return 56;
-    FlushFileBuffers(output);
+    /* The parent reads after process exit: flushing a pipe can deadlock. */
     return 0;
 }

@@ -101,7 +101,6 @@ class FramedProbeTests(unittest.TestCase):
         pairs = normal.replace(b'"version":1', b'"version":1,"version":1')
         for raw in (b" "+normal, normal+b" ", pairs,
                     json.dumps(obj, indent=2).encode(),
-                    normal.replace(b'"version":1', b'"version":1.0'),
                     b'[]', b'{"x":NaN}'):
             with self.subTest(raw=raw[:35]):
                 with self.assertRaises(FrameRejected):

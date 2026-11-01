@@ -1,4 +1,14 @@
-# Development status — 2026-10-31
+# Development status — 2026-11-01
+
+## v0.37 – real Windows AppContainer synthetic cross-scope file denials
+
+- [PR #55](https://github.com/Griggelor/MinionOne/pull/55) merged into `main`. Exact implementation head `811bf28da8b400cc9cb8c8497fb26d3bfe4c386e`: **22/22 CI checks green**, including dedicated native Windows AppContainer adversarial probe, full Work/MCP Windows+Ubuntu regression and isolated wheel build.
+- A trusted MSVC-compiled, **test-only** fixed native C helper is launched twice: first with the ordinary Windows token to prove accesses really work, then under a newly created zero-capabilities AppContainer token with one-process/128-MiB kill-on-close Job Object, attached before resume. The helper bootstrap and actual child token are verified; code/paths/commands are not selectable by Flint.
+- **Synthetic 3/3 file rights denials observed** on real Windows GitHub CI: AppContainer cannot read a manager-like canary, cannot read a sibling-job canary, and cannot obtain a write-capable handle for an immutable-output canary. Missing canaries and ambiguous Win32 errors fail the test; SHA-256 content hashes remain intact.
+- A normal-process positive control can connect to the active 127.0.0.1 listener, while the AppContainer connection timed out. This is **observed lack of connectivity, NOT explicit WSAEACCES, NOT network-denial attestation**. CI evidence reports `network_denial_verified=false` and `host_security_attested=false`. See [v0.37 denial proof](docs/WIN32_APPCONTAINER_ACCESS_DENIAL_V037.md).
+- NO new tools exposed, no general code execution or shell, no worker IPC, no trusted output-import/data-flow runner and **no OS sandbox approval on the actual user target host**. Product release, real data and executable worker capability remain **NO_GO**.
+- Next priority: controlled versioned IPC for a separate per-job runner and authentic network/foreign-job/process-tree isolation tests, crash receipts and host-specific G1b verification before enabling any executable capability.
+
 
 ## v0.36 – native Windows AppContainer token verified (host isolation NO_GO)
 

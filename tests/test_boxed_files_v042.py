@@ -48,6 +48,11 @@ class SyntheticFilePolicyTests(unittest.TestCase):
         with self.assertRaises(SyntheticArtifactRejected):
             inspect_fixed_result(self.stage)
 
+    def test_unexpected_manager_output_file_denied(self):
+        (self.stage / "output" / "unauthorized.bin").write_bytes(b"bad")
+        with self.assertRaises(SyntheticArtifactRejected):
+            inspect_fixed_result(self.stage)
+
     def test_input_or_manager_output_tampering_denied(self):
         for target, original in (
             (self.stage / "input" / "sealed.bin", INPUT),

@@ -43,15 +43,17 @@ class HTTPModel(BaseHTTPRequestHandler):
         self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(data)))
         self.end_headers();self.wfile.write(data)
     def do_GET(self):
+        model=getattr(self.server,'model_id',MODEL)
         if self.path=='/api/inference/status':
-            return self.send({'model_identifier':MODEL,'loaded':[MODEL],'loading':[]})
+            return self.send({'model_identifier':model,'loaded':[model],'loading':[]})
         if self.path!='/api/v0/models':return self.send({},404)
-        self.send({'data':[{'id':MODEL,'state':'loaded'}]})
+        self.send({'data':[{'id':model,'state':'loaded'}]})
     def do_POST(self):
         data=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
         self.server.requests.append(data)
         if self.server.mode=='error':return self.send({},503)
         value=completion(data,self.server.mode)
+        value['model']=getattr(self.server,'model_id',MODEL)
         if self.server.mode=='wrong_model':value['model']='another-model'
         self.send(value)
 
@@ -101,6 +103,14 @@ class WorkerMCPFixture:
 
 
 class UniversalWorkerTests(WorkerMCPFixture,unittest.TestCase):
+    def test_native_backend_identifier_with_windows_path_and_alias_characters(self):
+        identifier=r'C:\Models\Local Worker+v1'
+        self.http.model_id=identifier
+        self.server.pilot.worker_profiles['native']=replace(self.profiles['native'],model_id=identifier)
+        job=self.submit('native')
+        self.assertEqual(self.terminal(job)['state'],'RESULT_READY')
+        self.assertTrue(all(request['model']==identifier for request in self.http.requests))
+
     def test_task_only_quick_job_also_works_with_the_existing_default_worker(self):
         self.server.pilot.config=replace(self.server.pilot.config,model_id=MODEL,
             base_url=f'http://127.0.0.1:{self.http.server_port}')

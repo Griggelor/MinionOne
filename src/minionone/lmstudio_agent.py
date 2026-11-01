@@ -109,7 +109,8 @@ class LMStudioAgentProvider:
     def __init__(self, base_url, *, model_id, approved_prompt,
                  max_output_tokens=1024, api_key=None, system_prompt=None,
                  io_sink=None, workspace_tools=False, worker_profile=None):
-        if type(model_id) is not str or _MODEL.fullmatch(model_id) is None:
+        if (type(model_id) is not str or not 1<=len(model_id)<=256 or
+                (worker_profile is None and _MODEL.fullmatch(model_id) is None)):
             raise PlannerRejected("invalid model identifier")
         if type(approved_prompt) is not str or not 1 <= len(approved_prompt) <= 8000:
             raise PlannerRejected("invalid approved prompt budget")

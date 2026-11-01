@@ -44,6 +44,8 @@ class WorkerProfile:
         for value, ceiling in ((self.model_id, 256), (self.instructions, 8000)):
             if type(value) is not str or (ceiling==256 and not value.strip()) or len(value) > ceiling or '\x00' in value:
                 raise InputRejected('invalid configured model or constraint')
+        if any(ord(c)<32 or ord(c)==127 for c in self.model_id):
+            raise InputRejected('invalid configured model identifier')
         if type(self.base_url) is not str:
             raise InputRejected('invalid configured provider URL')
         try:

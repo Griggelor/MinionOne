@@ -185,26 +185,35 @@ class FrameReader:
         self._buffer = bytearray()
         self._expected = None
         self._complete = False
+        self._closed = False
 
     def feed(self, chunk):
-        if self._complete or type(chunk) is not bytes:
+        if self._closed or self._complete or type(chunk) is not bytes:
             raise FrameRejected("frame already finished or nonbyte input")
         if len(self._buffer) + len(chunk) > MAX_FRAME_BYTES + 4:
+            self._closed = True
             raise FrameRejected("stream exceeds maximum IPC frame")
         self._buffer.extend(chunk)
         if len(self._buffer) >= 4 and self._expected is None:
             n = struct.unpack(">I", self._buffer[:4])[0]
             if not 1 <= n <= MAX_FRAME_BYTES:
+                self._closed = True
                 raise FrameRejected("oversized IPC header")
             self._expected = n + 4
         if self._expected is not None and len(self._buffer) > self._expected:
+            self._closed = True
             raise FrameRejected("multiple frames or trailing bytes")
         if self._expected is not None and len(self._buffer) == self._expected:
-            result = decode_frame(bytes(self._buffer))
+            try:
+                result = decode_frame(bytes(self._buffer))
+            except FrameRejected:
+                self._closed = True
+                raise
             self._complete = True
             return result
         return None
 
     def finish(self):
+        self._closed = True
         if not self._complete:
             raise ProtocolUncertain("incomplete IPC transport; preserve job attempt")

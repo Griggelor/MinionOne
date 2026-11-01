@@ -4,6 +4,7 @@ No real AppContainer IPC, Flint execution, output publishing or model tool use
 is claimed. All tests use synthetic frame bytes or a temporary SQLite DB.
 """
 import dataclasses
+from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 import subprocess
 import sys
@@ -296,7 +297,9 @@ class DurableReceiptJournalTests(unittest.TestCase):
         g2 = self.j.prepare("JOB-"+"e"*32, "ATT-"+"f"*32,
                             "OP-"+"1"*32)
         self.assertNotEqual(g1.nonce, g2.nonce)
-        with sqlite3.connect(self.db) as con:
+        # sqlite3.Connection's context manager does NOT close its handle;
+        # explicitly close before Windows temp directory teardown.
+        with closing(sqlite3.connect(self.db)) as con:
             with self.assertRaises(sqlite3.IntegrityError):
                 con.execute(
                     "INSERT INTO boxed_probe_receipts_v038 "

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.41 AppContainer inherited-handle, breakaway and loopback negative probes — 2026-11-01 (PRE-ALPHA / NO_GO)
+
+- Native fixed-child checks that an explicitly inheritable manager event excluded from HANDLE_LIST is invalid inside the AppContainer (Win32 ERROR_INVALID_HANDLE or exact NTSTATUS), and that a fixed self-CreateProcessW breakaway attempt fails while Job Object confinement is active.
+- Live local TCP test uses host positive control; records WSAEACCES separately from inconclusive timeout. No global no-network attestation. Dedicated Windows/Linux CI passed with v0.38–v0.40 regressions. [Design/evidence](docs/WIN32_BOXED_BOUNDARIES_V041.md); [PR #60](https://github.com/Griggelor/MinionOne/pull/60).
+- No arbitrary worker executable, real target-host proof, production sandbox GO, or Echtdatenfreigabe. Intermittent Windows Workfiles workflow issue #59 remains tracked.
+
 ## v0.40 native IPC negative gates — 2026-11-01 (PRE-ALPHA / NO_GO)
 
 - Fixed real Windows AppContainer C child now supports six CI-only failure modes; manager ensures durable no-replay receipt for real crash/timeout and quarantines malformed/forged/trailing pipe frames through the journal. Test helper has no model-selected arguments or general worker execution capability.

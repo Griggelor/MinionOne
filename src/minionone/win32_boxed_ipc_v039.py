@@ -1,0 +1,295 @@
+"""Fixed Windows AppContainer child IPC probe (v0.39), never a worker tool.
+
+Two anonymous pipes with explicit HANDLE_LIST inheritance replace a network
+listener. Only a fixed MSVC test helper is permitted, no model-selected process,
+script, file or command. v0.38 journal fences the attempt before resume.
+"""
+from __future__ import annotations
+
+import ctypes
+from ctypes import wintypes
+from dataclasses import dataclass
+import hashlib
+from pathlib import Path
+import secrets
+import subprocess
+import sys
+import tempfile
+
+from .boxed_ipc_v038 import MAX_FRAME_BYTES, ProtocolUncertain, validate_reply
+from .boxed_ipc_journal_v038 import BoxedProbeJournal
+from .win32_appcontainer_adversarial_v037 import (
+    _apis, _sid_string, _allow_probe_executable_only,
+)
+from .win32_appcontainer_probe import (
+    _StartupInfoEx, _SecurityCapabilities, _trusted_local_appdata,
+    _PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
+    _EXTENDED_STARTUPINFO_PRESENT, _TOKEN_QUERY, _TOKEN_IS_APPCONTAINER,
+)
+from .win32_job_object_probe import (
+    JobProbeUnavailable, _ProcessInfo, _StartupInfo, _ExtendedLimits,
+    _CREATE_SUSPENDED, _CREATE_NO_WINDOW, _CREATE_UNICODE_ENVIRONMENT,
+    _JOB_EXTENDED_LIMITS, _JOB_LIMIT_KILL_ON_CLOSE, _JOB_LIMIT_ACTIVE_PROCESS,
+    _JOB_LIMIT_PROCESS_MEMORY, _WAIT_OBJECT_0,
+)
+
+_HANDLE_LIST = 0x00020002
+_HANDLE_FLAG_INHERIT = 1
+_STARTF_USESTDHANDLES = 0x00000100
+_ERROR_BROKEN_PIPE = 109
+
+
+class _SecurityAttributes(ctypes.Structure):
+    _fields_ = [("nLength", wintypes.DWORD),
+                ("lpSecurityDescriptor", ctypes.c_void_p),
+                ("bInheritHandle", wintypes.BOOL)]
+
+
+@dataclass(frozen=True, slots=True)
+class BoxedIPCEvidence:
+    real_appcontainer_token: bool
+    assigned_before_resume: bool
+    explicit_two_handle_inheritance: bool
+    observed_code: str
+    journal_state: str
+    child_exit_code: int
+    ipc_transport: str = "anonymous_pipes_handle_list"
+    worker_tool_exposed: bool = False
+    os_sandbox_attested: bool = False
+    product_release: str = "NO_GO"
+
+
+def _configure_pipe_apis(k):
+    k.CreatePipe.argtypes = [ctypes.POINTER(wintypes.HANDLE),
+                             ctypes.POINTER(wintypes.HANDLE),
+                             ctypes.POINTER(_SecurityAttributes), wintypes.DWORD]
+    k.CreatePipe.restype = wintypes.BOOL
+    k.SetHandleInformation.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD]
+    k.SetHandleInformation.restype = wintypes.BOOL
+    k.WriteFile.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD,
+                            ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p]
+    k.WriteFile.restype = wintypes.BOOL
+    k.ReadFile.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD,
+                           ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p]
+    k.ReadFile.restype = wintypes.BOOL
+
+
+def _write_request(k, handle, wire):
+    if type(wire) is not bytes or not 5 <= len(wire) <= MAX_FRAME_BYTES + 4:
+        raise ProtocolUncertain("invalid fixed IPC probe request")
+    buf = ctypes.create_string_buffer(wire)
+    sent = wintypes.DWORD()
+    if not k.WriteFile(handle, buf, len(wire), ctypes.byref(sent), None) or sent.value != len(wire):
+        raise ProtocolUncertain("fixed child stdin write failed")
+
+
+def _read_reply(k, handle):
+    # Read only after child exit; the manager closes its copy of the child
+    # write handle before resume, so EOF is genuine. Extra bytes fail closed.
+    result = bytearray()
+    while True:
+        remaining = MAX_FRAME_BYTES + 5 - len(result)
+        if remaining <= 0:
+            raise ProtocolUncertain("oversized fixed child response")
+        buffer = ctypes.create_string_buffer(remaining)
+        received = wintypes.DWORD()
+        if not k.ReadFile(handle, buffer, remaining, ctypes.byref(received), None):
+            if ctypes.get_last_error() == _ERROR_BROKEN_PIPE:
+                break
+            raise ProtocolUncertain("fixed child stdout read failed")
+        if received.value == 0:
+            break
+        result.extend(buffer.raw[:received.value])
+        if len(result) > MAX_FRAME_BYTES + 4:
+            raise ProtocolUncertain("oversized fixed child response")
+    if not result:
+        raise ProtocolUncertain("fixed child returned no IPC frame")
+    return bytes(result)
+
+
+def _fixed_helper():
+    if sys.platform != "win32" or getattr(sys, "frozen", False):
+        raise JobProbeUnavailable("fixed IPC probe requires Windows source and MSVC helper")
+    expected = (Path(__file__).resolve().parents[2] / "evidence" / "v039" /
+                "boxed_ipc_child_v039.exe")
+    if (not expected.is_file() or expected.is_symlink() or
+            not 1024 <= expected.stat().st_size <= 2 * 1024 * 1024):
+        raise JobProbeUnavailable("trusted fixed v0.39 IPC helper unavailable")
+    return expected
+
+
+def run_fixed_boxed_ipc_probe():
+    """ONE synthetic IPC observation, without enabling any worker capability.
+
+    RESPONSE_OBSERVED is explicitly not sandbox attestation, result publication,
+    generic test execution, a parent ACK or safe target-host execution.
+    """
+    exe = _fixed_helper()
+    k, u, a = _apis()
+    _configure_pipe_apis(k)
+    sid = ctypes.c_void_p()
+    token = wintypes.HANDLE()
+    process = _ProcessInfo()
+    job = None
+    attr_memory = None
+    attr_initialized = False
+    profile_created = False
+    process_started = False
+    process_exited = False
+    handles = []
+    moniker = "MinionOne.IPC." + secrets.token_hex(12)
+    temp = tempfile.TemporaryDirectory(prefix="minionone-v039-")
+    try:
+        root = Path(temp.name)
+        runnable = root / "runnable"
+        manager_state = root / "manager"
+        runnable.mkdir()
+        manager_state.mkdir()
+        helper = runnable / "boxed_ipc_child_v039.exe"
+        original = exe.read_bytes()
+        helper.write_bytes(original)
+        if hashlib.sha256(helper.read_bytes()).digest() != hashlib.sha256(original).digest():
+            raise JobProbeUnavailable("trusted fixed helper copy changed")
+        hr = u.CreateAppContainerProfile(moniker, "MinionOne synthetic IPC proof",
+                                         "Disposable fixed PING child only", None, 0,
+                                         ctypes.byref(sid))
+        if hr != 0 or not sid.value:
+            raise JobProbeUnavailable("cannot provision per-attempt AppContainer identity")
+        profile_created = True
+        # Only the runnable ancestor/executable, NOT the manager state folder.
+        _allow_probe_executable_only(_sid_string(k, a, sid), runnable, helper)
+
+        journal = BoxedProbeJournal(manager_state / "manager_control.sqlite3")
+        grant = journal.prepare("JOB-" + secrets.token_hex(16),
+                                "ATT-" + secrets.token_hex(16),
+                                "OP-" + secrets.token_hex(16))
+        attrs = _SecurityAttributes(ctypes.sizeof(_SecurityAttributes), None, True)
+        child_in = wintypes.HANDLE()
+        manager_in_write = wintypes.HANDLE()
+        manager_out_read = wintypes.HANDLE()
+        child_out = wintypes.HANDLE()
+        if not k.CreatePipe(ctypes.byref(child_in), ctypes.byref(manager_in_write),
+                            ctypes.byref(attrs), 4096):
+            raise JobProbeUnavailable("cannot create input pipe")
+        handles += [child_in, manager_in_write]
+        if not k.CreatePipe(ctypes.byref(manager_out_read), ctypes.byref(child_out),
+                            ctypes.byref(attrs), 4096):
+            raise JobProbeUnavailable("cannot create output pipe")
+        handles += [manager_out_read, child_out]
+        for manager_end in (manager_in_write, manager_out_read):
+            if not k.SetHandleInformation(manager_end, _HANDLE_FLAG_INHERIT, 0):
+                raise JobProbeUnavailable("manager pipe end remains inheritable")
+
+        required = ctypes.c_size_t()
+        k.InitializeProcThreadAttributeList(None, 2, 0, ctypes.byref(required))
+        if not 1 <= required.value <= 65536:
+            raise JobProbeUnavailable("invalid attribute-list allocation")
+        attr_memory = ctypes.create_string_buffer(required.value)
+        if not k.InitializeProcThreadAttributeList(attr_memory, 2, 0,
+                                                   ctypes.byref(required)):
+            raise JobProbeUnavailable("cannot create security/handle attributes")
+        attr_initialized = True
+        caps = _SecurityCapabilities(sid, None, 0, 0)
+        if not k.UpdateProcThreadAttribute(
+                attr_memory, 0, _PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
+                ctypes.byref(caps), ctypes.sizeof(caps), None, None):
+            raise JobProbeUnavailable("cannot bind AppContainer token")
+        inherit = (wintypes.HANDLE * 2)(child_in.value, child_out.value)
+        if not k.UpdateProcThreadAttribute(
+                attr_memory, 0, _HANDLE_LIST, ctypes.byref(inherit),
+                ctypes.sizeof(inherit), None, None):
+            raise JobProbeUnavailable("cannot restrict inherited pipe handles")
+        startup = _StartupInfoEx()
+        startup.StartupInfo.cb = ctypes.sizeof(startup)
+        startup.StartupInfo.dwFlags = _STARTF_USESTDHANDLES
+        startup.StartupInfo.hStdInput = child_in
+        startup.StartupInfo.hStdOutput = child_out
+        startup.StartupInfo.hStdError = child_out
+        startup.lpAttributeList = ctypes.cast(attr_memory, ctypes.c_void_p)
+
+        job = k.CreateJobObjectW(None, None)
+        if not job:
+            raise JobProbeUnavailable("cannot create bounding Job Object")
+        limits = _ExtendedLimits()
+        limits.BasicLimitInformation.LimitFlags = (
+            _JOB_LIMIT_KILL_ON_CLOSE | _JOB_LIMIT_ACTIVE_PROCESS |
+            _JOB_LIMIT_PROCESS_MEMORY)
+        limits.BasicLimitInformation.ActiveProcessLimit = 1
+        limits.ProcessMemoryLimit = 128 * 1024 * 1024
+        if not k.SetInformationJobObject(job, _JOB_EXTENDED_LIMITS,
+                                         ctypes.byref(limits), ctypes.sizeof(limits)):
+            raise JobProbeUnavailable("cannot configure process/resource bounds")
+        windows = ctypes.create_unicode_buffer(32768)
+        n = k.GetWindowsDirectoryW(windows, len(windows))
+        if not 1 <= n < len(windows):
+            raise JobProbeUnavailable("Windows root unavailable")
+        env = ctypes.create_unicode_buffer(
+            "LOCALAPPDATA=" + _trusted_local_appdata() + "\0SystemRoot=" +
+            windows.value + "\0WINDIR=" + windows.value + "\0\0")
+        flags = (_CREATE_SUSPENDED | _CREATE_NO_WINDOW |
+                 _CREATE_UNICODE_ENVIRONMENT | _EXTENDED_STARTUPINFO_PRESENT)
+        command = ctypes.create_unicode_buffer(subprocess.list2cmdline([str(helper)]))
+        if not k.CreateProcessW(str(helper), command, None, None, True, flags,
+                                ctypes.cast(env, ctypes.c_void_p), windows.value,
+                                ctypes.cast(ctypes.byref(startup),
+                                            ctypes.POINTER(_StartupInfo)),
+                                ctypes.byref(process)):
+            raise JobProbeUnavailable("fixed AppContainer child start failed; win32=" +
+                                      str(ctypes.get_last_error()))
+        process_started = True
+        # Close child-only copies in the manager immediately after CreateProcess.
+        for child_end in (child_in, child_out):
+            k.CloseHandle(child_end)
+            handles.remove(child_end)
+        if not k.AssignProcessToJobObject(job, process.hProcess):
+            raise JobProbeUnavailable("IPC child not assigned to Job before resume")
+        if not a.OpenProcessToken(process.hProcess, _TOKEN_QUERY, ctypes.byref(token)):
+            raise JobProbeUnavailable("cannot inspect IPC child token")
+        bit = wintypes.DWORD()
+        returned = wintypes.DWORD()
+        if not a.GetTokenInformation(token, _TOKEN_IS_APPCONTAINER,
+                                     ctypes.byref(bit), ctypes.sizeof(bit),
+                                     ctypes.byref(returned)) or bit.value != 1:
+            raise JobProbeUnavailable("IPC child is not a real AppContainer process")
+
+        # Persist v0.38 no-replay fence BEFORE the child executes an instruction.
+        request = journal.before_dispatch(grant)
+        if k.ResumeThread(process.hThread) == 0xffffffff:
+            raise ProtocolUncertain("IPC child resume failed after dispatch fence")
+        _write_request(k, manager_in_write, request)
+        k.CloseHandle(manager_in_write)
+        handles.remove(manager_in_write)
+        if k.WaitForSingleObject(process.hProcess, 4000) != _WAIT_OBJECT_0:
+            raise ProtocolUncertain("IPC child deadline exceeded: attempt uncertain")
+        process_exited = True
+        exit_code = wintypes.DWORD()
+        if not k.GetExitCodeProcess(process.hProcess, ctypes.byref(exit_code)) or exit_code.value != 0:
+            raise ProtocolUncertain("IPC child failed or exit receipt unavailable")
+        response = _read_reply(k, manager_out_read)
+        if validate_reply(response, grant) != "PONG":
+            raise ProtocolUncertain("fixed child did not return exact PONG")
+        receipt = journal.observe_response(grant, response)
+        if receipt.state != "RESPONSE_OBSERVED":
+            raise ProtocolUncertain("durable exact IPC observation missing")
+        return BoxedIPCEvidence(True, True, True, receipt.observed_code,
+                                receipt.state, exit_code.value)
+    finally:
+        if job and process_started and not process_exited:
+            k.TerminateJobObject(job, 137)
+            k.WaitForSingleObject(process.hProcess, 2000)
+        if token:
+            k.CloseHandle(token)
+        for handle in handles:
+            k.CloseHandle(handle)
+        if process_started:
+            k.CloseHandle(process.hThread)
+            k.CloseHandle(process.hProcess)
+        if job:
+            k.CloseHandle(job)
+        if attr_initialized:
+            k.DeleteProcThreadAttributeList(attr_memory)
+        if sid.value:
+            a.FreeSid(sid)
+        if profile_created and u.DeleteAppContainerProfile(moniker) != 0:
+            raise JobProbeUnavailable("disposable AppContainer profile cleanup failed")
+        temp.cleanup()

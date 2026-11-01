@@ -56,14 +56,14 @@ DIRECT_DELEGATION_TOOL = {
      'files':{'type':'object','minProperties':1,'maxProperties':4,
               'additionalProperties':{'type':'string','maxLength':3500}},
      'operation_id':{'type':'string'},
- },'required':['project_id','goal','context','acceptance_criteria','files','operation_id'],
+ },'required':['project_id','goal','acceptance_criteria','files','operation_id'],
     'additionalProperties':False}
 }
 
 
 WORKSPACE_TOOLS = [
  {'name':'minionone_prepare_workspace',
-  'description':'ALTERNATIVE staged route: reserve input/work/output folders in an operator-approved project. A trusted external operator must place TASK.md, manifest.json and files in input/ BEFORE minionone_seal_workspace then minionone_start_workspace_job; Flash has NO host filesystem tools. Not yet executable.',
+  'description':'ALTERNATIVE staged route: reserve input/work/output folders in an operator-approved project. A trusted external operator must place TASK.md, manifest.json and files in input/ BEFORE minionone_seal_workspace then minionone_start_workspace_job; this MCP server grants Flash no generic host filesystem tools. Execution requires the explicit workspace mode.',
   'inputSchema':{'type':'object','properties':{'project_id':{'type':'string'},'operation_id':{'type':'string'}},
                  'required':['project_id','operation_id'],'additionalProperties':False}},
  {'name':'minionone_seal_workspace',
@@ -139,7 +139,7 @@ class LocalMCP(ThreadingHTTPServer):
                  thread="configured-pilot", lmstudio_url="http://127.0.0.1:1234",
                  enable_test_jobs=False,worker_model=None,worker_api_key=None,
                  min_free_mb=4096,model_call_seconds=60,workspace_projects=None,
-                 enable_workspace_jobs=False):
+                 enable_workspace_jobs=False, worker_profiles=None, parent_driver=None):
         if (type(address) is not tuple or len(address) != 2 or
             address[0] != "127.0.0.1" or type(address[1]) is not int or
             not 0 <= address[1] <= 65535):
@@ -151,14 +151,22 @@ class LocalMCP(ThreadingHTTPServer):
         if type(enable_workspace_jobs) is not bool:raise ValueError('invalid workspace execution switch')
         if enable_workspace_jobs and workspace_projects is None:
             raise ValueError('workspace execution requires configured projects')
+        if worker_profiles is not None:
+            from .worker_profiles import WorkerProfile
+            if (type(worker_profiles) is not dict or not 1<=len(worker_profiles)<=16 or
+                    any(type(v) is not WorkerProfile or k!=v.profile_id for k,v in worker_profiles.items())):
+                raise ValueError('trusted worker profiles required')
+            from .text_tools import TEXT_TOOLS
         # Establish independent process/error files before SQLite, leases,
         # schema migration or network bind. A DB failure is still observable.
         self.logs=ProcessLogs(database_path)
         self._logs_closed=False
         self.logs.event("PROCESS_START",workspace_enabled=int(enable_workspace_jobs))
         self.pilot=None;self._pilot_lock=None;self.workspace=None;self.workspace_jobs=None
+        self.parent_return=None
         self.enable_workspace_jobs=enable_workspace_jobs
         self.tools=TOOLS+(PILOT_TOOLS if enable_test_jobs else [])+(WORKSPACE_TOOLS if workspace_projects is not None else [])
+        if worker_profiles is not None:self.tools+=TEXT_TOOLS
         if enable_workspace_jobs:
             # Workspace is the product-facing mode; old isolated test protocol
             # remains available only on a separate non-workspace server.
@@ -174,7 +182,7 @@ class LocalMCP(ThreadingHTTPServer):
         self.credential = token
         self.thread_id = thread
         try:
-            if enable_test_jobs or enable_workspace_jobs:
+            if enable_test_jobs or enable_workspace_jobs or worker_profiles is not None:
                 from .pilot_lock import PilotLock
                 self._pilot_lock=PilotLock(database_path)
             self.store = AdmissionStore(database_path, credentials={token:(principal,{thread})})
@@ -192,35 +200,45 @@ class LocalMCP(ThreadingHTTPServer):
                 "outbox_quarantined": outbox_count,
                 "attempts_fenced": attempt_count,
             }
-            if enable_test_jobs or enable_workspace_jobs:
+            if enable_test_jobs or enable_workspace_jobs or worker_profiles is not None:
                 from .pilot_jobs import PilotJobs,PilotConfig
-                self.pilot=PilotJobs(self.store,PilotConfig(worker_model,lmstudio_url,worker_api_key,
+                self.pilot=PilotJobs(self.store,PilotConfig(worker_model or 'configured-text-worker',lmstudio_url,worker_api_key,
                                     model_call_seconds=model_call_seconds,min_free_mb=min_free_mb))
                 self.pilot.process_logs=self.logs
+                self.pilot.text_profiles=dict(worker_profiles or {})
                 if enable_workspace_jobs:
                     from .workspace_jobs import WorkspaceJobs
                     self.workspace_jobs=WorkspaceJobs(self.workspace,self.pilot,token,thread)
                     self.pilot.workspace_execution=self.workspace_jobs
                 count=self.pilot.recover()
+                if worker_profiles is not None:self.recovery_summary['text_jobs_recovery_checked']=True
                 if enable_test_jobs:self.recovery_summary['test_jobs_quarantined']=count
                 if enable_workspace_jobs:self.recovery_summary['workspace_jobs_recovery_checked']=True
+            if parent_driver is not None:
+                from .parent_return import ParentReturnController
+                self.parent_return=ParentReturnController(self.store,parent_driver)
+                if self.pilot is not None:self.pilot.parent_return=self.parent_return
             self.probe = LMStudioProbe(lmstudio_url,api_key=worker_api_key)
             self._slots=threading.BoundedSemaphore(8)
             super().__init__(address, MCPHandler)
             self.logs.event("MCP_READY",port=self.server_port)
+            if self.parent_return is not None:self.parent_return.start()
         except BaseException as exc:
             try:self.logs.failure("STARTUP_FAILED",exc)
             finally:
+                if self.parent_return is not None:self.parent_return.close()
                 if self._pilot_lock is not None:self._pilot_lock.close()
                 self.logs.close()
             raise
 
     def server_close(self):
         try:
+            if self.parent_return is not None:self.parent_return.close()
             if self.pilot is not None:self.pilot.close()
         finally:
             try:super().server_close()
             finally:
+                if self.parent_return is not None:self.parent_return.close()
                 if self._pilot_lock is not None:self._pilot_lock.close()
                 if not self._logs_closed:
                     self._logs_closed=True
@@ -260,7 +278,11 @@ class LocalMCP(ThreadingHTTPServer):
                     "host_filesystem_tools_enabled":False,
                     "worker_tool_boundary":"MANAGER_BROKER_FILES_ONLY",
                     "boxed_execution_enabled":False,"os_sandbox_attested":False,
-                    "windows_file_broker_verified":False,"auto_wakeup_enabled":False,
+                    "windows_file_broker_verified":False,"auto_wakeup_enabled":bool(self.parent_return and self.parent_return.verified),
+                    "automatic_return_required":True,
+                    "parent_return_backend":"TRUSTED_HOST_DRIVER" if self.parent_return else "UNAVAILABLE",
+                    "text_worker_profiles":len(self.pilot.text_profiles) if self.pilot else 0,
+                    "implicit_context_transfer":False,
                     "workspace_preparation_enabled":self.workspace is not None,
                     "workspace_execution_enabled":self.workspace_jobs is not None,
                     "workspace_execution_mode":"OPT_IN_DEV_SQLITE_SANDBOX" if self.workspace_jobs else None}
@@ -269,7 +291,30 @@ class LocalMCP(ThreadingHTTPServer):
         if name == "minionone_admit":
             return self.store.admit(token,thread,args["input_digest"],args["operation_id"])
         if name == "minionone_job_status":
-            return self.store.status(token,thread,args['job_id'],include_timeout=True)
+            result=self.store.status(token,thread,args['job_id'],include_timeout=True)
+            if self.parent_return is not None:
+                result['parent_return']=self.parent_return.status(args['job_id'])
+            return result
+        if self.pilot is not None and name=='minionone_workers':
+            return {'workers':[p.catalog() for p in self.pilot.text_profiles.values()]}
+        if self.pilot is not None and name=='minionone_consult':
+            return self.pilot.consult(token,thread,args['profile_id'],args['prompt'],args['operation_id'],
+                context=args.get('context',''),allow_cloud=args.get('allow_cloud',False))
+        if self.pilot is not None and name=='minionone_consult_result':
+            result=self.pilot.result(token,thread,args['job_id'],kind='TEXT')
+            return {k:v for k,v in result.items() if k!='files'}|{'text':result['files'][0]['text']}
+        if self.pilot is not None and name=='minionone_accept_consult_result':
+            return self.pilot.acknowledge(token,thread,args['job_id'],args['expected_version'],
+                args['result_digest'],args['operation_id'],kind='TEXT')
+        if self.pilot is not None and name=='minionone_cancel_consult':
+            return self.pilot.cancel(token,thread,args['job_id'],args['expected_version'],args['operation_id'],kind='TEXT')
+        if self.pilot is not None and name=='minionone_consult_io':
+            from .worker_io import page
+            with self.store._connection() as con:
+                con.execute('BEGIN')
+                row=self.store._owned_row(con,self.store._principal(token,thread),thread,args['job_id'])
+                if row['job_kind']!='TEXT':raise InputRejected('not a text job')
+                return page(con,args['job_id'],args.get('after_seq',0),args.get('limit',10))
         if name == "minionone_job_events":
             return {"events":self.store.events(token,thread,args["job_id"])}
         if name == "minionone_job_trace":
@@ -306,7 +351,7 @@ class LocalMCP(ThreadingHTTPServer):
             if self.workspace_jobs is not None:
                 if name == 'minionone_delegate':
                     return self.workspace_jobs.delegate(token,thread,
-                        args['project_id'],args['goal'],args['context'],
+                        args['project_id'],args['goal'],args.get('context',''),
                         args['acceptance_criteria'],args['files'],args['operation_id'])
                 if name == 'minionone_start_workspace_job':
                     return self.workspace_jobs.start(token,thread,args['job_id'],
@@ -449,6 +494,16 @@ class MCPHandler(BaseHTTPRequestHandler):
                     "Only use tools actually advertised by tools/list. "
                     "Use minionone_job_trace for durable redacted diagnostics."
                 )
+                if self.server.pilot is not None and self.server.pilot.text_profiles:
+                    instructions += (
+                        ' Third text-only route: minionone_workers lists configured roles; '
+                        'minionone_consult sends ONLY its prompt and explicitly supplied optional context. '
+                        'Never retrieve or attach Flash history implicitly. Text workers have no file/tools. '
+                        'Use minionone_job_status, minionone_consult_result and exact '
+                        'minionone_accept_consult_result. Cloud requires configured approval and allow_cloud=true. '
+                        'Automatic same-chat return/restoration is required by the product but needs a '
+                        'verified host driver; inspect minionone_status rather than claiming a wakeup.'
+                    )
                 result={"protocolVersion":PROTOCOL,"capabilities":{"tools":{"listChanged":False}},
                         "serverInfo":{"name":"minionone-pilot","version":__version__},
                         "instructions":instructions}

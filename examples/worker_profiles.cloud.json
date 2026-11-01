@@ -1,0 +1,17 @@
+{
+  "profiles": [
+    {
+      "profile_id": "review-cloud",
+      "description": "Explizit freigegebenes kritisches API-Review; Endpunkt und Modell vor Nutzung konfigurieren",
+      "provider": "cloud",
+      "model_id": "EXACT_APPROVED_CLOUD_MODEL_ID",
+      "base_url": "https://provider.example.invalid/v1",
+      "secret_env": "MINIONONE_CLOUD_API_KEY",
+      "cloud_approved": true,
+      "instructions": "Independently review the supplied proposal against the supplied goal. Return concrete findings, evidence, severity, proposed fixes and uncertainty. Never claim access to omitted context.",
+      "timeout_seconds": 180,
+      "max_input_bytes": 32768,
+      "max_output_tokens": 4096
+    }
+  ]
+}

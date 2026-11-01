@@ -66,9 +66,9 @@ _JOB_TABLE = """CREATE TABLE IF NOT EXISTS {name}(
   'RESULT_READY','COMPLETED','FAILED','WAITING_FOR_PARENT')),
  version INTEGER NOT NULL CHECK(version>=0),
  job_kind TEXT NOT NULL DEFAULT 'NON_EXECUTING'
-   CHECK(job_kind IN ('NON_EXECUTING','ISOLATED_TEST','WORKSPACE')),
+   CHECK(job_kind IN ('NON_EXECUTING','ISOLATED_TEST','WORKSPACE','TEXT')),
  worker_started INTEGER NOT NULL DEFAULT 0 CHECK(worker_started IN (0,1))
-   CHECK(worker_started=0 OR job_kind IN ('ISOLATED_TEST','WORKSPACE')),
+   CHECK(worker_started=0 OR job_kind IN ('ISOLATED_TEST','WORKSPACE','TEXT')),
  created_utc TEXT NOT NULL, updated_utc TEXT NOT NULL)"""
 
 
@@ -173,15 +173,16 @@ class AdmissionStore:
         normalized = ''.join(definition.split())
         if 'job_kind' in normalized:
             allowed_guard = ("CHECK(worker_started=0ORjob_kind='ISOLATED_TEST')" in normalized or
-                "CHECK(worker_started=0ORjob_kindIN('ISOLATED_TEST','WORKSPACE'))" in normalized)
+                "CHECK(worker_started=0ORjob_kindIN('ISOLATED_TEST','WORKSPACE'))" in normalized or
+                "CHECK(worker_started=0ORjob_kindIN('ISOLATED_TEST','WORKSPACE','TEXT'))" in normalized)
             if (not allowed_guard or "CHECK(worker_startedIN(0,1))" not in normalized or
                     not all(x in normalized for x in ("'RESULT_READY'","'COMPLETED'","'FAILED'"))):
                 raise StateSchemaRejected('unsafe executable jobs schema')
             if con.execute('PRAGMA foreign_key_check').fetchone() is not None:
                 raise StateIntegrityRejected('broken canonical foreign keys')
-            if "'WORKSPACE'" not in normalized:
-                # Exact v0.25 constraint expansion for the first executable
-                # workspace slice. The canonical row/ID and all child FKs
+            if "'WORKSPACE'" not in normalized or "'TEXT'" not in normalized:
+                # Known v0.26/v0.44 expansion for workspace and text workers.
+                # The canonical row/ID and all child FKs
                 # survive the single atomic table replacement.
                 con.execute("PRAGMA foreign_keys=OFF")
                 try:
@@ -341,6 +342,9 @@ class AdmissionStore:
             if row['job_kind'] in ('ISOLATED_TEST','WORKSPACE'):
                 from .pilot_jobs import PilotJobs
                 snapshot['test_job' if row['job_kind']=='ISOLATED_TEST' else 'workspace_job'] = PilotJobs.project(con,row)
+            if row['job_kind'] == 'TEXT':
+                from .pilot_jobs import PilotJobs
+                snapshot['text_job'] = PilotJobs.project(con,row)
             return snapshot
 
     def _transition(self, con, row, new, evidence, operation_id, *, actor='MANAGER'):

@@ -420,6 +420,8 @@ def main(argv=None):
     serve.add_argument('--port',type=int,default=None);serve.add_argument('--min-free-mb',type=int,default=4096)
     serve.add_argument('--model-call-seconds',type=int,default=120)
     serve.add_argument('--ask-api-key',action='store_true')
+    serve.add_argument('--worker-profiles',type=Path,
+        help='Operator-owned text worker role configuration; no implicit parent context')
     serve.add_argument('--experimental-workspace-jobs',action='store_true',
         help='Explicit development-only sealed workspace worker; NOT production approval')
     serve.add_argument('--synthetic-workspace',action='store_true',
@@ -478,11 +480,13 @@ def main(argv=None):
             config=PilotConfig(model,provider,key,
                                model_call_seconds=args.model_call_seconds,min_free_mb=args.min_free_mb)
             token=_token(state,True)
+            from .worker_profiles import load_profiles
+            profiles=load_profiles(args.worker_profiles) if args.worker_profiles else None
             server=LocalMCP(('127.0.0.1',port),token=token,database_path=state/'jobs.sqlite',
                 lmstudio_url=config.base_url,enable_test_jobs=not args.experimental_workspace_jobs,worker_model=model,worker_api_key=config.api_key,
                 min_free_mb=config.min_free_mb,model_call_seconds=config.model_call_seconds,
                 workspace_projects=projects or None,
-                enable_workspace_jobs=args.experimental_workspace_jobs)
+                enable_workspace_jobs=args.experimental_workspace_jobs,worker_profiles=profiles)
             try:
                 (state/'settings.json').write_text(json.dumps({
                     'port':port,'model':model,'provider_url':config.base_url,

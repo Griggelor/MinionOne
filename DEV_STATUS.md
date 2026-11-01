@@ -1,5 +1,22 @@
 # Development status — 2026-11-01
 
+## v0.44 – owner requirements, three-provider text roles and automatic-return contract
+
+- Original FR/test traceability re-fetched from GitHub and compared with explicit
+  owner clarification: three providers, no implicit context, automatic original
+  chat return both with resident and previously unloaded Flash; optional third text route.
+- Actual opt-in text MCP execution uses operator profiles, one model call, no
+  files/tools, same canonical jobs/receipts/quotas, bounded HTTP process, exact
+  private I/O, result digest and explicit ACK. LM Studio/Unsloth currently require
+  already loaded models; cloud supports explicitly approved compatible HTTPS APIs.
+- Automatic parent-return controller binds the original parent before worker
+  start, restores if needed, waits for busy parent, persists send fence and checks
+  the same-chat receipt before allowing ACK. Synthetic-driver tests only.
+- Native Unsloth original-chat driver, resource-controlled load/unload, applying
+  profiles to existing file routes, cloud PII/real cost gate and actual host proof
+  remain OPEN. No claim that polling or mocked restore satisfies the product.
+- Package/runtime version `0.44.0.dev0`. See docs/OWNER_REQUIREMENTS_V044.md.
+
 ## v0.43 – current Windows workspace package and CI diagnostics
 
 - Package/runtime/workflow version moves together to `0.43.0.dev0`.
@@ -117,7 +134,7 @@
 - Installed Python package still identifies as `0.25.0.dev0` by design of existing wheel tests; **v0.32 refers to the implementation milestone, not a published versioned release**. Coordinate package/version markers before the next Windows system-test distribution.
 
 
-**Version:** 0.43.0.dev0 (GitHub development; TARGET_PRODUCT NO-GO)
+**Version:** 0.44.0.dev0 (GitHub development; TARGET_PRODUCT NO-GO)
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
 
 ## v0.18.0.dev0 — complete test-document job path

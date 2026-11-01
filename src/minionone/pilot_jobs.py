@@ -77,6 +77,8 @@ class PilotJobs:
     def __init__(self,owner,config):
         self.owner=owner;self.config=config;self._threads=set();self._lock=threading.Lock()
         self.workspace_execution=None  # Explicit opt-in manager-side attachment, never model-supplied.
+        self.text_profiles={}
+        self.parent_return=None
         with owner._connection() as con:
             con.executescript('''
             CREATE TABLE IF NOT EXISTS pilot_runs(
@@ -106,6 +108,10 @@ class PilotJobs:
               operation_digest TEXT NOT NULL,request_hash TEXT NOT NULL,receipt TEXT NOT NULL,
               PRIMARY KEY(job_id,kind,operation_digest));
             ''')
+            con.execute('''CREATE TABLE IF NOT EXISTS pilot_text_profiles(
+                job_id TEXT PRIMARY KEY REFERENCES jobs(job_id), profile_json TEXT NOT NULL)''')
+            con.execute('''CREATE TRIGGER IF NOT EXISTS pilot_text_profile_immutable
+                BEFORE UPDATE ON pilot_text_profiles BEGIN SELECT RAISE(ABORT,'immutable profile'); END''')
 
     def recover(self):
         count=0
@@ -128,8 +134,11 @@ class PilotJobs:
     def project(con,row):
         p=con.execute('SELECT * FROM pilot_runs WHERE job_id=?',(row['job_id'],)).fetchone()
         if p is None:raise PilotError('PILOT_STATE_INVALID')
-        return {'backend':(('native_win32_work_sqlite_output' if os.name=='nt' else 'native_posix_work_sqlite_output')
-                            if row['job_kind']=='WORKSPACE' else 'sqlite_documents'),
+        backend='sqlite_documents'
+        if row['job_kind']=='TEXT':backend='bounded_text_no_worker_tools'
+        elif row['job_kind']=='WORKSPACE':
+            backend='native_win32_work_sqlite_output' if os.name=='nt' else 'native_posix_work_sqlite_output'
+        return {'backend':backend,
                 'attempt_epoch':p['epoch'],'worker_model':p['model_id'],
                 'model_turns':p['turns'],'tool_calls':p['tools'],'denials':p['denials'],
                 'tokens_used':p['tokens'],'progress_percent':p['percent'],
@@ -187,6 +196,48 @@ class PilotJobs:
             con.execute('INSERT INTO admissions VALUES(?,?,?,?,?)',(principal,operation_id,request_hash,job,json.dumps(receipt,sort_keys=True)))
             return receipt
 
+    def consult(self,token,thread,profile_id,prompt,operation_id,*,context='',allow_cloud=False):
+        """Third handoff: one explicit text request, no input/work/output tools."""
+        from dataclasses import asdict
+        from .worker_profiles import WorkerProfile
+        self.owner._principal(token,thread)
+        _field(_OP,operation_id,'operation')
+        if type(profile_id) is not str or profile_id not in self.text_profiles:
+            raise InputRejected('unknown configured worker profile')
+        profile=self.text_profiles[profile_id]
+        if type(profile) is not WorkerProfile or type(allow_cloud) is not bool:
+            raise InputRejected('invalid trusted profile or cloud permission')
+        if profile.provider=='cloud' and not allow_cloud:
+            raise InputRejected('cloud use must be explicitly requested within operator approval')
+        if (type(prompt) is not str or not prompt.strip() or type(context) is not str or
+                '\x00' in prompt or '\x00' in context):
+            raise InputRejected('invalid explicit text request')
+        task=json.dumps({'prompt':prompt,'context':context},ensure_ascii=True,separators=(',',':'))
+        if (len((prompt+context).encode('utf-8'))>profile.max_input_bytes or
+                len(task.encode('ascii'))>80*1024):
+            raise InputRejected('text request budget exceeded')
+        config=asdict(profile)
+        digest=_digest([config,task])
+        admitted=self.owner.admit(token,thread,digest,'text-'+_digest(operation_id))
+        job=admitted['job_id']
+        principal=self.owner._principal(token,thread)
+        with self.owner._connection() as con:
+            con.execute('BEGIN IMMEDIATE')
+            row=self.owner._owned_row(con,principal,thread,job)
+            receipt=self._receipt(con,job,'TEXT_SUBMIT',operation_id,digest)
+            if receipt is None:
+                if row['state']!='ACCEPTED' or row['job_kind']!='NON_EXECUTING':
+                    raise VersionConflict('text admission is no longer available')
+                con.execute("UPDATE jobs SET job_kind='TEXT' WHERE job_id=?",(job,))
+                con.execute('INSERT INTO pilot_runs(job_id,task,model_id) VALUES(?,?,?)',
+                            (job,task,profile.model_id))
+                con.execute('INSERT INTO pilot_text_profiles VALUES(?,?)',
+                            (job,json.dumps(config,sort_keys=True)))
+                row=self.owner._transition(con,row,'QUEUED',Evidence(),'text-queue-'+_digest(operation_id))
+                receipt=self.owner._snapshot(row)
+                self._receipt(con,job,'TEXT_SUBMIT',operation_id,digest,receipt)
+        return self.start(token,thread,job,receipt['version'],operation_id,kind='TEXT')
+
     def start(self,token,thread,job_id,expected_version,operation_id,*,kind='ISOLATED_TEST'):
         principal=self.owner._principal(token,thread);_field(_OP,operation_id,'operation')
         if type(expected_version) is not int or expected_version<0:raise InputRejected('invalid expected version')
@@ -195,7 +246,7 @@ class PilotJobs:
             con.execute('BEGIN IMMEDIATE');row=self.owner._owned_row(con,principal,thread,job_id)
             old=self._receipt(con,job_id,'START',operation_id,[expected_version])
             if old is not None:return old
-            if row['job_kind']!=kind or kind not in ('ISOLATED_TEST','WORKSPACE') or row['state']!='QUEUED' or row['version']!=expected_version:
+            if row['job_kind']!=kind or kind not in ('ISOLATED_TEST','WORKSPACE','TEXT') or row['state']!='QUEUED' or row['version']!=expected_version:
                 raise VersionConflict('test job not queued at expected version')
             if con.execute('SELECT 1 FROM pilot_runs WHERE active=1 OR provider_inflight=1').fetchone():raise PilotError('PILOT_JOB_BUSY')
             con.execute('UPDATE pilot_runs SET active=1,capability=? WHERE job_id=?',(sha256(cap.encode()).hexdigest(),job_id))
@@ -204,8 +255,11 @@ class PilotJobs:
             self._receipt(con,job_id,'START',operation_id,[expected_version],receipt)
         worker=threading.Thread(target=self._run,args=(job_id,cap),daemon=True)
         with self._lock:self._threads.add(worker)
-        try:worker.start()
+        try:
+            if self.parent_return is not None:self.parent_return.bind(job_id)
+            worker.start()
         except Exception:
+            with self._lock:self._threads.discard(worker)
             self._finish(job_id,'FAILED','PILOT_START_FAILED');raise PilotError('PILOT_START_FAILED') from None
         return receipt
 
@@ -230,6 +284,11 @@ class PilotJobs:
         workspace_job=False
         live_logs=None
         try:
+            with self.owner._connection() as con:
+                kind=con.execute('SELECT job_kind FROM jobs WHERE job_id=?',(job,)).fetchone()[0]
+            if kind=='TEXT':
+                self._run_text(job,cap)
+                return
             with self.owner._connection() as con:
                 configured=con.execute('SELECT model_id FROM pilot_runs WHERE job_id=?',(job,)).fetchone()
                 if configured['model_id']!=self.config.model_id:raise PilotError('PILOT_MODEL_NOT_LOADED')
@@ -394,6 +453,62 @@ class PilotJobs:
                         self.process_logs.failure('JOB_LOG_CLOSE_FAILED',log_error)
             with self._lock:self._threads.discard(threading.current_thread())
 
+    def _run_text(self,job,cap):
+        from .worker_profiles import WorkerProfile,TextWorker
+        from .worker_io import append as append_io
+        dispatched=False
+        try:
+            with self.owner._connection() as con:
+                data=con.execute('''SELECT r.task,r.model_id,p.profile_json,j.input_digest
+                    FROM pilot_runs r JOIN pilot_text_profiles p USING(job_id)
+                    JOIN jobs j USING(job_id) WHERE r.job_id=?''',(job,)).fetchone()
+                if data is None:raise PilotError('PILOT_FILE_CHANGED')
+                try:
+                    config=json.loads(data['profile_json'])
+                    profile=WorkerProfile(**config)
+                except (ValueError,TypeError):
+                    raise PilotError('PILOT_FILE_CHANGED') from None
+                task=data['task']
+                if (_digest([config,task])!=data['input_digest'] or
+                        profile.model_id!=data['model_id']):
+                    raise PilotError('PILOT_FILE_CHANGED')
+            worker=TextWorker(profile)
+            if profile.provider!='cloud' and available_memory_mb()<self.config.min_free_mb:
+                raise PilotError('PILOT_RESOURCE_UNVERIFIED')
+            worker.preflight()
+            with self.owner._connection() as con:
+                con.execute('BEGIN IMMEDIATE')
+                row=con.execute('SELECT * FROM jobs WHERE job_id=?',(job,)).fetchone()
+                if row['state']=='CANCEL_REQUESTED':
+                    self._finish_in(con,row,'CANCELLED',None)
+                    return
+                if row['state']!='RESOURCE_CHECK':raise PilotError('PILOT_STATE_INVALID')
+                self.owner._transition(con,row,'RUNNING',Evidence(attempt_no=1,active_lease=True,
+                    worker_outcome='RUNNING'),'text-running-'+secrets.token_hex(8))
+                con.execute('UPDATE pilot_runs SET turns=1,provider_inflight=1 WHERE job_id=?',(job,))
+            dispatched=True
+            def sink(kind,body):
+                with self.owner._connection() as con:
+                    con.execute('BEGIN IMMEDIATE')
+                    self._current(con,job,cap)
+                    append_io(con,job,kind,body)
+            text,tokens=worker.complete(task,sink=sink)
+            with self.owner._connection() as con:
+                con.execute('BEGIN IMMEDIATE')
+                self._current(con,job,cap)
+                con.execute('INSERT INTO pilot_files VALUES(?,?,?,?,?)',
+                    (job,'output','answer.txt',text,sha256(text.encode('utf-8')).hexdigest()))
+                con.execute('UPDATE pilot_runs SET tokens=?,provider_inflight=0 WHERE job_id=?',(tokens,job))
+            self._finish(job,'RESULT_READY',None)
+        except Exception as exc:
+            code=safe_tool_fault(exc).code
+            uncertain=dispatched and code not in ('PROVIDER_AUTH_FAILED','PROVIDER_CONNECTION_REFUSED',
+                'PROVIDER_ENDPOINT_NOT_FOUND','PROVIDER_REQUEST_REJECTED')
+            try:self._finish(job,'NEEDS_RECONCILIATION' if uncertain else 'FAILED',code)
+            except Exception:pass  # Canonical active intent is fenced during startup recovery.
+        finally:
+            with self._lock:self._threads.discard(threading.current_thread())
+
     def _cancelled(self,job):
         with self.owner._connection() as con:
             row=con.execute('SELECT state FROM jobs WHERE job_id=?',(job,)).fetchone()
@@ -438,6 +553,10 @@ class PilotJobs:
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE');row=con.execute('SELECT * FROM jobs WHERE job_id=?',(job,)).fetchone()
             self._finish_in(con,row,state,code)
+            ready=(self.parent_return is not None and state=='RESULT_READY' and
+                   con.execute('SELECT state FROM jobs WHERE job_id=?',(job,)).fetchone()[0]=='RESULT_READY')
+        if ready:
+            self.parent_return.enqueue(job)
 
     def _finish_in(self,con,row,state,code):
         if row['state'] not in ('RESOURCE_CHECK','RUNNING','CANCEL_REQUESTED'):return
@@ -472,6 +591,11 @@ class PilotJobs:
 
     def acknowledge(self,token,thread,job_id,expected_version,result_digest,operation_id,*,kind='ISOLATED_TEST'):
         principal=self.owner._principal(token,thread);_field(_OP,operation_id,'operation')
+        restored=False
+        if self.parent_return is not None:
+            with self.owner._connection() as con:
+                self.owner._owned_row(con,principal,thread,job_id)
+            restored=self.parent_return.require_delivery(job_id)
         if type(expected_version) is not int or expected_version<0:raise InputRejected('invalid expected version')
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE');row=self.owner._owned_row(con,principal,thread,job_id)
@@ -484,7 +608,8 @@ class PilotJobs:
             if result_digest!=verified or p['issued_digest']!=verified or p['result_digest']!=verified:
                 raise PilotError('PILOT_RESULT_NOT_DELIVERED')
             row=self.owner._transition(con,row,'COMPLETED',Evidence(worker_outcome='DONE',result_digest=verified,
-                     worker_quiescent=True,integration_ack='ACKED',notification_delivery='DELIVERED'),
+                     worker_quiescent=True,integration_ack='ACKED',notification_delivery='DELIVERED',
+                     parent_restore='READY' if restored else 'NOT_NEEDED'),
                      'pilot-ack-'+_digest(operation_id),actor='AUTHENTICATED_PARENT')
             receipt=self.owner._snapshot(row)
             self._receipt(con,job_id,'ACK',operation_id,request,receipt)

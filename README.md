@@ -2,7 +2,18 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.43.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.44.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+
+**v0.44 owner requirements and text roles:** [binding clarification](docs/OWNER_REQUIREMENTS_V044.md)
+restores the original three-provider and automatic same-chat return/restore targets.
+Flash selects all worker input; no implicit chat/context transfer is introduced.
+A third, real text-only MCP route supports configured LM Studio, native Unsloth
+and approved HTTPS Chat-Completions roles with one inference and no worker tools.
+Current local adapters require already loaded models. Durable automatic return
+orchestration is tested with a synthetic trusted host driver for resident and
+unloaded Flash; **the native Unsloth parent driver and automatic model lifecycle
+remain unimplemented**, so default wakeup is disabled. [Role setup](system_test/WORKER_ROLES_DE.md).
+Product/target-host **NO_GO** remains.
 
 **v0.43 Windows test package:** the numbered launchers now start the physical
 Workspace pilot in a separate state directory, run the real native Work self-test

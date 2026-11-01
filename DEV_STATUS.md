@@ -4,7 +4,7 @@
 
 Removed the separate consult execution surface. Direct task and optional files or prepared TASK.md now share WORKSPACE jobs, trusted provider/model selection, bounded AgentLoop, native broker, publication and ACK. Provider selection is immutably bound to sealed input. No automatic context transfer. Native parent driver and actual load/unload remain open. See docs/OWNER_REQUIREMENTS_V045.md.
 
-## v0.44 – owner requirements, three-provider text roles and automatic-return contract
+## v0.44 – historical implementation, text route superseded by v0.45
 
 - Original FR/test traceability re-fetched from GitHub and compared with explicit
   owner clarification: three providers, no implicit context, automatic original

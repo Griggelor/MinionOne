@@ -204,6 +204,17 @@ static int run_fixed_file_handoff(int bad_result) {
     CloseHandle(f);
     if (!deny_write(L"input\\sealed.bin")) return 103;
     if (!deny_write(L"output\\immutable.bin")) return 104;
+    /* Directory creation authority must also be denied, not only write
+       access to a pre-existing immutable manager output file. */
+    f = CreateFileW(L"output\\unauthorized.bin", GENERIC_WRITE, 0, NULL,
+                    CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (f != INVALID_HANDLE_VALUE) {
+        CloseHandle(f);
+        DeleteFileW(L"output\\unauthorized.bin");
+        return 108;
+    }
+    if (GetLastError() != ERROR_ACCESS_DENIED &&
+        GetLastError() != ERROR_PRIVILEGE_NOT_HELD) return 109;
     f = CreateFileW(L"work\\result.bin", GENERIC_WRITE, 0, NULL, CREATE_NEW,
                     FILE_ATTRIBUTE_NORMAL, NULL);
     if (f == INVALID_HANDLE_VALUE) return 105;

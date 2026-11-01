@@ -9,6 +9,7 @@ import platform
 import re
 import sys
 import unittest
+from minionone import __version__
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -96,7 +97,7 @@ def main():
     for case in cases:counts[case['verification']]=counts.get(case['verification'],0)+1
     product_pass=all(c['verification']=='PASS_TARGET_E2E' for c in cases)
     report={'schema_version':1,'generated_utc':datetime.now(timezone.utc).isoformat(),
-      'version':'0.25.0.dev0 (native Windows seal + output proofs; worker BLOCKED)',
+      'version':__version__,
       'baseline':'v0.24.0.dev0 (GitHub main baseline, PR #39)',
       'environment':{'os':platform.system(),'python':platform.python_version()},
       'execution':{'command':'PYTHONPATH=src python scripts/run_product_status.py',

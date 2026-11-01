@@ -422,14 +422,18 @@ def main(argv=None):
     serve.add_argument('--ask-api-key',action='store_true')
     serve.add_argument('--experimental-workspace-jobs',action='store_true',
         help='Explicit development-only sealed workspace worker; NOT production approval')
+    serve.add_argument('--synthetic-workspace',action='store_true',
+        help='Create a dedicated synthetic project in this pilot state and enable workspace tests')
     serve.add_argument('--workspace-project',action='append',default=[],metavar='ID=ABSOLUTE_DIR',
         help='Trusted local folder approved for synthetic, sealed workspace test only')
     connect=sub.add_parser('connection');connect.add_argument('--show-token',action='store_true')
     check=sub.add_parser('self-test');check.add_argument('--timeout',type=int,default=900)
     workspace_test=sub.add_parser('workspace-self-test',
         help='Run a synthetic task end-to-end using the explicit workspace test server')
-    workspace_test.add_argument('--project-id',required=True)
-    workspace_test.add_argument('--project-root',required=True,type=Path)
+    workspace_test.add_argument('--project-id',
+        help='Defaults to the single project configured by the running pilot')
+    workspace_test.add_argument('--project-root',type=Path,
+        help='Defaults to the configured root of the selected project')
     workspace_test.add_argument('--timeout',type=int,default=900)
     export=sub.add_parser('export');export.add_argument('--job',required=True);export.add_argument('--out',type=Path,required=True)
     diag=sub.add_parser('diagnostics',help='Export durable redacted job trace as JSON (create-only)')
@@ -453,6 +457,13 @@ def main(argv=None):
             if type(port) is not int or not 1024<=port<=65535:raise PilotError('CONFIGURATION_INVALID')
             provider=args.provider_url or previous.get('provider_url','http://127.0.0.1:1234')
             key=getpass.getpass('LM Studio API key (not saved): ') if args.ask_api_key else os.environ.get('MINIONONE_LMSTUDIO_KEY')
+            if args.synthetic_workspace and (args.experimental_workspace_jobs or args.workspace_project):
+                raise PilotError('CONFIGURATION_INVALID')
+            if args.synthetic_workspace:
+                project=state.absolute()/'synthetic-project'
+                project.mkdir(mode=0o700,exist_ok=True)
+                args.experimental_workspace_jobs=True
+                args.workspace_project=['demo='+str(project)]
             if bool(args.workspace_project) != args.experimental_workspace_jobs:
                 raise PilotError('CONFIGURATION_INVALID')
             projects={}
@@ -473,11 +484,17 @@ def main(argv=None):
                 workspace_projects=projects or None,
                 enable_workspace_jobs=args.experimental_workspace_jobs)
             try:
-                (state/'settings.json').write_text(json.dumps({'port':port,'model':model,'provider_url':config.base_url}),encoding='utf-8')
+                (state/'settings.json').write_text(json.dumps({
+                    'port':port,'model':model,'provider_url':config.base_url,
+                    'workspace_projects':{k:str(v) for k,v in projects.items()}}),encoding='utf-8')
                 print('MinionOne SYSTEM TEST '+__version__+' listening at http://127.0.0.1:'+str(port)+'/mcp',flush=True)
-                print('Worker files: isolated manager documents. Use connection and self-test in another window.',flush=True)
                 if args.experimental_workspace_jobs:
+                    print('Worker files: physical input/work/output. Use workspace-self-test in another window.',flush=True)
+                    for project_id,root in projects.items():
+                        print('Synthetic workspace '+project_id+': '+str(root),flush=True)
                     print('EXPERIMENTAL WORKSPACE: synthetic files only; NOT G1b/Unsloth identity proof.',flush=True)
+                else:
+                    print('Worker files: isolated SQLite documents. Use connection and self-test in another window.',flush=True)
                 server.serve_forever(poll_interval=.2)
             except KeyboardInterrupt:pass
             finally:server.server_close()
@@ -498,8 +515,17 @@ def main(argv=None):
         client=PilotClient(config['port'],token)
         if args.command=='workspace-self-test':
             if not 1<=args.timeout<=1800:raise PilotError('CONFIGURATION_INVALID')
-            report=workspace_exercise(client,project_id=args.project_id,
-                                      project_root=args.project_root,model=config['model'],
+            projects=config.get('workspace_projects',{})
+            if type(projects) is not dict:raise PilotError('CONFIGURATION_INVALID')
+            project_id=args.project_id
+            if project_id is None:
+                if len(projects)!=1:raise PilotError('CONFIGURATION_INVALID')
+                project_id=next(iter(projects))
+            project_root=args.project_root or projects.get(project_id)
+            if not isinstance(project_root,(str,Path)):
+                raise PilotError('CONFIGURATION_INVALID')
+            report=workspace_exercise(client,project_id=project_id,
+                                      project_root=project_root,model=config['model'],
                                       timeout=args.timeout)
             folder=state/'reports';folder.mkdir(exist_ok=True)
             path=folder/('workspace-test-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')+'.json')

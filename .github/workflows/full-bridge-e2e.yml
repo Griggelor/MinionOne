@@ -13,6 +13,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   both-delegation-paths:
+    env:
+      MINIONONE_TEST_EVIDENCE_DIR: evidence/bridge-failures
     name: MCP-to-worker HTTP and filesystem (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 12
@@ -33,6 +35,25 @@ jobs:
         run: python -m unittest discover -s tests -p test_full_bridge_http_e2e_ci.py -v
       - name: CLI subprocess integration with real network sockets
         run: python -m unittest discover -s tests -p test_cli_subprocess_bridge_e2e.py -v
+      - name: Three Windows stability passes; each strict report belongs to its own run
+        if: runner.os == 'Windows'
+        shell: python
+        run: |
+          import subprocess, sys
+          for attempt in range(1,4):
+              subprocess.run([sys.executable,'-m','unittest','discover','-s','tests',
+                              '-p','test_cli_subprocess_bridge_e2e.py','-v'],check=True)
+              subprocess.run([sys.executable,'scripts/run_workfiles_v031.py','--strict',
+                              '--out',f'evidence/bridge-stability/pass-{attempt}'],check=True)
+      - name: Preserve redacted failure metadata and strict per-pass evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-diagnostics-${{ matrix.os }}
+          path: |
+            evidence/bridge-failures/
+            evidence/bridge-stability/
+          if-no-files-found: ignore
       - name: Identify platform and commit for non-secret evidence
         shell: python
         run: |

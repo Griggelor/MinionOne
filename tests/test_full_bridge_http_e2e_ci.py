@@ -20,6 +20,9 @@ from minionone.mcp_server import LocalMCP
 
 TOKEN="ci-bridge-parent-"+"P"*48
 MODEL="synthetic-loaded-flint"
+# Includes spawn startup and fsynced I/O, not just localhost HTTP latency.
+MODEL_CALL_SECONDS=6
+MODEL_TIMEOUT_DELAY=9
 
 
 # v0.31.1 contract-only model scripts. They deliberately request newly
@@ -110,7 +113,7 @@ class ModelOverHTTP(BaseHTTPRequestHandler):
             return
         if self.server.mode=="timeout":
             # Long enough to exceed the *deliberate* 6s model call deadline.
-            time.sleep(9)
+            time.sleep(MODEL_TIMEOUT_DELAY)
         messages=data["messages"]
         completed=[message for message in messages if message.get("role")=="tool"]
         n=len(completed)
@@ -183,7 +186,7 @@ class CompleteBridgeE2E(unittest.TestCase):
             workspace_projects={"demo":self.project},
             enable_workspace_jobs=True,worker_model=MODEL,min_free_mb=1,
             lmstudio_url=f"http://127.0.0.1:{self.model.server_port}",
-            model_call_seconds=6)
+            model_call_seconds=MODEL_CALL_SECONDS)
         threading.Thread(target=self.manager.serve_forever,daemon=True).start()
         self.addCleanup(self.manager.server_close)
         self.addCleanup(self.manager.shutdown)

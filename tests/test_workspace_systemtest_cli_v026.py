@@ -135,6 +135,35 @@ class WorkspaceExerciseTests(unittest.TestCase):
             self.assertNotIn('minionone_start_workspace_job',server.tool_map)
         finally:server.server_close()
 
+    def test_packaged_cli_uses_single_saved_project_and_verifies_real_files(self):
+        config={'port':self.server.server_port,'model':'model-loaded',
+                'workspace_projects':{'demo':str(self.project)}}
+        stdout=StringIO()
+        with patch('minionone.pilot_cli._settings',return_value=config), \
+             patch('minionone.pilot_cli._token',return_value=TOKEN), \
+             patch('minionone.pilot_jobs.PilotJobs._readiness',return_value=None), \
+             patch('minionone.pilot_jobs.LMStudioAgentProvider',DeterministicFlintFixture), \
+             redirect_stdout(stdout):
+            rc=main(['--state',str(self.root),'workspace-self-test','--timeout','12'])
+        self.assertEqual(rc,0,stdout.getvalue())
+        report,_=json.JSONDecoder().raw_decode(stdout.getvalue())
+        self.assertTrue(report['passed'])
+        self.assertIn('real_native_work_file_and_digest_verified',
+                      [s['step'] for s in report['steps']])
+        self.assertNotIn(TOKEN,stdout.getvalue())
+        self.assertEqual(len(list((self.root/'reports').glob('workspace-test-*.json'))),1)
+
+    def test_multiple_saved_projects_require_explicit_selection(self):
+        config={'port':self.server.server_port,'model':'model-loaded',
+                'workspace_projects':{'demo':str(self.project),'other':str(self.project)}}
+        stderr=StringIO()
+        with patch('minionone.pilot_cli._settings',return_value=config), \
+             patch('minionone.pilot_cli._token',return_value=TOKEN),redirect_stderr(stderr):
+            rc=main(['--state',str(self.root),'workspace-self-test'])
+        self.assertEqual(rc,2)
+        self.assertEqual(json.loads(stderr.getvalue())['error']['code'],'CONFIGURATION_INVALID')
+        self.assertFalse((self.project/'.minionone').exists())
+
 
 class ServeOptionTests(unittest.TestCase):
     def setUp(self):
@@ -179,6 +208,8 @@ class ServeOptionTests(unittest.TestCase):
                 ('--experimental-workspace-jobs','--workspace-project','demo='+str(self.project),
                  '--workspace-project','demo='+str(self.project)),
                 ('--experimental-workspace-jobs','--workspace-project','demo=relative'),
+                ('--synthetic-workspace','--workspace-project','demo='+str(self.project)),
+                ('--synthetic-workspace','--experimental-workspace-jobs'),
             )
             for args in cases:
                 with self.subTest(args=args):
@@ -186,6 +217,26 @@ class ServeOptionTests(unittest.TestCase):
                     self.assertEqual(rc,2,err)
                     self.assertIn('ok',err)
                     self.assertNotIn('EXPERIMENTAL WORKSPACE',out)
+
+    def test_synthetic_launcher_creates_and_records_dedicated_workspace(self):
+        calls=[]
+        class FakeServer:
+            def __init__(self,*args,**kwargs):calls.append(kwargs)
+            def serve_forever(self,*,poll_interval):pass
+            def server_close(self):pass
+        with patch('minionone.pilot_cli.LocalMCP',FakeServer):
+            rc,out,err=self._invoke('--synthetic-workspace')
+        self.assertEqual(rc,0,err)
+        project=self.state/'synthetic-project'
+        self.assertTrue(project.is_dir())
+        self.assertEqual(list(project.iterdir()),[])
+        self.assertTrue(calls[0]['enable_workspace_jobs'])
+        self.assertFalse(calls[0]['enable_test_jobs'])
+        self.assertEqual(calls[0]['workspace_projects'],{'demo':project})
+        settings=json.loads((self.state/'settings.json').read_text())
+        self.assertEqual(settings['workspace_projects'],{'demo':str(project)})
+        self.assertIn('physical input/work/output',out)
+        self.assertNotIn('isolated SQLite documents',out)
 
     def test_default_server_configuration_remains_nonexecuting_workspace(self):
         calls=[]

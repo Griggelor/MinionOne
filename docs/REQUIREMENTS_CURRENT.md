@@ -113,6 +113,16 @@
   Loopbackverbindung: Windows-Host-Gegenversuch positiv, AppContainer-Timeout,
   aber **keine explizite Netz-Zugriffsverweigerung**, somit
   `network_denial_verified=false`. Kein Host-G1b-PASS, kein Worker-Exec-GO.
+- v0.38: [Boxed-IPC- und Recovery-Vertrag](ADR_038_BOXED_IPC_AND_RECOVERY.md)
+  implementiert versionierte, streng begrenzte Nachrichten (max. 2 KiB),
+  feste `PROBE_PING`-Capabilities, eindeutige Job-/Versuchs-/Operations-
+  und Nonce-Zuordnung sowie eine dauerhaft transaktionale
+  `PREPARED → IN_FLIGHT → RESPONSE_OBSERVED / NEEDS_RECONCILIATION`-Kontrolle.
+  Nach unklarem Absturz ist **kein automatischer Replay** erlaubt.
+  PR #56: **25/25 CI auf Windows/Ubuntu** mit Prozessabsturz- und
+  parallelen Dispatch-Tests. Ein echter Prozess-IPC-Kanal und die
+  Verknüpfung zum AppContainer-Prozess fehlen noch; keine Freigabe von
+  `run_tests`, Shell oder Echtdaten.
 - **Noch nicht erfüllt**: vollständiger Windows-Dateibroker mit nachgewiesener
   NTFS-Isolation; echte OS-Sandbox/ACL und nicht-kooperierende Race-Tests;
   Crash-Replay-/Idempotenz-Verträge für Work-Mutationen; sichere Wiederaufnahme

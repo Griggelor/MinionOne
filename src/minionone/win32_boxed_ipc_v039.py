@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import hashlib
 from pathlib import Path
 import secrets
+import socket
 import subprocess
 import sys
 import tempfile
@@ -71,13 +72,33 @@ class BoxedFaultEvidence:
     product_release: str = "NO_GO"
 
 
+@dataclass(frozen=True, slots=True)
+class BoxedBoundaryEvidence:
+    """Fixed native negative observation; not a sandbox/product attestation."""
+    mode: str
+    observed_code: str
+    journal_state: str
+    real_appcontainer_token: bool
+    job_assigned_before_resume: bool
+    manager_canary_positive_control: bool
+    network_result: str = "NOT_TESTED"
+    network_isolation_attested: bool = False
+    worker_tool_exposed: bool = False
+    os_sandbox_attested: bool = False
+    product_release: str = "NO_GO"
+
+
 # Internal-only, fixed CI adversarial scenarios. Not accepted from model or MCP.
+_BOUNDARY_MODES = frozenset({"handle", "breakaway", "network"})
 _FAULT_MODES = frozenset({
     "crash", "hang", "truncated", "oversized", "wrong_nonce", "trailing",
 })
 
 
 def _configure_pipe_apis(k):
+    k.CreateEventW.argtypes = [ctypes.POINTER(_SecurityAttributes),
+                               wintypes.BOOL, wintypes.BOOL, wintypes.LPCWSTR]
+    k.CreateEventW.restype = wintypes.HANDLE
     k.CreatePipe.argtypes = [ctypes.POINTER(wintypes.HANDLE),
                              ctypes.POINTER(wintypes.HANDLE),
                              ctypes.POINTER(_SecurityAttributes), wintypes.DWORD]
@@ -142,7 +163,7 @@ def _run_fixed_boxed_ipc_case(case):
     RESPONSE_OBSERVED is explicitly not sandbox attestation, result publication,
     generic test execution, a parent ACK or safe target-host execution.
     """
-    if type(case) is not str or case not in _FAULT_MODES | {"ok"}:
+    if type(case) is not str or case not in _FAULT_MODES | _BOUNDARY_MODES | {"ok"}:
         raise JobProbeUnavailable("unknown or unapproved fixed native CI probe mode")
     exe = _fixed_helper()
     k, u, a = _apis()
@@ -157,6 +178,9 @@ def _run_fixed_boxed_ipc_case(case):
     process_started = False
     process_exited = False
     handles = []
+    listener = None
+    canary_confirmed = False
+    boundary_arg = None
     moniker = "MinionOne.IPC." + secrets.token_hex(12)
     temp = tempfile.TemporaryDirectory(prefix="minionone-v039-")
     try:
@@ -199,6 +223,30 @@ def _run_fixed_boxed_ipc_case(case):
         for manager_end in (manager_in_write, manager_out_read):
             if not k.SetHandleInformation(manager_end, _HANDLE_FLAG_INHERIT, 0):
                 raise JobProbeUnavailable("manager pipe end remains inheritable")
+
+        if case == "handle":
+            # This signalled and deliberately INHERITABLE manager-owned event
+            # is NOT listed in the restricted child HANDLE_LIST.
+            sentinel = k.CreateEventW(ctypes.byref(attrs), True, True, None)
+            if not sentinel:
+                raise JobProbeUnavailable("cannot allocate manager handle canary")
+            handles.append(sentinel)
+            if k.WaitForSingleObject(sentinel, 0) != _WAIT_OBJECT_0:
+                raise JobProbeUnavailable("normal host event positive control failed")
+            canary_confirmed = True
+            boundary_arg = str(int(sentinel))
+        elif case == "network":
+            # Live listener, local-only; positive control proves target exists.
+            listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(8)
+            listener.settimeout(1)
+            port = listener.getsockname()[1]
+            with socket.create_connection(("127.0.0.1", port), timeout=1):
+                canary_confirmed = True
+            boundary_arg = str(port)
+        elif case == "breakaway":
+            canary_confirmed = True  # confirmed via actual child IsProcessInJob
 
         required = ctypes.c_size_t()
         k.InitializeProcThreadAttributeList(None, 2, 0, ctypes.byref(required))
@@ -248,8 +296,12 @@ def _run_fixed_boxed_ipc_case(case):
             windows.value + "\0WINDIR=" + windows.value + "\0\0")
         flags = (_CREATE_SUSPENDED | _CREATE_NO_WINDOW |
                  _CREATE_UNICODE_ENVIRONMENT | _EXTENDED_STARTUPINFO_PRESENT)
-        command = ctypes.create_unicode_buffer(subprocess.list2cmdline(
-            [str(helper)] if case == "ok" else [str(helper), case]))
+        case_args = ([str(helper)] if case == "ok" else [str(helper), case])
+        if case in ("handle", "network"):
+            if boundary_arg is None:
+                raise JobProbeUnavailable("native probe needs fixed manager-only canary")
+            case_args.append(boundary_arg)
+        command = ctypes.create_unicode_buffer(subprocess.list2cmdline(case_args))
         if not k.CreateProcessW(str(helper), command, None, None, True, flags,
                                 ctypes.cast(env, ctypes.c_void_p), windows.value,
                                 ctypes.cast(ctypes.byref(startup),
@@ -291,8 +343,10 @@ def _run_fixed_boxed_ipc_case(case):
             # Record hostile reply bytes in the durable journal. Malformed,
             # wrong-scope and extra data must persist NEEDS_RECONCILIATION.
             receipt = journal.observe_response(grant, response)
-            if receipt.state != "RESPONSE_OBSERVED" or receipt.observed_code != "PONG":
-                raise ProtocolUncertain("durable exact IPC PONG observation missing")
+            if receipt.state != "RESPONSE_OBSERVED" or (
+                    receipt.observed_code != "PONG" and
+                    not (case == "network" and receipt.observed_code == "DENIED")):
+                raise ProtocolUncertain("durable bounded IPC observation missing")
         except (FrameRejected, ProtocolUncertain):
             if case == "ok":
                 raise
@@ -302,11 +356,29 @@ def _run_fixed_boxed_ipc_case(case):
             if state.state != expected or state.automatic_replay_allowed:
                 raise JobProbeUnavailable("native failure did not remain durably fenced")
             return BoxedFaultEvidence(case, state.state, False)
+        if case in _BOUNDARY_MODES:
+            network_status = "NOT_TESTED"
+            if case == "network":
+                # Fixed child PONG means the WinSock error was WSAEACCES.
+                # DENIED here is only a live-listener connection TIMEOUT.
+                # Neither says anything about other egress pathways.
+                network_status = ("EXPLICIT_LOOPBACK_WSAEACCES" if
+                                  receipt.observed_code == "PONG" else
+                                  "LOOPBACK_TIMEOUT_UNATTESTED")
+            return BoxedBoundaryEvidence(
+                mode=case, observed_code=receipt.observed_code,
+                journal_state=receipt.state, real_appcontainer_token=True,
+                job_assigned_before_resume=True,
+                manager_canary_positive_control=canary_confirmed,
+                network_result=network_status,
+            )
         if case != "ok":
             raise JobProbeUnavailable("hostile fixed child incorrectly accepted as PONG")
         return BoxedIPCEvidence(True, True, True, receipt.observed_code,
                                 receipt.state, exit_code.value)
     finally:
+        if listener is not None:
+            listener.close()
         if job and process_started and not process_exited:
             k.TerminateJobObject(job, 137)
             k.WaitForSingleObject(process.hProcess, 2000)

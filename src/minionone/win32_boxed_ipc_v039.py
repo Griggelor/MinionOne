@@ -16,7 +16,7 @@ import subprocess
 import sys
 import tempfile
 
-from .boxed_ipc_v038 import MAX_FRAME_BYTES, ProtocolUncertain, validate_reply
+from .boxed_ipc_v038 import MAX_FRAME_BYTES, ProtocolUncertain, FrameRejected
 from .boxed_ipc_journal_v038 import BoxedProbeJournal
 from .win32_appcontainer_adversarial_v037 import (
     _apis, _sid_string, _allow_probe_executable_only,
@@ -57,6 +57,24 @@ class BoxedIPCEvidence:
     worker_tool_exposed: bool = False
     os_sandbox_attested: bool = False
     product_release: str = "NO_GO"
+
+
+@dataclass(frozen=True, slots=True)
+class BoxedFaultEvidence:
+    """A deliberately failed fixed native attempt; never a sandbox PASS."""
+    mode: str
+    journal_state: str
+    automatic_replay_allowed: bool
+    failed_closed: bool = True
+    worker_tool_exposed: bool = False
+    os_sandbox_attested: bool = False
+    product_release: str = "NO_GO"
+
+
+# Internal-only, fixed CI adversarial scenarios. Not accepted from model or MCP.
+_FAULT_MODES = frozenset({
+    "crash", "hang", "truncated", "oversized", "wrong_nonce", "trailing",
+})
 
 
 def _configure_pipe_apis(k):
@@ -118,12 +136,14 @@ def _fixed_helper():
     return expected
 
 
-def run_fixed_boxed_ipc_probe():
-    """ONE synthetic IPC observation, without enabling any worker capability.
+def _run_fixed_boxed_ipc_case(case):
+    """Internal fixed CI child modes; never exposed to any model caller.
 
     RESPONSE_OBSERVED is explicitly not sandbox attestation, result publication,
     generic test execution, a parent ACK or safe target-host execution.
     """
+    if type(case) is not str or case not in _FAULT_MODES | {"ok"}:
+        raise JobProbeUnavailable("unknown or unapproved fixed native CI probe mode")
     exe = _fixed_helper()
     k, u, a = _apis()
     _configure_pipe_apis(k)
@@ -228,7 +248,8 @@ def run_fixed_boxed_ipc_probe():
             windows.value + "\0WINDIR=" + windows.value + "\0\0")
         flags = (_CREATE_SUSPENDED | _CREATE_NO_WINDOW |
                  _CREATE_UNICODE_ENVIRONMENT | _EXTENDED_STARTUPINFO_PRESENT)
-        command = ctypes.create_unicode_buffer(subprocess.list2cmdline([str(helper)]))
+        command = ctypes.create_unicode_buffer(subprocess.list2cmdline(
+            [str(helper)] if case == "ok" else [str(helper), case]))
         if not k.CreateProcessW(str(helper), command, None, None, True, flags,
                                 ctypes.cast(env, ctypes.c_void_p), windows.value,
                                 ctypes.cast(ctypes.byref(startup),
@@ -252,25 +273,37 @@ def run_fixed_boxed_ipc_probe():
                                      ctypes.byref(returned)) or bit.value != 1:
             raise JobProbeUnavailable("IPC child is not a real AppContainer process")
 
-        # Persist v0.38 no-replay fence BEFORE the child executes an instruction.
+        # Commit the no-replay fence before untrusted child resumes.
         request = journal.before_dispatch(grant)
-        if k.ResumeThread(process.hThread) == 0xffffffff:
-            raise ProtocolUncertain("IPC child resume failed after dispatch fence")
-        _write_request(k, manager_in_write, request)
-        k.CloseHandle(manager_in_write)
-        handles.remove(manager_in_write)
-        if k.WaitForSingleObject(process.hProcess, 4000) != _WAIT_OBJECT_0:
-            raise ProtocolUncertain("IPC child deadline exceeded: attempt uncertain")
-        process_exited = True
-        exit_code = wintypes.DWORD()
-        if not k.GetExitCodeProcess(process.hProcess, ctypes.byref(exit_code)) or exit_code.value != 0:
-            raise ProtocolUncertain("IPC child failed or exit receipt unavailable")
-        response = _read_reply(k, manager_out_read)
-        if validate_reply(response, grant) != "PONG":
-            raise ProtocolUncertain("fixed child did not return exact PONG")
-        receipt = journal.observe_response(grant, response)
-        if receipt.state != "RESPONSE_OBSERVED":
-            raise ProtocolUncertain("durable exact IPC observation missing")
+        try:
+            if k.ResumeThread(process.hThread) == 0xffffffff:
+                raise ProtocolUncertain("IPC child resume failed after dispatch fence")
+            _write_request(k, manager_in_write, request)
+            k.CloseHandle(manager_in_write)
+            handles.remove(manager_in_write)
+            if k.WaitForSingleObject(process.hProcess, 4000) != _WAIT_OBJECT_0:
+                raise ProtocolUncertain("IPC child deadline exceeded: attempt uncertain")
+            process_exited = True
+            exit_code = wintypes.DWORD()
+            if not k.GetExitCodeProcess(process.hProcess, ctypes.byref(exit_code)) or exit_code.value != 0:
+                raise ProtocolUncertain("IPC child failed or exit receipt unavailable")
+            response = _read_reply(k, manager_out_read)
+            # Record hostile reply bytes in the durable journal. Malformed,
+            # wrong-scope and extra data must persist NEEDS_RECONCILIATION.
+            receipt = journal.observe_response(grant, response)
+            if receipt.state != "RESPONSE_OBSERVED" or receipt.observed_code != "PONG":
+                raise ProtocolUncertain("durable exact IPC PONG observation missing")
+        except (FrameRejected, ProtocolUncertain):
+            if case == "ok":
+                raise
+            state = journal.status(grant.job_id, grant.attempt_id, grant.operation_id)
+            expected = ("IN_FLIGHT" if case in ("crash", "hang")
+                        else "NEEDS_RECONCILIATION")
+            if state.state != expected or state.automatic_replay_allowed:
+                raise JobProbeUnavailable("native failure did not remain durably fenced")
+            return BoxedFaultEvidence(case, state.state, False)
+        if case != "ok":
+            raise JobProbeUnavailable("hostile fixed child incorrectly accepted as PONG")
         return BoxedIPCEvidence(True, True, True, receipt.observed_code,
                                 receipt.state, exit_code.value)
     finally:
@@ -293,3 +326,8 @@ def run_fixed_boxed_ipc_probe():
         if profile_created and u.DeleteAppContainerProfile(moniker) != 0:
             raise JobProbeUnavailable("disposable AppContainer profile cleanup failed")
         temp.cleanup()
+
+
+def run_fixed_boxed_ipc_probe():
+    """Normal fixed PROBE_PING child with no caller-controlled executable/tool."""
+    return _run_fixed_boxed_ipc_case("ok")

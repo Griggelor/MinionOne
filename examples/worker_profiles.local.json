@@ -1,0 +1,27 @@
+{
+  "profiles": [
+    {
+      "profile_id": "fast-local",
+      "description": "Schnelle begrenzte Textaufgabe über das geladene LM-Studio-Modell",
+      "provider": "lmstudio",
+      "model_id": "EXACT_LOADED_LMSTUDIO_MODEL_ID",
+      "base_url": "http://127.0.0.1:1234",
+      "instructions": "Complete the explicitly supplied text task concisely. State uncertainty. Do not claim access to parent history, files or tools.",
+      "timeout_seconds": 120,
+      "max_input_bytes": 16384,
+      "max_output_tokens": 2048
+    },
+    {
+      "profile_id": "specialist-unsloth",
+      "description": "Fachspezialist über das bereits aktive lokale Unsloth-Modell",
+      "provider": "unsloth",
+      "model_id": "EXACT_ACTIVE_UNSLOTH_MODEL_IDENTIFIER",
+      "base_url": "http://127.0.0.1:8888",
+      "secret_env": "MINIONONE_UNSLOTH_API_KEY",
+      "instructions": "Analyze the supplied topic. Separate evidence, assumptions and open questions. Use only the supplied task data.",
+      "timeout_seconds": 180,
+      "max_input_bytes": 32768,
+      "max_output_tokens": 4096
+    }
+  ]
+}

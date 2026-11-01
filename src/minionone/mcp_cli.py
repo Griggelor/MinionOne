@@ -1,4 +1,4 @@
-"""Start the opt-in localhost MCP pilot. No file broker, worker execution or auto-wakeup."""
+"""Authenticated localhost MCP; optional bounded text roles, no native chat wakeup."""
 from __future__ import annotations
 import argparse
 import errno
@@ -14,6 +14,8 @@ def main(argv=None):
     p.add_argument("--port",type=int,default=8765)
     p.add_argument("--db",default=None,help="Private state database (operator-controlled path)")
     p.add_argument("--lmstudio-url",default="http://127.0.0.1:1234")
+    p.add_argument('--worker-profiles',type=Path,
+                   help='Operator-owned JSON text roles for LM Studio, Unsloth or approved cloud APIs')
     p.add_argument("--project",action="append",default=[],metavar="ID=ABSOLUTE_DIR",
                    help="Opt in to PREPARING-only job workspaces under a trusted project. No worker file permissions.")
     args=p.parse_args(argv)
@@ -38,9 +40,11 @@ def main(argv=None):
             if not key or key in projects or not directory:
                 raise ValueError('duplicate or invalid trusted project configuration')
             projects[key]=directory
+        from .worker_profiles import load_profiles
+        profiles=load_profiles(args.worker_profiles) if args.worker_profiles else None
         server=LocalMCP(("127.0.0.1",args.port),token=token,
                         database_path=db,lmstudio_url=args.lmstudio_url,
-                        workspace_projects=(projects or None))
+                        workspace_projects=(projects or None),worker_profiles=profiles)
     except Exception as exc:
         fault=safe_tool_fault(exc)
         if isinstance(exc,OSError) and exc.errno==errno.EADDRINUSE:
@@ -51,7 +55,11 @@ def main(argv=None):
                          sort_keys=True,separators=(',',':')),file=sys.stderr)
         return 2
     print(f"MinionOne PILOT: http://127.0.0.1:{server.server_port}/mcp",flush=True)
-    print("PRE-ALPHA: no worker execution, no verified Unsloth chat ownership, no Windows sandbox.",flush=True)
+    print("PRE-ALPHA: no verified Unsloth chat ownership or Windows sandbox.",flush=True)
+    if profiles:
+        print('Configured text roles enabled: explicit inputs only; no automatic context transfer or worker tools.',flush=True)
+        print('Native parent wakeup/restore requires a verified host integration; not supplied by a bearer token.',flush=True)
+    else:print('Connection/admission only; worker execution disabled.',flush=True)
     if args.project:
         print("PREPARING workspace staging enabled; input is NOT sealed; no worker file access.",flush=True)
     try:

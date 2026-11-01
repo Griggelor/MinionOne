@@ -1,6 +1,9 @@
-# MinionOne – aktueller Requirements-Einstiegspunkt (Stand 2026-10-31)
+# MinionOne – aktueller Requirements-Einstiegspunkt (Stand 2026-11-01)
 
 > **Status: Development / PRE-ALPHA / PRODUCT NO-GO.**
+> v0.44 setzt die [aktuelle Owner-Klarstellung](OWNER_REQUIREMENTS_V044.md) um:
+> neuer Textpfad und Rollen, persistierte automatische Rückgabe-Steuerung;
+> nativer Unsloth-Parent-Driver/Model-Lifecycle und Zielhostnachweise noch offen.
 > v0.43 vereinheitlicht Windows-Paket/Runtime auf `0.43.0.dev0` und macht den
 > aktuellen physischen Workspace-Test direkt über die nummerierten Starter
 > zugänglich. [Paket-Anleitung](../system_test/README_DE.md). Produkt NO-GO bleibt.
@@ -13,7 +16,10 @@
 
 ## 1. Dokumentenrangfolge bei Widersprüchen
 
-1. **Explizite neueste Produktowner-Entscheidungen**, dokumentiert in
+1. **Explizite neueste Produktowner-Entscheidungen**: zuerst
+   [OWNER_REQUIREMENTS_V044.md](OWNER_REQUIREMENTS_V044.md) (drei Provider,
+   ausdrücklich kein impliziter Kontexttransfer, automatische Rückgabe für
+   residenten/entladenen Flash und ergänzender Textpfad), danach die Dateirechte in
    [SPEC_V031_FILESYSTEM_FIRST_TESTFIRST.md](SPEC_V031_FILESYSTEM_FIRST_TESTFIRST.md)
    und ihrem v0.31.1-Nachtrag vom 31.10.2026.
 2. **Nicht ersetzte normative Baseline**
@@ -33,7 +39,7 @@
 
 | Bereich | Primärquelle / Testkatalog | Einordnung |
 |---|---|---|
-| Gesamtablauf Flash-Next/Unsloth → MCP → MinionOne → Flint/LM Studio → Ergebnis/ACK | [PRODUCT_TARGET_WORKFLOW.md](PRODUCT_TARGET_WORKFLOW.md), v0.6-Norm | Ziel; echte Same-Chat-Integration offen |
+| Gesamtablauf Flash/Unsloth → MCP → MinionOne → LM Studio/Unsloth/Cloud → automatische Rückgabe/Restore/ACK | [PRODUCT_TARGET_WORKFLOW.md](PRODUCT_TARGET_WORKFLOW.md), v0.6-Norm | Ziel; echte Same-Chat-Integration offen |
 | Input-/Work-/Output-Dateirechte | [SPEC_V031_FILESYSTEM_FIRST_TESTFIRST.md](SPEC_V031_FILESYSTEM_FIRST_TESTFIRST.md), `product_acceptance/WORKFILES_V031.json` | **Neueste gültige Änderung**, 22 WF-ID-Anforderungen |
 | Job-States, Manager, CAS, Attempts, Fencing, Outbox, Recovery | v0.6-Norm, `ARCHITECTURE_AND_RELEASE_GATES.md`, G2-ADRs | Teilweise implementiert; vollständige Mehrfachversuch-Recovery offen |
 | Sichere OS-Isolation, Scope, Input Seal, Windows NTFS | v0.6-Norm, `docs/G1B_WINDOWS_API_FEASIBILITY.md`, v0.21–25-ADRs | Windows G1b Target-Hardware-Gate **offen** |

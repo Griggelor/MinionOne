@@ -1,5 +1,16 @@
 # MinionOne WORKLOG — 2026-10-29
 
+## v0.44 – owner requirements and bounded text workers
+
+Reconcile original FR/test sources with current owner decisions. Preserve explicit
+Flash-selected input isolation; no automatic context transfer. Add trusted profiles
+and actual one-inference text MCP for LM Studio/Unsloth/approved compatible cloud,
+canonical TEXT job migration, scoped I/O and ACK. Add durable parent-return state
+and trusted-driver contract for resident/restore-required Flash, busy deferral,
+wrong-chat and uncertain-send fencing. Real native Unsloth driver, automatic model
+loading/unloading, cloud PII/cost gates and target-host E2E remain unimplemented.
+
+
 ## v0.43 – Workspace package and Windows test stability
 
 Implement the next operator-test increment: version 0.43.0.dev0, current native

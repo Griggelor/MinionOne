@@ -1,5 +1,13 @@
 # MinionOne – Modellprovider und Adaptervertrag (v0.20 WIP)
 
+> Aktualisierung v0.44: Die drei Backends sind ursprüngliches Produktziel,
+> bestätigt durch [OWNER_REQUIREMENTS_V044.md](OWNER_REQUIREMENTS_V044.md).
+> Der neue Textpfad implementiert Rollen und begrenzte Textinferenz für LM Studio,
+> direktes Unsloth und explizit freigegebene kompatible Cloud-APIs. Lokale Modelle
+> müssen aktuell bereits geladen sein. Auto-Load/Unload, native Original-Chat-
+> Rückgabe und Providerwahl in den bisherigen Dateipfaden bleiben offen.
+> Die v0.20-IST-Tabelle unten ist historische Traceability, kein aktueller Vollstatus.
+
 ## Abgleich mit ursprünglichem Spezifikationsstand
 
 Die frühere Traceability nennt explizit:

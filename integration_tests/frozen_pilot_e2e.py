@@ -26,6 +26,11 @@ class Handler(BaseHTTPRequestHandler):
         data=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
         tools=[m for m in data['messages'] if m.get('role')=='tool'];n=len(tools)
         self.server.calls+=1
+        if 'tools' not in data:
+            self.send({'choices':[{'finish_reason':'stop','message':{
+                'role':'assistant','content':'FROZEN TEXT OK'}}],
+                'usage':{'total_tokens':12}})
+            return
         if n==0:name,args='read_file',{'path':'input/sample.txt'}
         elif n==1:
             text=json.loads(tools[0]['content'])['data']['content']
@@ -92,10 +97,17 @@ def run(executable,output):
         # package test covered only the SQLite document pilot.
         workspace_state=Path(tmp)/'workspace state with spaces'
         workspace_state.mkdir()
+        profiles=Path(tmp)/'trusted text profiles.json'
+        profiles.write_text(json.dumps({'profiles':[{
+            'profile_id':'frozen-text','provider':'lmstudio','model_id':'frozen-synthetic',
+            'base_url':f'http://127.0.0.1:{model.server_port}',
+            'instructions':'Review only the explicitly supplied synthetic text.',
+            'timeout_seconds':15}]}),encoding='utf-8')
         command=[str(executable),'--state',str(workspace_state),'serve',
                  '--synthetic-workspace','--model','frozen-synthetic',
                  '--provider-url',f'http://127.0.0.1:{model.server_port}',
-                 '--port',str(port),'--min-free-mb','1','--model-call-seconds','15']
+                 '--port',str(port),'--min-free-mb','1','--model-call-seconds','15',
+                 '--worker-profiles',str(profiles)]
         process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
         deadline=time.monotonic()+40
         while time.monotonic()<deadline:
@@ -115,13 +127,41 @@ def run(executable,output):
         assert (folder/'output'/'result.txt').read_bytes()==b'MINIONONE WORKSPACE OK'
         assert (folder/'output'/'worker-io.jsonl').is_file()
         assert model.calls==8,model.calls
+        connection=subprocess.run([str(executable),'--state',str(workspace_state),
+                    'connection','--show-token'],capture_output=True,text=True,timeout=20,check=True)
+        workspace_secret=json.loads(connection.stdout)['header_value']
+        def rpc(name,args):
+            with closing(http.client.HTTPConnection('127.0.0.1',port,timeout=15)) as client:
+                client.request('POST','/mcp',json.dumps({'jsonrpc':'2.0','id':1,
+                    'method':'tools/call','params':{'name':name,'arguments':args}}),
+                    headers={'Authorization':workspace_secret,'Content-Type':'application/json',
+                             'Accept':'application/json, text/event-stream'})
+                response=client.getresponse();assert response.status==200
+                result=json.loads(response.read())['result']
+                assert not result.get('isError'),result
+                return json.loads(result['content'][0]['text'])
+        text_job=rpc('minionone_consult',{'profile_id':'frozen-text','prompt':'Synthetic review',
+                                        'operation_id':'frozen-text-operation-001'})
+        deadline=time.monotonic()+40
+        while time.monotonic()<deadline:
+            text_status=rpc('minionone_job_status',{'job_id':text_job['job_id']})
+            if text_status['state'] in ('RESULT_READY','FAILED','NEEDS_RECONCILIATION'):break
+            time.sleep(.1)
+        assert text_status['state']=='RESULT_READY',text_status
+        text_result=rpc('minionone_consult_result',{'job_id':text_job['job_id']})
+        assert text_result['text']=='FROZEN TEXT OK'
+        assert rpc('minionone_accept_consult_result',{'job_id':text_job['job_id'],
+                   'expected_version':text_result['version'],'result_digest':text_result['result_digest'],
+                   'operation_id':'frozen-text-ack-001'})['state']=='COMPLETED'
+        assert model.calls==9,model.calls
         assert secret not in json.dumps(workspace_report)
         assert str(workspace_state) not in json.dumps(workspace_report)
         output.parent.mkdir(parents=True,exist_ok=True)
         output.write_text(json.dumps({'passed':True,'scope':'frozen-executable + synthetic HTTP provider',
             'generation_requests':model.calls,'report':report,'export_verified':True,
             'credential_protection_verified':True,'duplicate_instance_rejected':True,
-            'workspace_report':workspace_report,'native_work_verified':True},indent=2)+'\n')
+            'workspace_report':workspace_report,'native_work_verified':True,
+            'text_worker_verified':True},indent=2)+'\n')
     finally:
         if process is not None:
             process.terminate()

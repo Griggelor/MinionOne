@@ -421,7 +421,7 @@ def main(argv=None):
     serve.add_argument('--model-call-seconds',type=int,default=120)
     serve.add_argument('--ask-api-key',action='store_true')
     serve.add_argument('--worker-profiles',type=Path,
-        help='Operator-owned text worker role configuration; no implicit parent context')
+        help='Operator-owned backend/model configuration for both task handoffs; no implicit parent context')
     serve.add_argument('--experimental-workspace-jobs',action='store_true',
         help='Explicit development-only sealed workspace worker; NOT production approval')
     serve.add_argument('--synthetic-workspace',action='store_true',
@@ -451,7 +451,9 @@ def main(argv=None):
             if os.name!='nt':os.chmod(state,0o700)
             previous={}
             if (state/'settings.json').exists():previous=_settings(state)
-            model=args.model or previous.get('model')
+            from .worker_profiles import load_profiles
+            profiles=load_profiles(args.worker_profiles) if args.worker_profiles else None
+            model=args.model or previous.get('model') or ('profile-selection-required' if profiles else None)
             if not model:
                 if not sys.stdin.isatty():raise PilotError('PILOT_NOT_CONFIGURED')
                 model=input('Exact loaded LM Studio worker model ID: ').strip()
@@ -480,8 +482,6 @@ def main(argv=None):
             config=PilotConfig(model,provider,key,
                                model_call_seconds=args.model_call_seconds,min_free_mb=args.min_free_mb)
             token=_token(state,True)
-            from .worker_profiles import load_profiles
-            profiles=load_profiles(args.worker_profiles) if args.worker_profiles else None
             server=LocalMCP(('127.0.0.1',port),token=token,database_path=state/'jobs.sqlite',
                 lmstudio_url=config.base_url,enable_test_jobs=not args.experimental_workspace_jobs,worker_model=model,worker_api_key=config.api_key,
                 min_free_mb=config.min_free_mb,model_call_seconds=config.model_call_seconds,

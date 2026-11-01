@@ -34,34 +34,34 @@ TOOL_MAP = {t["name"]: t for t in TOOLS}
 DIRECT_DELEGATION_TOOL = {
  'name':'minionone_delegate',
  'description':(
-     'RECOMMENDED quick route for small text-only tasks: '
-     'delegate directly to Flint without touching host files. '
-     'Use the prepared-workspace route instead only when a trusted external '
-     'operator can place TASK.md plus files and manifest.json in input/. '
-     'Delegate ONE bounded UTF-8 task from Flash to configured Flint via '
-     'the operator-approved sealed workspace. Provide goal, optional context, '
-     '1-5 acceptance criteria, 1-4 small input documents, and unique operation_id. '
-     'MinionOne stages/seals/starts the SAME job ID. Model cannot access host paths. '
-     'Poll minionone_job_status; retrieve verified result with '
-     'minionone_workspace_result; explicitly acknowledge using '
-     'minionone_accept_workspace_result. This development path remains NO-GO '
-     'for confidential tasks or real project code.'
+     'Flash supplies one bounded task directly; optional UTF-8 input files. '
+     'MinionOne stages TASK.md, seals and starts the SAME workspace job. '
+     'Use task OR the legacy goal/context/acceptance_criteria fields. '
+     'Select only operator-configured profile_id, never URLs or credentials. '
+     'For prepared TASK.md use prepare/seal/start instead. Both paths use '
+     'the same worker broker, workspace_result and exact parent ACK. '
+     'Only explicitly supplied data is sent; no Flash history is retrieved.'
  ),
  'inputSchema':{'type':'object','properties':{
      'project_id':{'type':'string'},
+     'task':{'type':'string','maxLength':3500},
+     'profile_id':{'type':'string'},'allow_cloud':{'type':'boolean'},
      'goal':{'type':'string','maxLength':1200},
      'context':{'type':'string','maxLength':1000},
      'acceptance_criteria':{'type':'array','minItems':1,'maxItems':5,
                             'items':{'type':'string','maxLength':250}},
-     'files':{'type':'object','minProperties':1,'maxProperties':4,
+     'files':{'type':'object','minProperties':0,'maxProperties':4,
               'additionalProperties':{'type':'string','maxLength':3500}},
      'operation_id':{'type':'string'},
- },'required':['project_id','goal','acceptance_criteria','files','operation_id'],
+ },'required':['project_id','operation_id'],
     'additionalProperties':False}
 }
 
 
 WORKSPACE_TOOLS = [
+ {'name':'minionone_workers',
+  'description':'List trusted backend/model configurations for BOTH direct and prepared-file jobs. Flash supplies the task. Configuration is not a readiness probe.',
+  'inputSchema':{'type':'object','properties':{},'additionalProperties':False}},
  {'name':'minionone_prepare_workspace',
   'description':'ALTERNATIVE staged route: reserve input/work/output folders in an operator-approved project. A trusted external operator must place TASK.md, manifest.json and files in input/ BEFORE minionone_seal_workspace then minionone_start_workspace_job; this MCP server grants Flash no generic host filesystem tools. Execution requires the explicit workspace mode.',
   'inputSchema':{'type':'object','properties':{'project_id':{'type':'string'},'operation_id':{'type':'string'}},
@@ -79,9 +79,9 @@ WORKSPACE_TOOLS = [
   'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'}},
                  'required':['job_id'],'additionalProperties':False}},
  {'name':'minionone_start_workspace_job',
-  'description':'STAGED route only: start an already sealed job after minionone_seal_workspace, using exactly the configured loaded Flint model. Do not call for minionone_delegate jobs (already started). No host write capability; NO-GO.',
-  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'},'expected_version':{'type':'integer'},'operation_id':{'type':'string'},'model_id':{'type':'string'}},
-                 'required':['job_id','expected_version','operation_id','model_id'],'additionalProperties':False}},
+  'description':'STAGED route only: start an already sealed job after minionone_seal_workspace, using the default worker or a configured profile_id. Do not call for minionone_delegate jobs (already started). No host write capability; NO-GO.',
+  'inputSchema':{'type':'object','properties':{'job_id':{'type':'string'},'expected_version':{'type':'integer'},'operation_id':{'type':'string'},'model_id':{'type':'string'},'profile_id':{'type':'string'},'allow_cloud':{'type':'boolean'}},
+                 'required':['job_id','expected_version','operation_id'],'additionalProperties':False}},
  {'name':'minionone_worker_io',
   'description':(
       'SENSITIVE exact Flint worker I/O transcript: real serialized LM Studio '
@@ -156,7 +156,8 @@ class LocalMCP(ThreadingHTTPServer):
             if (type(worker_profiles) is not dict or not 1<=len(worker_profiles)<=16 or
                     any(type(v) is not WorkerProfile or k!=v.profile_id for k,v in worker_profiles.items())):
                 raise ValueError('trusted worker profiles required')
-            from .text_tools import TEXT_TOOLS
+            if not enable_workspace_jobs:
+                raise ValueError('worker profiles require the common workspace executor')
         # Establish independent process/error files before SQLite, leases,
         # schema migration or network bind. A DB failure is still observable.
         self.logs=ProcessLogs(database_path)
@@ -166,7 +167,6 @@ class LocalMCP(ThreadingHTTPServer):
         self.parent_return=None
         self.enable_workspace_jobs=enable_workspace_jobs
         self.tools=TOOLS+(PILOT_TOOLS if enable_test_jobs else [])+(WORKSPACE_TOOLS if workspace_projects is not None else [])
-        if worker_profiles is not None:self.tools+=TEXT_TOOLS
         if enable_workspace_jobs:
             # Workspace is the product-facing mode; old isolated test protocol
             # remains available only on a separate non-workspace server.
@@ -177,7 +177,7 @@ class LocalMCP(ThreadingHTTPServer):
             self.tools=[x for x in self.tools if x['name'] not in (
                 'minionone_start_workspace_job','minionone_workspace_result',
                 'minionone_accept_workspace_result','minionone_cancel_workspace_job',
-                'minionone_worker_io')]
+                'minionone_worker_io','minionone_workers')]
         self.tool_map={t['name']:t for t in self.tools}
         self.credential = token
         self.thread_id = thread
@@ -202,16 +202,15 @@ class LocalMCP(ThreadingHTTPServer):
             }
             if enable_test_jobs or enable_workspace_jobs or worker_profiles is not None:
                 from .pilot_jobs import PilotJobs,PilotConfig
-                self.pilot=PilotJobs(self.store,PilotConfig(worker_model or 'configured-text-worker',lmstudio_url,worker_api_key,
+                self.pilot=PilotJobs(self.store,PilotConfig(worker_model or 'profile-selection-required',lmstudio_url,worker_api_key,
                                     model_call_seconds=model_call_seconds,min_free_mb=min_free_mb))
                 self.pilot.process_logs=self.logs
-                self.pilot.text_profiles=dict(worker_profiles or {})
+                self.pilot.worker_profiles=dict(worker_profiles or {})
                 if enable_workspace_jobs:
                     from .workspace_jobs import WorkspaceJobs
                     self.workspace_jobs=WorkspaceJobs(self.workspace,self.pilot,token,thread)
                     self.pilot.workspace_execution=self.workspace_jobs
                 count=self.pilot.recover()
-                if worker_profiles is not None:self.recovery_summary['text_jobs_recovery_checked']=True
                 if enable_test_jobs:self.recovery_summary['test_jobs_quarantined']=count
                 if enable_workspace_jobs:self.recovery_summary['workspace_jobs_recovery_checked']=True
             if parent_driver is not None:
@@ -281,7 +280,8 @@ class LocalMCP(ThreadingHTTPServer):
                     "windows_file_broker_verified":False,"auto_wakeup_enabled":bool(self.parent_return and self.parent_return.verified),
                     "automatic_return_required":True,
                     "parent_return_backend":"TRUSTED_HOST_DRIVER" if self.parent_return else "UNAVAILABLE",
-                    "text_worker_profiles":len(self.pilot.text_profiles) if self.pilot else 0,
+                    "worker_profiles":len(self.pilot.worker_profiles) if self.pilot else 0,
+                    "handoff_paths":["direct","prepared_workspace"] if self.workspace_jobs else [],
                     "implicit_context_transfer":False,
                     "workspace_preparation_enabled":self.workspace is not None,
                     "workspace_execution_enabled":self.workspace_jobs is not None,
@@ -295,26 +295,10 @@ class LocalMCP(ThreadingHTTPServer):
             if self.parent_return is not None:
                 result['parent_return']=self.parent_return.status(args['job_id'])
             return result
-        if self.pilot is not None and name=='minionone_workers':
-            return {'workers':[p.catalog() for p in self.pilot.text_profiles.values()]}
-        if self.pilot is not None and name=='minionone_consult':
-            return self.pilot.consult(token,thread,args['profile_id'],args['prompt'],args['operation_id'],
-                context=args.get('context',''),allow_cloud=args.get('allow_cloud',False))
-        if self.pilot is not None and name=='minionone_consult_result':
-            result=self.pilot.result(token,thread,args['job_id'],kind='TEXT')
-            return {k:v for k,v in result.items() if k!='files'}|{'text':result['files'][0]['text']}
-        if self.pilot is not None and name=='minionone_accept_consult_result':
-            return self.pilot.acknowledge(token,thread,args['job_id'],args['expected_version'],
-                args['result_digest'],args['operation_id'],kind='TEXT')
-        if self.pilot is not None and name=='minionone_cancel_consult':
-            return self.pilot.cancel(token,thread,args['job_id'],args['expected_version'],args['operation_id'],kind='TEXT')
-        if self.pilot is not None and name=='minionone_consult_io':
-            from .worker_io import page
-            with self.store._connection() as con:
-                con.execute('BEGIN')
-                row=self.store._owned_row(con,self.store._principal(token,thread),thread,args['job_id'])
-                if row['job_kind']!='TEXT':raise InputRejected('not a text job')
-                return page(con,args['job_id'],args.get('after_seq',0),args.get('limit',10))
+        if self.workspace_jobs is not None and name=='minionone_workers':
+            return {'workers':[p.catalog() for p in self.pilot.worker_profiles.values()],
+                    'default_model_id':(None if self.pilot.config.model_id=='profile-selection-required' else self.pilot.config.model_id),
+                    'handoff_paths':['direct','prepared_workspace']}
         if name == "minionone_job_events":
             return {"events":self.store.events(token,thread,args["job_id"])}
         if name == "minionone_job_trace":
@@ -329,6 +313,10 @@ class LocalMCP(ThreadingHTTPServer):
         if self.workspace is not None:
             if name == 'minionone_prepare_workspace':
                 receipt=self.workspace.reserve(token,thread,args['project_id'],args['operation_id'])
+                if self.pilot is not None and self.pilot.worker_profiles:
+                    receipt['workers']=[p.catalog() for p in self.pilot.worker_profiles.values()]
+                    receipt['model_discovery']='CONFIGURED_NOT_PROBED'
+                    return receipt
                 # Model discovery is optional. Never roll back a durable reservation
                 # because the provider happens to be unavailable.
                 try:
@@ -351,11 +339,13 @@ class LocalMCP(ThreadingHTTPServer):
             if self.workspace_jobs is not None:
                 if name == 'minionone_delegate':
                     return self.workspace_jobs.delegate(token,thread,
-                        args['project_id'],args['goal'],args.get('context',''),
-                        args['acceptance_criteria'],args['files'],args['operation_id'])
+                        args['project_id'],args.get('goal'),args.get('context',''),
+                        args.get('acceptance_criteria'),args.get('files',{}),args['operation_id'],
+                        task=args.get('task'),profile_id=args.get('profile_id'),allow_cloud=args.get('allow_cloud',False))
                 if name == 'minionone_start_workspace_job':
                     return self.workspace_jobs.start(token,thread,args['job_id'],
-                        args['expected_version'],args['operation_id'],args['model_id'])
+                        args['expected_version'],args['operation_id'],args.get('model_id'),
+                        profile_id=args.get('profile_id'),allow_cloud=args.get('allow_cloud',False))
                 if name == 'minionone_worker_io':
                     return self.workspace_jobs.worker_io(token,thread,args['job_id'],
                         args.get('after_seq',0),args.get('limit',10))
@@ -471,8 +461,8 @@ class MCPHandler(BaseHTTPRequestHandler):
                     raise InputRejected("protocolVersion missing")
                 instructions=(
                     "MinionOne is an opt-in local NO-GO development manager. "
-                    "For a small, synthetic text-only task, prefer minionone_delegate "
-                    "(it stages, seals, and starts Flint automatically). "
+                    "For a directly supplied task, use minionone_delegate "
+                    "(it stages, seals, and starts the selected worker). "
                     "Alternatively, call minionone_prepare_workspace, then have "
                     "an authorized EXTERNAL operator create TASK.md, manifest.json "
                     "and files in input/, call minionone_seal_workspace and "
@@ -494,15 +484,16 @@ class MCPHandler(BaseHTTPRequestHandler):
                     "Only use tools actually advertised by tools/list. "
                     "Use minionone_job_trace for durable redacted diagnostics."
                 )
-                if self.server.pilot is not None and self.server.pilot.text_profiles:
+                if self.server.workspace_jobs is not None:
                     instructions += (
-                        ' Third text-only route: minionone_workers lists configured roles; '
-                        'minionone_consult sends ONLY its prompt and explicitly supplied optional context. '
-                        'Never retrieve or attach Flash history implicitly. Text workers have no file/tools. '
-                        'Use minionone_job_status, minionone_consult_result and exact '
-                        'minionone_accept_consult_result. Cloud requires configured approval and allow_cloud=true. '
-                        'Automatic same-chat return/restoration is required by the product but needs a '
-                        'verified host driver; inspect minionone_status rather than claiming a wakeup.'
+                        ' Exactly two task handoffs: direct minionone_delegate with task '
+                        'and optional files; or prepared TASK.md via prepare/seal/start. '
+                        'Both use the same execution and result/ACK tools. '
+                        'minionone_workers lists backend/model profiles for either handoff. '
+                        'Flash supplies every task; never attach its history implicitly. '
+                        'Cloud requires operator configuration and allow_cloud=true. '
+                        'Same-chat return/restoration requires a verified host driver; '
+                        'inspect minionone_status before claiming wakeup.'
                     )
                 result={"protocolVersion":PROTOCOL,"capabilities":{"tools":{"listChanged":False}},
                         "serverInfo":{"name":"minionone-pilot","version":__version__},

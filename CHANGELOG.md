@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.45.0.dev0 – universal jobs
+
+Removed the v0.44 Consult tool family and text executor. Added task-only direct delegation without dummy files; both direct and prepared-file jobs can select LM Studio, native Unsloth or an approved compatible Cloud backend. Shared broker/receipt/state contracts; preserved historical TEXT rows. Native return integration and automatic model lifecycle remain open.
+
 ## v0.44 – owner requirements and bounded text workers
 
 Reconcile original FR/test sources with current owner decisions. Preserve explicit

@@ -1,5 +1,9 @@
 # MinionOne – Modellprovider und Adaptervertrag (v0.20 WIP)
 
+## v0.45 current scope
+
+Backend/model configuration now serves both direct and prepared-file jobs via the same AgentLoop and file broker. No separate role/text route. Local models remain preloaded; native parent return and actual model lifecycle remain open. See [OWNER_REQUIREMENTS_V045.md](OWNER_REQUIREMENTS_V045.md).
+
 > Aktualisierung v0.44: Die drei Backends sind ursprüngliches Produktziel,
 > bestätigt durch [OWNER_REQUIREMENTS_V044.md](OWNER_REQUIREMENTS_V044.md).
 > Der neue Textpfad implementiert Rollen und begrenzte Textinferenz für LM Studio,

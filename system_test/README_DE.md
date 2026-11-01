@@ -1,4 +1,4 @@
-# MinionOne 0.44 – Windows-Test mit echten Arbeitsdateien
+# MinionOne 0.45 – Windows-Test mit echten Arbeitsdateien
 
 **PRE-ALPHA · nur synthetische Testdaten · Produktfreigabe NO-GO.**
 
@@ -7,8 +7,8 @@ Starter verwenden jetzt den aktuellen Workspace-Test: echte Dateien in
 `input/`, `work/` und `output/`, einen geladenen lokalen LM-Studio-Worker und
 eine geprüfte Ergebnisbestätigung. Shell und Codeausführung bleiben gesperrt.
 
-Zusätzliche Rollen für LM Studio, direktes Unsloth und freigegebene Cloud-APIs
-sowie der neue Textpfad: [WORKER_ROLES_DE.md](WORKER_ROLES_DE.md).
+Backend-/Modellwahl für beide Übergabewege über LM Studio, direktes Unsloth und freigegebene Cloud-APIs
+für direkt übergebene oder vorbereitete Datei-Aufträge: [WORKER_BACKENDS_DE.md](WORKER_BACKENDS_DE.md).
 Flash bestimmt sämtliche übergebenen Informationen; kein impliziter Kontexttransfer.
 
 ## 1. Vorbereiten
@@ -19,7 +19,7 @@ Flash bestimmt sämtliche übergebenen Informationen; kein impliziter Kontexttra
    Modell-ID notieren. MinionOne lädt oder entlädt keine Modelle.
 4. Für den ersten Test keine echten Dokumente hinzufügen.
 
-Die Paketversion lautet `0.44.0.dev0`. `bundle.json` nennt die Version, den
+Die Paketversion lautet `0.45.0.dev0`. `bundle.json` nennt die Version, den
 Quell-Commit und den Standardtest. `SHA256SUMS.txt` enthält die Datei-Hashes.
 
 ## 2. Starten und testen

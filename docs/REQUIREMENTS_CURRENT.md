@@ -1,9 +1,14 @@
 # MinionOne – aktueller Requirements-Einstiegspunkt (Stand 2026-11-01)
 
+## Owner correction v0.45 takes precedence
+
+See [OWNER_REQUIREMENTS_V045.md](OWNER_REQUIREMENTS_V045.md): one universal job system, direct task or prepared files, no separate Consult/role path, no automatic parent context transfer. Original backend/automatic-return/model-lifecycle targets remain binding.
+
 > **Status: Development / PRE-ALPHA / PRODUCT NO-GO.**
-> v0.44 setzt die [aktuelle Owner-Klarstellung](OWNER_REQUIREMENTS_V044.md) um:
-> neuer Textpfad und Rollen, persistierte automatische Rückgabe-Steuerung;
-> nativer Unsloth-Parent-Driver/Model-Lifecycle und Zielhostnachweise noch offen.
+> v0.45 setzt die [aktuelle Owner-Korrektur](OWNER_REQUIREMENTS_V045.md) um:
+> universelle Aufträge über Direktübergabe oder vorbereitete TASK.md-Dateien,
+> gemeinsame Backend-/Modellwahl und Rückgabesteuerung; kein separater Text-/Rollenpfad.
+> Nativer Parent-Driver, tatsächlicher Model-Lifecycle und Zielhostnachweise bleiben offen.
 > v0.43 vereinheitlicht Windows-Paket/Runtime auf `0.43.0.dev0` und macht den
 > aktuellen physischen Workspace-Test direkt über die nummerierten Starter
 > zugänglich. [Paket-Anleitung](../system_test/README_DE.md). Produkt NO-GO bleibt.
@@ -17,9 +22,12 @@
 ## 1. Dokumentenrangfolge bei Widersprüchen
 
 1. **Explizite neueste Produktowner-Entscheidungen**: zuerst
-   [OWNER_REQUIREMENTS_V044.md](OWNER_REQUIREMENTS_V044.md) (drei Provider,
-   ausdrücklich kein impliziter Kontexttransfer, automatische Rückgabe für
-   residenten/entladenen Flash und ergänzender Textpfad), danach die Dateirechte in
+   [OWNER_REQUIREMENTS_V045.md](OWNER_REQUIREMENTS_V045.md) (ein Auftragssystem,
+   zwei Übergabewege, drei Provider und kein separater Text-/Rollenpfad); die
+   Originalzuordnungen und übrigen Anforderungen aus
+   [OWNER_REQUIREMENTS_V044.md](OWNER_REQUIREMENTS_V044.md) bleiben erhalten:
+   kein impliziter Kontexttransfer, automatische Rückgabe für residenten/entladenen
+   Flash und tatsächlicher Modellwechsel. Danach gelten die Dateirechte in
    [SPEC_V031_FILESYSTEM_FIRST_TESTFIRST.md](SPEC_V031_FILESYSTEM_FIRST_TESTFIRST.md)
    und ihrem v0.31.1-Nachtrag vom 31.10.2026.
 2. **Nicht ersetzte normative Baseline**

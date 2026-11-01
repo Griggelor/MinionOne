@@ -1,4 +1,4 @@
-"""Trusted text-worker profiles. Never reads a parent chat or project files."""
+"""Trusted backend/model configuration for the common job executor."""
 from dataclasses import dataclass
 import json
 import multiprocessing
@@ -25,7 +25,7 @@ class WorkerProfile:
     provider: str
     model_id: str
     base_url: str
-    instructions: str
+    instructions: str = ''  # Optional legacy operator constraint, never the job task.
     description: str = ''
     secret_env: str | None = None
     timeout_seconds: int = 120
@@ -42,8 +42,10 @@ class WorkerProfile:
         if type(self.description) is not str or len(self.description)>256 or '\x00' in self.description:
             raise InputRejected('invalid configured worker description')
         for value, ceiling in ((self.model_id, 256), (self.instructions, 8000)):
-            if type(value) is not str or not value.strip() or len(value) > ceiling or '\x00' in value:
-                raise InputRejected('invalid configured model or role')
+            if type(value) is not str or (ceiling==256 and not value.strip()) or len(value) > ceiling or '\x00' in value:
+                raise InputRejected('invalid configured model or constraint')
+        if any(ord(c)<32 or ord(c)==127 for c in self.model_id):
+            raise InputRejected('invalid configured model identifier')
         if type(self.base_url) is not str:
             raise InputRejected('invalid configured provider URL')
         try:
@@ -79,7 +81,8 @@ class WorkerProfile:
         return {'profile_id': self.profile_id, 'provider': self.provider,
                 'description':self.description,
                 'model_id': self.model_id, 'readiness': 'CONFIGURED_NOT_PROBED',
-                'context_source': 'EXPLICIT_JOB_INPUT_ONLY', 'worker_tools': [],
+                'context_source': 'EXPLICIT_JOB_INPUT_ONLY', 'worker_tools': 'JOB_SCOPED_MANAGER_BROKER',
+                'handoff_paths': ['direct', 'prepared_workspace'],
                 'automatic_model_loading': False,
                 'max_input_bytes': self.max_input_bytes,
                 'max_output_tokens': self.max_output_tokens}
@@ -159,13 +162,13 @@ def bounded_request(url, body, key, timeout):
             process.close()
 
 
-class TextWorker:
-    """One text inference; no agent loop, files, hidden context or executable tools."""
-    def __init__(self, profile, *, transport=bounded_request):
+class ConfiguredWorker:
+    """Provider readiness and bounded transport; executes no model tools."""
+    def __init__(self, profile, *, transport=None):
         if type(profile) is not WorkerProfile:
             raise InputRejected('trusted worker profile required')
         self.profile = profile
-        self.transport = transport
+        self.transport = transport or bounded_request
 
     def _key(self):
         key = os.environ.get(self.profile.secret_env) if self.profile.secret_env else None
@@ -197,47 +200,19 @@ class TextWorker:
             except (ValueError, KeyError, TypeError):
                 raise WorkerProviderError('PROVIDER_RESPONSE_INVALID') from None
 
-    def complete(self, task, *, sink):
-        payload = {'model': self.profile.model_id,
-                   'messages': [{'role': 'system', 'content': self.profile.instructions},
-                                {'role': 'user', 'content': task}],
-                   'stream': False, self.profile.token_parameter: self.profile.max_output_tokens}
-        if self.profile.provider=='unsloth':
-            # Native Studio has its own tool loop and per-request inheritance.
-            # Omitting OpenAI tools alone does not explicitly disable that loop.
-            # Fields verified against the pinned ChatCompletionRequest schema.
-            payload.update({'tools':[], 'tool_choice':'none',
-                'enable_tools':False, 'enabled_tools':[], 'mcp_enabled':False,
-                'max_tool_calls_per_message':0, 'deep_research_armed':False,
+    def prepare_payload(self, payload):
+        payload = dict(payload)
+        payload[self.profile.token_parameter] = payload.pop('max_tokens')
+        if self.profile.provider == 'unsloth':
+            # External manager owns tool execution. Native host capabilities,
+            # conversation state and MCP inheritance must remain disabled.
+            payload.update({'enable_tools':False, 'enabled_tools':[], 'mcp_enabled':False,
+                'max_tool_calls_per_message':1, 'deep_research_armed':False,
                 'run_tools_locally':False, 'auto_heal_tool_calls':False,
                 'nudge_tool_calls':False, 'context_overflow':'error',
                 'thread_id':None, 'session_id':None, 'rag_scope':None})
-        body = json.dumps(payload, ensure_ascii=True, separators=(',', ':')).encode('ascii')
-        if len(body) > 96 * 1024:
-            raise InputRejected('serialized text input exceeds transport budget')
-        sink('MODEL_REQUEST', body.decode('ascii'))
-        raw = self.transport(self.profile.endpoint + '/chat/completions', body,
-                             self._key(), self.profile.timeout_seconds)
-        try:
-            decoded = raw.decode('utf-8')
-            sink('MODEL_RESPONSE', decoded)
-            result = json.loads(decoded)
-            if type(result) is not dict or len(result['choices']) != 1:
-                raise ValueError()
-            choice = result['choices'][0]
-            message = choice['message']
-            text = message['content']
-            tokens = result['usage']['total_tokens']
-            if (choice.get('finish_reason') != 'stop' or message.get('role') != 'assistant' or
-                    message.get('tool_calls') or message.get('function_call') or
-                    type(text) is not str or not text.strip() or '\x00' in text or
-                    len(text.encode('utf-8')) > 64 * 1024 or
-                    type(tokens) is not int or not 1 <= tokens <= 150000):
-                raise ValueError()
-            # Unsloth versions may ignore a requested model. Never attest a
-            # successful native-model selection from the request field alone.
-            if self.profile.provider == 'unsloth' and result.get('model') != self.profile.model_id:
-                raise ValueError()
-            return text, tokens
-        except (ValueError, KeyError, TypeError, UnicodeError):
-            raise WorkerProviderError('PROVIDER_RESPONSE_INVALID') from None
+        return payload
+
+    def request(self, body, timeout):
+        return self.transport(self.profile.endpoint + '/chat/completions', body,
+                              self._key(), min(timeout, self.profile.timeout_seconds))

@@ -1,8 +1,8 @@
-"""Manager-only LM Studio tool-call planner for the bounded AgentLoop.
+"""Manager-only Chat-Completions planner; legacy LM Studio class name retained.
 
-Only translates constrained localhost OpenAI-compatible chat responses into
+Translates default localhost or trusted profile-selected chat responses into
 untrusted ModelStep objects. NEVER executes tools, touches files, publishes
-results, authorizes model text, or sends messages to Unsloth.
+results, authorizes model text, or resumes a parent conversation.
 """
 from __future__ import annotations
 
@@ -108,8 +108,9 @@ class LMStudioAgentProvider:
 
     def __init__(self, base_url, *, model_id, approved_prompt,
                  max_output_tokens=1024, api_key=None, system_prompt=None,
-                 io_sink=None, workspace_tools=False):
-        if type(model_id) is not str or _MODEL.fullmatch(model_id) is None:
+                 io_sink=None, workspace_tools=False, worker_profile=None):
+        if (type(model_id) is not str or not 1<=len(model_id)<=256 or
+                (worker_profile is None and _MODEL.fullmatch(model_id) is None)):
             raise PlannerRejected("invalid model identifier")
         if type(approved_prompt) is not str or not 1 <= len(approved_prompt) <= 8000:
             raise PlannerRejected("invalid approved prompt budget")
@@ -118,8 +119,16 @@ class LMStudioAgentProvider:
         if (system_prompt is not None and
                 (type(system_prompt) is not str or not 1<=len(system_prompt)<=8000)):
             raise PlannerRejected("invalid immutable worker system policy")
-        self._provider=LMStudioProbe(base_url, timeout=2, api_key=api_key,
-                                     max_response_bytes=_MAX_RESPONSE_BYTES)
+        self._configured_worker = None
+        if worker_profile is not None:
+            from .worker_profiles import ConfiguredWorker
+            if worker_profile.model_id != model_id:
+                raise PlannerRejected('configured model mismatch')
+            self._configured_worker = ConfiguredWorker(worker_profile)
+            self._provider = None
+        else:
+            self._provider=LMStudioProbe(base_url, timeout=2, api_key=api_key,
+                                         max_response_bytes=_MAX_RESPONSE_BYTES)
         self._model_id=model_id
         self._max_output_tokens=max_output_tokens
         self._messages=(
@@ -150,6 +159,8 @@ class LMStudioAgentProvider:
             "stream":False,
             "max_tokens":self._max_output_tokens,
         }
+        if self._configured_worker is not None:
+            payload = self._configured_worker.prepare_payload(payload)
         data=json.dumps(payload,sort_keys=True,allow_nan=False,
                         ensure_ascii=True,separators=(",",":")).encode("ascii")
         if len(data)>_MAX_BODY_BYTES:
@@ -159,19 +170,22 @@ class LMStudioAgentProvider:
         # HTTP credentials are carried only in headers, never in this record.
         if self._io_sink is not None:
             self._io_sink("MODEL_REQUEST",data.decode("ascii"))
-        headers={"Accept":"application/json","Content-Type":"application/json"}
-        if self._provider.api_key is not None:
-            headers["Authorization"]="Bearer "+self._provider.api_key
-        req=Request(self._provider.base_url+"/v1/chat/completions",data=data,
-                    headers=headers,method="POST")
-        try:
-            with self._provider._opener.open(req,timeout=float(timeout_seconds)) as response:
-                if response.status!=200:
-                    raise PlannerRejected("provider refused request")
-                raw=response.read(_MAX_RESPONSE_BYTES+1)
-        except (HTTPError,URLError,OSError,TimeoutError,ValueError) as exc:
-            raise PlannerRejected("provider unavailable or refused",
-                                  diagnostic=classify_provider_failure(exc)) from exc
+        if self._configured_worker is not None:
+            raw = self._configured_worker.request(data, float(timeout_seconds))
+        else:
+            headers={"Accept":"application/json","Content-Type":"application/json"}
+            if self._provider.api_key is not None:
+                headers["Authorization"]="Bearer "+self._provider.api_key
+            req=Request(self._provider.base_url+"/v1/chat/completions",data=data,
+                        headers=headers,method="POST")
+            try:
+                with self._provider._opener.open(req,timeout=float(timeout_seconds)) as response:
+                    if response.status!=200:
+                        raise PlannerRejected("provider refused request")
+                    raw=response.read(_MAX_RESPONSE_BYTES+1)
+            except (HTTPError,URLError,OSError,TimeoutError,ValueError) as exc:
+                raise PlannerRejected("provider unavailable or refused",
+                                      diagnostic=classify_provider_failure(exc)) from exc
         if len(raw)>_MAX_RESPONSE_BYTES:
             raise PlannerRejected("response exceeds byte budget")
         # Record the exact response bytes as UTF-8 JSON before parsing or
@@ -187,6 +201,10 @@ class LMStudioAgentProvider:
             obj=json.loads(raw.decode("utf-8"))
             if type(obj) is not dict:
                 raise ValueError("response not object")
+            if (self._configured_worker is not None and
+                    self._configured_worker.profile.provider == 'unsloth' and
+                    obj.get('model') != self._model_id):
+                raise ValueError('native model identity mismatch')
             choices=obj.get("choices")
             if type(choices) is not list or len(choices)!=1:
                 raise ValueError("invalid choices")

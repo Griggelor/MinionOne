@@ -15,9 +15,8 @@ from .admission import InputRejected
 
 
 def _check_payload(payload):
-    if (type(payload) is not dict or not 3 <= len(payload) <= 6 or
-            "TASK.md" not in payload or "manifest.json" not in payload or
-            not any(k not in ("TASK.md","manifest.json") for k in payload)):
+    if (type(payload) is not dict or not 2 <= len(payload) <= 6 or
+            "TASK.md" not in payload or "manifest.json" not in payload):
         raise InputRejected("incomplete delegated workspace payload")
     if (any(type(n) is not str or type(b) is not bytes or
             not b or len(b) > 8192 for n,b in payload.items()) or

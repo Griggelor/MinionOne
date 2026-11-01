@@ -124,6 +124,7 @@
   Verknüpfung zum AppContainer-Prozess fehlen noch; keine Freigabe von
   `run_tests`, Shell oder Echtdaten.
 - v0.39: Tatsächliche native Windows-AppContainer-Pipe-Verbindung (nur festes synthetisches PROBE_PING) mit explicit HANDLE_LIST, Kernel-Tokenprüfung, Job-Object-Zuweisung vor Resume, v0.38-Dispatch-Fence und realem PONG-/Exit-Receipt im dedizierten Windows-CI geprüft ([PR #57](https://github.com/Griggelor/MinionOne/pull/57), [Dokumentation](WIN32_BOXED_IPC_V039.md)). Keine Worker-/Shell-/Testausführung, keine Zielhost-Sandboxfreigabe. Der Probelauf verwendet ein temporäres Journal und ist noch nicht in den produktiven AgentLoop integriert.
+- v0.40: Native Windows-AppContainer-Fehlertests auf dem tatsächlichen v0.39-Pipepfad: Crash/Timeout lassen das persistierte In-Flight-Fence unangetastet, defekte und scope-fremde IPC-Frames werden dauerhaft quarantänisiert. Die sechs Fälle und v0.37-Dateidenial-Regressionsproben liefen in dedizierter Windows-CI erfolgreich ([PR #58](https://github.com/Griggelor/MinionOne/pull/58), [Details](WIN32_BOXED_FAULT_GATES_V040.md)). Kein allgemeiner Ausführungssandbox- oder Netzwerk-GO, kein Echtsystem-Freigabenachweis.
 - **Noch nicht erfüllt**: vollständiger Windows-Dateibroker mit nachgewiesener
   NTFS-Isolation; echte OS-Sandbox/ACL und nicht-kooperierende Race-Tests;
   Crash-Replay-/Idempotenz-Verträge für Work-Mutationen; sichere Wiederaufnahme

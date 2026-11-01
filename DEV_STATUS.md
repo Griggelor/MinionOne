@@ -1,5 +1,13 @@
 # Development status — 2026-11-01
 
+## v0.40 – AppContainer native IPC fault gates (SYNTHETIC ONLY, NO EXEC)
+
+- [PR #58](https://github.com/Griggelor/MinionOne/pull/58) extends the fixed v0.39 child with six trusted CI scenarios: process crash, process deadline, truncated body, 0xffffffff length, wrong nonce and trailing bytes. No shell/worker-selected process is exposed.
+- Existing journal receipt fence is committed before resume; crash/timeout remain durably IN_FLIGHT; bad response bytes now traverse journal validation and persist NEEDS_RECONCILIATION. Each scenario must show automatic_replay_allowed=false, never RESULT_READY or product GO.
+- [v0.40 native Windows/Linux workflow](https://github.com/Griggelor/MinionOne/actions/runs/41300495592) passed at feature commit 14f412176ac15a07cb5035bcd5d7ef6cd94e5a5f, including existing real v0.37 manager/sibling/output access-denial checks and v0.38 journal regressions. No target-host or network-wide security attestation is implied.
+- Still OPEN: hostile arbitrary-code/process-tree/handle probing, genuine no-network egress attestation, production manager journal wiring, safe data import/output, target host G1b verification. `boxed_execution_enabled=false`, `os_sandbox_attested=false`, product NO_GO.
+- [Exact scope and expected states](docs/WIN32_BOXED_FAULT_GATES_V040.md).
+
 ## v0.39 – real fixed-child Windows AppContainer IPC transport (NO WORKER EXEC)
 
 - [PR #57](https://github.com/Griggelor/MinionOne/pull/57): added real OS anonymous pipes passed only to a fixed MSVC synthetic AppContainer child through an explicit two-handle STARTUPINFOEX handle list, together with the verified AppContainer token and pre-resume Job Object.

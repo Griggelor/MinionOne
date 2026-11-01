@@ -390,10 +390,10 @@ def _run_fixed_boxed_ipc_case(case):
             if not k.GetExitCodeProcess(process.hProcess, ctypes.byref(exit_code)):
                 raise ProtocolUncertain("IPC child exit receipt unavailable")
             if exit_code.value != 0:
-                if case in _BOUNDARY_MODES:
+                if case in _BOUNDARY_MODES | _FILE_MODES:
                     raise JobProbeUnavailable(
-                        "fixed v041 native boundary child rejected attempt; exit=" +
-                        str(exit_code.value))
+                        "fixed native test child rejected attempt; mode=" + case +
+                        " exit=" + str(exit_code.value))
                 raise ProtocolUncertain("IPC child failed or exit receipt unavailable")
             response = _read_reply(k, manager_out_read)
             # Record hostile reply bytes in the durable journal. Malformed,

@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.40 native IPC negative gates — 2026-11-01 (PRE-ALPHA / NO_GO)
+
+- Fixed real Windows AppContainer C child now supports six CI-only failure modes; manager ensures durable no-replay receipt for real crash/timeout and quarantines malformed/forged/trailing pipe frames through the journal. Test helper has no model-selected arguments or general worker execution capability.
+- Dedicated Windows/Linux workflow verified new fault matrix and repeated v0.37 native canary denials; see docs/WIN32_BOXED_FAULT_GATES_V040.md and PR #58. Unverified target-host security, arbitrary code/shell/test execution, network denial, manager integration and release remain NO_GO.
+
 ## v0.32 Win32 Work implementation milestone — 2026-10-31 (WIP; PRODUCT NO-GO)
 
 - Merged requirements v0.31.1, POSIX physical Work v0.31.2 and native NTFS Work broker v0.32 into main; `docs/REQUIREMENTS_CURRENT.md` is the current requirements index.

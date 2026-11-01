@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <wchar.h>
 
 #define MAX_BODY 2048U
 #define DIGEST "6ceca15c73a4beb7c9c64c81d8fa1b5abed3ebc44f7b03e9c1749a8e2a0eee2e"
@@ -50,7 +51,13 @@ static int extract(const char *body, const char *key, const char *prefix,
     return found[len] == '"';
 }
 
-int wmain(void) {
+int wmain(int argc, wchar_t **argv) {
+    /* Developer-owned CI scenarios only. No worker-facing API or commands. */
+    const wchar_t *mode = (argc == 1) ? L"ok" : ((argc == 2) ? argv[1] : L"invalid");
+    if (wcscmp(mode, L"ok") && wcscmp(mode, L"crash") &&
+        wcscmp(mode, L"hang") && wcscmp(mode, L"truncated") &&
+        wcscmp(mode, L"oversized") && wcscmp(mode, L"wrong_nonce") &&
+        wcscmp(mode, L"trailing")) return 42;
     HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
     HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
     unsigned char header[4], body[MAX_BODY+1];
@@ -74,6 +81,16 @@ int wmain(void) {
         !strstr((char *)body, "\"kind\":\"request\"") ||
         !strstr((char *)body, "\"capability\":\"PROBE_PING\"") ||
         !strstr((char *)body, "\"version\":1")) return 54;
+    if (wcscmp(mode, L"crash") == 0) {
+        TerminateProcess(GetCurrentProcess(), 77);
+        return 77;
+    }
+    if (wcscmp(mode, L"hang") == 0) {
+        Sleep(15000);
+        return 78;
+    }
+    if (wcscmp(mode, L"wrong_nonce") == 0)
+        nonce[0] = (nonce[0] == 'a') ? 'b' : 'a';
     count = snprintf(reply, sizeof(reply),
         "{\"attempt_id\":\"ATT-%s\",\"capability\":\"PROBE_PING\","
         "\"job_id\":\"JOB-%s\",\"kind\":\"response\",\"nonce\":\"%s\","
@@ -87,7 +104,17 @@ int wmain(void) {
     frame[2] = (unsigned char)(size >> 8);
     frame[3] = (unsigned char)size;
     memcpy(frame + 4, reply, size);
+    if (wcscmp(mode, L"oversized") == 0) {
+        unsigned char bad_header[4] = {0xff, 0xff, 0xff, 0xff};
+        return write_exact(output, bad_header, 4) ? 0 : 58;
+    }
+    if (wcscmp(mode, L"truncated") == 0)
+        return write_exact(output, frame, 5) ? 0 : 59;
     if (!write_exact(output, frame, size+4)) return 56;
+    if (wcscmp(mode, L"trailing") == 0) {
+        const unsigned char garbage = 'X';
+        if (!write_exact(output, &garbage, 1)) return 60;
+    }
     /* The parent reads after process exit: flushing a pipe can deadlock. */
     return 0;
 }

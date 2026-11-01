@@ -1,5 +1,13 @@
 # Development status — 2026-11-01
 
+## v0.41 – real native Windows AppContainer boundary negatives (NO EXEC)
+
+- [PR #60](https://github.com/Griggelor/MinionOne/pull/60): an explicitly inheritable manager event is excluded by the exact two-handle child HANDLE_LIST. The fixed child verifies ERROR_INVALID_HANDLE or the equivalent precisely caught STATUS_INVALID_HANDLE from GetHandleInformation. The host positive control verifies the event is signalled and inheritable.
+- The real child verifies IsProcessInJob and deliberately attempts suspended CREATE_BREAKAWAY_FROM_JOB of its own fixed executable; a successful breakaway fails the gate. No arbitrary model-selected process, script or command.
+- A live manager-local 127.0.0.1 listener has a normal-host positive control; child connection outcome is classified EXPLICIT_LOOPBACK_WSAEACCES or LOOPBACK_TIMEOUT_UNATTESTED, *never* global network attestation. Actual connection success fails the gate.
+- Dedicated [Windows + Linux native v0.41 CI](https://github.com/Griggelor/MinionOne/actions/runs/41312207155) passed at code commit `f69d60889b8935c62034745330224cd22e7406d9`, with old v0.38–v0.40 regressions. These are CI synthetic observations, not the operator's Windows host or a worker release. [Detailed scope](docs/WIN32_BOXED_BOUNDARIES_V041.md).
+- Off-by-default remains: `boxed_execution_enabled=false`, `os_sandbox_attested=false`, `run_tests`/shell disabled, product NO_GO. Next isolate per-job file import/work/output and close target-host and network/process-tree attestation gaps; track unstable Windows Workfiles collector in issue #59.
+
 ## v0.40 – AppContainer native IPC fault gates (SYNTHETIC ONLY, NO EXEC)
 
 - [PR #58](https://github.com/Griggelor/MinionOne/pull/58) extends the fixed v0.39 child with six trusted CI scenarios: process crash, process deadline, truncated body, 0xffffffff length, wrong nonce and trailing bytes. No shell/worker-selected process is exposed.

@@ -44,7 +44,7 @@ manager-only journal; even PONG is not a RESULT_READY, ACK or security approval.
 
 ## Evidence
 
-The dedicated Windows workflow compiles the fixed child with MSVC, runs
+[The dedicated Windows workflow](https://github.com/Griggelor/MinionOne/actions/runs/41312207155) passed its real-child handle, breakaway and loopback cases at implementation SHA f69d60889b8935c62034745330224cd22e7406d9. It compiles the fixed child with MSVC, runs
 all three native scenarios, v0.39 success and v0.40 attack regressions,
 and v0.38 durable journal tests. Linux tests fail-closed policy only.
 The Windows synthetic observation is redacted at

@@ -75,6 +75,8 @@ class RealWindowsBoundaryTests(unittest.TestCase):
                     self.assertEqual(result.network_result, "NOT_TESTED")
                     self.assertEqual(result.observed_code, "PONG")
                 observed.append(asdict(result))
+                if mode == "network":
+                    print("V041_LOOPBACK_OUTCOME=" + result.network_result)
         output = (Path(__file__).resolve().parent.parent / "evidence" / "v041" /
                   "BOUNDARY_EVIDENCE.json")
         output.parent.mkdir(parents=True, exist_ok=True)

@@ -123,6 +123,7 @@
   parallelen Dispatch-Tests. Ein echter Prozess-IPC-Kanal und die
   Verknüpfung zum AppContainer-Prozess fehlen noch; keine Freigabe von
   `run_tests`, Shell oder Echtdaten.
+- v0.39: Tatsächliche native Windows-AppContainer-Pipe-Verbindung (nur festes synthetisches PROBE_PING) mit explicit HANDLE_LIST, Kernel-Tokenprüfung, Job-Object-Zuweisung vor Resume, v0.38-Dispatch-Fence und realem PONG-/Exit-Receipt im dedizierten Windows-CI geprüft ([PR #57](https://github.com/Griggelor/MinionOne/pull/57), [Dokumentation](WIN32_BOXED_IPC_V039.md)). Keine Worker-/Shell-/Testausführung, keine Zielhost-Sandboxfreigabe. Der Probelauf verwendet ein temporäres Journal und ist noch nicht in den produktiven AgentLoop integriert.
 - **Noch nicht erfüllt**: vollständiger Windows-Dateibroker mit nachgewiesener
   NTFS-Isolation; echte OS-Sandbox/ACL und nicht-kooperierende Race-Tests;
   Crash-Replay-/Idempotenz-Verträge für Work-Mutationen; sichere Wiederaufnahme

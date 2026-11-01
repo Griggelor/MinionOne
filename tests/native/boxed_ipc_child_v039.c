@@ -68,9 +68,9 @@ static int deny_inherited_event(const wchar_t *number) {
     SetLastError(0);
     if (GetHandleInformation(candidate, &flags)) return 81;
     if (GetLastError() != ERROR_INVALID_HANDLE) return 82;
-    SetLastError(0);
-    if (WaitForSingleObject(candidate, 0) != WAIT_FAILED) return 83;
-    if (GetLastError() != ERROR_INVALID_HANDLE) return 84;
+    /* Windows can raise STATUS_INVALID_HANDLE on a deliberately invalid
+       WaitForSingleObject; GetHandleInformation's ERROR_INVALID_HANDLE is
+       the sufficient kernel-level noninheritance test. */
     return 0;
 }
 

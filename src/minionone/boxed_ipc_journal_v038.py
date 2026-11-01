@@ -195,6 +195,28 @@ class BoxedProbeJournal:
             raise ProtocolUncertain(failure)
         return state
 
+    def quarantine_artifact(self, grant):
+        """Permanently fence an observed attempt whose output fails validation.
+
+        This does not authorize, acknowledge or publish an artifact. It is a
+        one-way terminal quarantine, including if the same attempt is checked
+        again after a manager restart.
+        """
+        if type(grant) is not ProbeGrant:
+            raise FrameRejected("trusted grant required for artifact quarantine")
+        with self._connection() as con:
+            row = self._row(con, grant.job_id, grant.attempt_id, grant.operation_id)
+            if row[2] != grant.nonce or row[3] not in (
+                    "RESPONSE_OBSERVED", "NEEDS_RECONCILIATION"):
+                raise ProtocolUncertain("artifact quarantine without observed receipt")
+            if row[3] == "RESPONSE_OBSERVED":
+                con.execute(
+                    "UPDATE boxed_probe_receipts_v038 "
+                    "SET state='NEEDS_RECONCILIATION',response_sha256=NULL,"
+                    "result_code=NULL WHERE operation_id=? AND state='RESPONSE_OBSERVED'",
+                    (grant.operation_id,))
+        return self.status(grant.job_id, grant.attempt_id, grant.operation_id)
+
     def status(self, job_id, attempt_id, operation_id):
         self._identity(job_id, attempt_id, operation_id)
         with self._connection() as con:

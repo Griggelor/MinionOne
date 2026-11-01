@@ -1,5 +1,15 @@
 # MinionOne WORKLOG — 2026-10-29
 
+## v0.43 – Workspace package and Windows test stability
+
+Implement the next operator-test increment: version 0.43.0.dev0, current native
+Work launchers with separate state, saved-project self-test, both frozen backend
+paths, shared six-second synthetic fixture budget with a new actual-subprocess
+timeout/no-replay regression, same-run strict evidence and redacted failure
+capture. Issues #59/#62 remain open pending observed Windows validation/root-cause
+evidence. Production timeouts, file authority and shell/code grants are unchanged.
+
+
 ## 2026-10-30 — full-system test target / v0.18.0.dev0
 
 - User explicitly selected a complete Unsloth -> Flint -> test files -> returned-result test, rather than a connection-only package. Continue until a runnable Windows system-test artifact exists; no separate reviews.

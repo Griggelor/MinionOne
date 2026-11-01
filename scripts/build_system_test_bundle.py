@@ -2,6 +2,7 @@
 import argparse
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -23,10 +24,16 @@ def build(wheel,output,app=None,evidence=None):
     with tempfile.TemporaryDirectory(prefix='minionone-bundle-') as tmp:
         stage=Path(tmp)/('MinionOne_SystemTest_'+version);stage.mkdir()
         (stage/'packages').mkdir();shutil.copyfile(wheel,stage/'packages'/wheel.name)
-        for name in ('README_DE.md','bootstrap.py'):shutil.copyfile(root/'system_test'/name,stage/name)
+        for name in ('README_DE.md','README_LEGACY_DE.md','bootstrap.py'):
+            shutil.copyfile(root/'system_test'/name,stage/name)
         manifest={'schema_version':1,'version':version,'mode':'windows-native' if app else 'python-offline',
                   'wheel':{'filename':wheel.name,'sha256':sha256(wheel.read_bytes()).hexdigest()},
-                  'worker_file_backend':'sqlite_documents','host_filesystem_tools_enabled':False}
+                  'default_test':'synthetic_sealed_workspace',
+                  'source_commit':os.environ.get('GITHUB_SHA','local-unattested'),
+                  'worker_file_backend':'native_win32_work_sqlite_output' if app else 'native_platform_work_sqlite_output',
+                  'legacy_document_pilot_available':True,
+                  'host_filesystem_tools_enabled':False,
+                  'boxed_execution_enabled':False,'product_release':'NO_GO'}
         (stage/'bundle.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
         if app:
             app=Path(app).resolve()
@@ -36,12 +43,19 @@ def build(wheel,output,app=None,evidence=None):
             proof=json.loads(Path(evidence).read_text())
             if proof.get('passed') is not True:raise ValueError('failed executable test cannot be packaged as passed')
             shutil.copyfile(evidence,stage/'CI_FROZEN_TEST.json')
-        commands={'1_START.cmd':['serve'],'2_UNSLOTH.cmd':['connection','--show-token'],
-                  '3_SYSTEMTEST.cmd':['self-test'],'4_FACTS.cmd':['facts']}
+        # Dedicated state avoids silently reusing the older SQLite pilot DB.
+        workspace_state=['--state','"%LOCALAPPDATA%\\MinionOne\\WorkspaceSystemTest"']
+        commands={'1_START.cmd':workspace_state+['serve','--synthetic-workspace'],
+                  '2_UNSLOTH.cmd':workspace_state+['connection','--show-token'],
+                  '3_SYSTEMTEST.cmd':workspace_state+['workspace-self-test'],
+                  '4_FACTS.cmd':['facts'],
+                  'LEGACY_1_START.cmd':['serve'],
+                  'LEGACY_2_UNSLOTH.cmd':['connection','--show-token'],
+                  'LEGACY_3_SYSTEMTEST.cmd':['self-test']}
         for name,args in commands.items():
             invoke='"%~dp0app\\MinionOne.exe"' if app else 'py -3.13 "%~dp0bootstrap.py"'
             data='@echo off\r\n'+invoke+' '+' '.join(args)+' %*\r\nset "minionone_exitcode=%ERRORLEVEL%"\r\n'
-            if name!='1_START.cmd':data+='echo.\r\npause\r\n'
+            if name not in ('1_START.cmd','LEGACY_1_START.cmd'):data+='echo.\r\npause\r\n'
             data+='exit /b %minionone_exitcode%\r\n';(stage/name).write_bytes(data.encode('ascii'))
         files=sorted(p for p in stage.rglob('*') if p.is_file())
         (stage/'SHA256SUMS.txt').write_text(''.join(sha256(p.read_bytes()).hexdigest()+'  '+p.relative_to(stage).as_posix()+'\n' for p in files))

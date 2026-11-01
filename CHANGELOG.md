@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.43.0.dev0 – Windows Workspace system-test distribution
+
+- Default package starters use physical Work and isolated test state; old SQLite
+  starters remain explicitly named LEGACY. Saved project configuration removes
+  manual root/path arguments from the packaged self-test.
+- Frozen application test covers both backends. Bundle records source commit.
+- Align synthetic bridge deadlines, preserve forced-timeout/no-replay checks,
+  collect safe subprocess failure traces and archive the exact strict Work run.
+- No target-host release or executable-worker capability enabled.
+
+
 ## v0.42 synthetic AppContainer file handoff — 2026-11-01 (CI candidate / NO_GO)
 
 - Fixed native child reads a manager-staged immutable synthetic input, verifies denied writes to input and output, creates only one synthetic work artifact and reports through the existing narrow IPC receipt.

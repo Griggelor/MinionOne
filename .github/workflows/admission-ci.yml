@@ -13,6 +13,8 @@ permissions:
 
 jobs:
   admission:
+    env:
+      MINIONONE_TEST_EVIDENCE_DIR: evidence/bridge-failures
     name: Admission unit tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 8
@@ -33,6 +35,13 @@ jobs:
         run: python -m pip install --disable-pip-version-check -e .
       - name: Admission unit tests
         run: python -m unittest discover -s tests -v
+      - name: Preserve safe subprocess failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admission-bridge-diagnostics-${{ matrix.os }}
+          path: evidence/bridge-failures/
+          if-no-files-found: ignore
 
 # Passing Windows runner tests demonstrates portable SQLite/CAS behavior only.
 # It DOES NOT prove NTFS handle-bound sandbox, Unsloth auth or worker E2E.

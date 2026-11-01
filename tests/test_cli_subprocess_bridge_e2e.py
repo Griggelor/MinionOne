@@ -8,6 +8,7 @@ from contextlib import closing
 from http.server import ThreadingHTTPServer
 import http.client
 import json
+import os
 from pathlib import Path
 import socket
 import subprocess
@@ -17,7 +18,8 @@ import threading
 import time
 import unittest
 
-from test_full_bridge_http_e2e_ci import ModelOverHTTP,MODEL,TOKEN
+from test_full_bridge_http_e2e_ci import ModelOverHTTP,MODEL,MODEL_CALL_SECONDS
+from minionone.pilot_cli import PilotClient,diagnostic_report
 
 
 def free_port():
@@ -63,7 +65,7 @@ class SubprocessBridge(unittest.TestCase):
               "--model",MODEL,
               "--provider-url",f"http://127.0.0.1:{self.model.server_port}",
               "--port",str(self.port),"--min-free-mb","1",
-              "--model-call-seconds","2",
+              "--model-call-seconds",str(MODEL_CALL_SECONDS),
               "--experimental-workspace-jobs",
               "--workspace-project","demo="+str(self.project)]
         # Keeping the child process current directory inside the temporary
@@ -105,6 +107,23 @@ class SubprocessBridge(unittest.TestCase):
             self.assertEqual(bool(result.get("isError")),error,result)
             return json.loads(result["content"][0]["text"])
 
+    def failure_evidence(self,job,status):
+        # Export the existing closed-schema metadata API, never child stderr,
+        # settings/credentials or the sensitive worker-io.jsonl transcript.
+        evidence={"state":status.get("state"),"trace_available":False}
+        try:
+            evidence["diagnostics"]=diagnostic_report(
+                PilotClient(self.port,self.parent_token),job["job_id"])
+            evidence["trace_available"]=True
+        except Exception:
+            evidence["diagnostic_error"]="TRACE_UNAVAILABLE"
+        destination=os.environ.get("MINIONONE_TEST_EVIDENCE_DIR")
+        if destination:
+            folder=Path(destination);folder.mkdir(parents=True,exist_ok=True)
+            (folder/(self._testMethodName+".json")).write_text(
+                json.dumps(evidence,indent=2,sort_keys=True),encoding="utf-8")
+        return evidence
+
     def test_os_child_full_delegation_and_persistent_logs_then_parent_ack(self):
         self.start()
         self.assertTrue(self.rpc("minionone_status",{})["workspace_execution_enabled"])
@@ -115,13 +134,14 @@ class SubprocessBridge(unittest.TestCase):
             "acceptance_criteria":["Use the approved files only"],
             "files":{"sample.txt":"subprocess test data"},
             "operation_id":"ci-subprocess-delegate-0001"})
-        deadline=time.monotonic()+15
+        deadline=time.monotonic()+40
         while time.monotonic()<deadline:
             status=self.rpc("minionone_job_status",{"job_id":job["job_id"]})
             if status["state"] in ("RESULT_READY","FAILED","NEEDS_RECONCILIATION"):
                 break
             time.sleep(.1)
-        self.assertEqual(status["state"],"RESULT_READY",status)
+        if status["state"]!="RESULT_READY":
+            self.fail(json.dumps(self.failure_evidence(job,status),sort_keys=True))
         root=self.project/".minionone"/"jobs"/job["job_id"]/"output"
         self.assertEqual((root/"result.txt").read_text(),"SUBPROCESS TEST DATA")
         records=[json.loads(line) for line in
@@ -136,6 +156,10 @@ class SubprocessBridge(unittest.TestCase):
             "result_digest":result["result_digest"],
             "operation_id":"ci-subprocess-ack-00001"})
         self.assertEqual(receipt["state"],"COMPLETED")
+        safe=json.dumps(diagnostic_report(PilotClient(self.port,self.parent_token),job["job_id"]))
+        self.assertNotIn(self.parent_token,safe)
+        self.assertNotIn("subprocess test data",safe)
+        self.assertNotIn("SYNTHETIC-THINKING",safe)
         self.stop_process()
         # Files remain accessible without MinionOne or SQLite and the
         # process log contains no parent credential or model content.
@@ -144,6 +168,36 @@ class SubprocessBridge(unittest.TestCase):
         self.assertIn("PROCESS_START",proc)
         self.assertNotIn(self.parent_token,proc)
         self.assertNotIn("subprocess test data",proc)
+
+    def test_os_child_provider_deadline_remains_quarantined_without_retry(self):
+        self.model.mode="timeout"
+        self.start()
+        job=self.rpc("minionone_delegate",{
+            "project_id":"demo","goal":"Do not replay an uncertain inference",
+            "context":"Synthetic deadline regression",
+            "acceptance_criteria":["No false result or automatic retry"],
+            "files":{"sample.txt":"synthetic deadline input"},
+            "operation_id":"ci-subprocess-timeout-0001"})
+        deadline=time.monotonic()+20
+        while time.monotonic()<deadline:
+            status=self.rpc("minionone_job_status",{"job_id":job["job_id"]})
+            if status["state"] in ("NEEDS_RECONCILIATION","FAILED","RESULT_READY"):
+                break
+            time.sleep(.1)
+        self.assertEqual(status["state"],"NEEDS_RECONCILIATION",
+                         self.failure_evidence(job,status) if status["state"]!="NEEDS_RECONCILIATION" else status)
+        self.assertTrue(status["workspace_job"]["provider_state_uncertain"])
+        result=self.rpc("minionone_workspace_result",{"job_id":job["job_id"]},error=True)
+        self.assertEqual(result["error"]["code"],"PILOT_RESULT_NOT_READY")
+        second=self.rpc("minionone_delegate",{
+            "project_id":"demo","goal":"Blocked second inference",
+            "context":"Synthetic no-replay assertion",
+            "acceptance_criteria":["No second generation"],
+            "files":{"sample.txt":"blocked"},
+            "operation_id":"ci-subprocess-blocked-0001"},error=True)
+        self.assertEqual(second["error"]["code"],"PILOT_JOB_BUSY")
+        with self.model.synchronizer:
+            self.assertEqual(len(self.model.calls),1)
 
 
     def test_os_kill_after_live_request_fsync_survives_and_restart_is_fenced(self):

@@ -1,7 +1,6 @@
-# TEST-FIRST: this collector is green when evidence is captured, even while
-# substantive native Work CRUD/Input/Output permissions are still red. The STRICT MODE exits 2.
-# Never interpret this workflow as product-ready.
-name: Native Work product contract evidence (RED until implemented)
+# Require the nine implemented synthetic Work contracts in one strict run.
+# The uploaded report is from that same execution; no target-host approval.
+name: Native Work strict synthetic contract evidence
 on:
   pull_request:
     paths:
@@ -37,9 +36,9 @@ jobs:
           python-version: '3.13'
       - name: Install exact candidate; no real user content
         run: python -m pip install --disable-pip-version-check -e .
-      - name: Execute nine real-work/input/output permission target cases; collect RED/PASS evidence
-        run: python scripts/run_workfiles_v031.py --out evidence/v031-workfiles
-      - name: Verify evidence schema, all 3 cases really executed and no false release claim
+      - name: Require nine real-work/input/output contracts and preserve this exact run
+        run: python scripts/run_workfiles_v031.py --strict --out evidence/v031-workfiles
+      - name: Verify all nine executed cases and no false release claim
         shell: python
         run: |
           import json
@@ -47,6 +46,8 @@ jobs:
           p=Path('evidence/v031-workfiles/WORKFILES_V031_EVIDENCE.json')
           r=json.loads(p.read_text(encoding='utf-8'))
           assert r['execution']['executed']==9,r['execution']
+          assert r['execution']['failed']==0,r['execution']
+          assert r['execution']['skipped']==0,r['execution']
           assert r['test_ids']==['WF-001','WF-002','WF-003','WF-017','WF-018','WF-019','WF-020','WF-021','WF-022'],r['test_ids']
           assert r['product_release']=='NO_GO'
           assert r['customer_product_ready'] is False
@@ -54,17 +55,6 @@ jobs:
           assert all(c['result'] in ('FAIL_TARGET_CONTRACT','PASS_SYNTH_HTTP_CONTRACT_NOT_TARGET_HOST')
                      for c in r['cases'] if c['id'] in r['test_ids'])
           print('EVIDENCE_COLLECTED_ONLY; WORK_PRODUCT_GO=NO; RESULT='+r['contract_result'])
-      - name: Verify strict product-contract gate fails only when real cases are red
-        shell: python
-        run: |
-          import json, subprocess, sys
-          from pathlib import Path
-          evidence=json.loads(Path('evidence/v031-workfiles/WORKFILES_V031_EVIDENCE.json').read_text(encoding='utf-8'))
-          expected=2 if evidence['contract_result']=='CONTRACT_NOT_MET' else 0
-          result=subprocess.run([sys.executable,'scripts/run_workfiles_v031.py',
-                                 '--strict','--out','evidence/v031-workfiles-strict'],check=False)
-          assert result.returncode==expected,(result.returncode,expected)
-          print('STRICT_GATE_VERIFIED: exit='+str(result.returncode)+' expected='+str(expected))
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -4,9 +4,10 @@
 
 Dieses Testverfahren ist der **aktuelle** Testpfad für `input/` (read-only),
 `work/` (echte physische Dateien, kontrollierte CRUD-Rechte) und `output/`
-(unveränderliche, nur einmalig veröffentlichte Artefakte). Die ältere
-`3_SYSTEMTEST.cmd`-Funktion prüft dagegen ausschließlich den isolierten
-**SQLite-Dokument-Pilot** und darf nicht als Win32-Work-Nachweis gelten.
+(unveränderliche, nur einmalig veröffentlichte Artefakte). Ab Paket `0.43.0.dev0` startet `3_SYSTEMTEST.cmd` diesen aktuellen Test direkt;
+siehe [Paket-Anleitung](../system_test/README_DE.md). In älteren Paketen
+prüfte diese Startdatei ausschließlich den SQLite-Dokument-Pilot. Dessen
+Starter heißen jetzt `LEGACY_*` und gelten nicht als Win32-Work-Nachweis.
 
 ## 1. Paket und Umgebung
 
@@ -16,10 +17,9 @@ Dieses Testverfahren ist der **aktuelle** Testpfad für `input/` (read-only),
 - Das **zum gewünschten Commit passende** Windows-Systemtest-Artefakt aus
   [Windows System Pilot CI](../.github/workflows/windows-system-pilot.yml)
   verwenden; Artefakt-Commit und zugehörige CI-Abläufe dokumentieren.
-- Das installierbare Paket trägt zurzeit noch `0.25.0.dev0`; `v0.33`
-  ist ein **Implementierungsmeilenstein**, keine fertig freigegebene
-  Paketversion. Ein vorhandenes älteres Paket enthält die neuen Funktionen
-  nicht unbedingt.
+- Das aktuelle installierbare Paket trägt `0.43.0.dev0`; `v0.33`
+  bezeichnet den ursprünglichen Implementierungsmeilenstein dieser Testanleitung.
+  Alte Pakete mit `0.25.0.dev0` nicht mit dem aktuellen Paket verwechseln.
 - LM Studio auf demselben Windows-Host, API üblicherweise
   `http://127.0.0.1:1234`, gewünschtes Flint-/Worker-Modell geladen
   (Modell-ID exakt aus LM Studio übernehmen). MinionOne lädt keine Modelle

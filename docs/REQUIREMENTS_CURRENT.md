@@ -1,6 +1,9 @@
 # MinionOne – aktueller Requirements-Einstiegspunkt (Stand 2026-10-31)
 
 > **Status: Development / PRE-ALPHA / PRODUCT NO-GO.**
+> v0.43 vereinheitlicht Windows-Paket/Runtime auf `0.43.0.dev0` und macht den
+> aktuellen physischen Workspace-Test direkt über die nummerierten Starter
+> zugänglich. [Paket-Anleitung](../system_test/README_DE.md). Produkt NO-GO bleibt.
 > v0.42 ergänzt ausschließlich den festen synthetischen AppContainer-Dateipfad mit isoliertem Input, Work und Manager-Output. Vorläufiger CI-Kandidat in [PR #61](https://github.com/Griggelor/MinionOne/pull/61); keine Freigabe für beliebigen Worker-Code, Echtdaten, Zielhost oder allgemeine Dateisystemimporte. [Grenzen](WIN32_SYNTHETIC_FILE_HANDOFF_V042.md).
 > Dieses Dokument ist der **Wegweiser für gültige Requirements**, kein Ersatz für die
 > vollständigen normativen Anforderungen, Tests oder Zielhost-Nachweise.

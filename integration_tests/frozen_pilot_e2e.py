@@ -84,10 +84,44 @@ def run(executable,output):
         # No real secrets or ephemeral private paths in the report.
         serialized=json.dumps(report)
         assert secret not in serialized and str(state) not in serialized
+        process.terminate()
+        process.communicate(timeout=10)
+        process=None
+
+        # Exercise the actual frozen native file backend too. The former
+        # package test covered only the SQLite document pilot.
+        workspace_state=Path(tmp)/'workspace state with spaces'
+        workspace_state.mkdir()
+        command=[str(executable),'--state',str(workspace_state),'serve',
+                 '--synthetic-workspace','--model','frozen-synthetic',
+                 '--provider-url',f'http://127.0.0.1:{model.server_port}',
+                 '--port',str(port),'--min-free-mb','1','--model-call-seconds','15']
+        process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        deadline=time.monotonic()+40
+        while time.monotonic()<deadline:
+            if process.poll() is not None:raise RuntimeError('frozen workspace server exited during startup')
+            if (workspace_state/'settings.json').exists():break
+            time.sleep(.2)
+        else:raise RuntimeError('frozen workspace startup deadline elapsed')
+        workspace_run=subprocess.run([str(executable),'--state',str(workspace_state),
+                    'workspace-self-test','--timeout','90'],
+                    capture_output=True,text=True,timeout=120,check=True)
+        workspace_report,_=json.JSONDecoder().raw_decode(workspace_run.stdout)
+        assert workspace_report['passed'] is True,workspace_report
+        assert workspace_report['worker_file_backend']=='native_win32_work_sqlite_output'
+        assert workspace_report['release_gate']=='NO_GO'
+        folder=workspace_state/'synthetic-project'/'.minionone'/'jobs'/workspace_report['job_id']
+        assert (folder/'work'/'result.txt').read_bytes()==b'MINIONONE WORKSPACE OK'
+        assert (folder/'output'/'result.txt').read_bytes()==b'MINIONONE WORKSPACE OK'
+        assert (folder/'output'/'worker-io.jsonl').is_file()
+        assert model.calls==8,model.calls
+        assert secret not in json.dumps(workspace_report)
+        assert str(workspace_state) not in json.dumps(workspace_report)
         output.parent.mkdir(parents=True,exist_ok=True)
         output.write_text(json.dumps({'passed':True,'scope':'frozen-executable + synthetic HTTP provider',
             'generation_requests':model.calls,'report':report,'export_verified':True,
-            'credential_protection_verified':True,'duplicate_instance_rejected':True},indent=2)+'\n')
+            'credential_protection_verified':True,'duplicate_instance_rejected':True,
+            'workspace_report':workspace_report,'native_work_verified':True},indent=2)+'\n')
     finally:
         if process is not None:
             process.terminate()

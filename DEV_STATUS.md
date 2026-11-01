@@ -1,5 +1,27 @@
 # Development status — 2026-11-01
 
+## v0.43 – current Windows workspace package and CI diagnostics
+
+- Package/runtime/workflow version moves together to `0.43.0.dev0`.
+- Numbered package launchers select the physical Workspace pilot and a separate
+  `WorkspaceSystemTest` state directory. `serve --synthetic-workspace` creates
+  only a dedicated synthetic project; `workspace-self-test` can read its saved
+  configuration. Explicit manual workspace configuration remains supported.
+- Frozen executable integration now covers physical Win32 Work, immutable output
+  and ACK in addition to the older SQLite pilot. Legacy starters remain named
+  `LEGACY_*`; both self-test guides ship in the package.
+- Subprocess HTTP fixture uses the same six-second per-model-step budget as the
+  other bridge contracts, including process spawn and fsynced logs. A separate
+  forced-timeout subprocess test still requires quarantine and no replay.
+- Issue #59: remove the invalid comparison between two independent test runs;
+  strict CI and its uploaded report now describe the same execution. The bridge
+  workflow runs three independent strict Windows passes, retaining each report.
+- Issue #62: collect closed-schema failure traces from the actual subprocess.
+  The old two-second test budget is a plausible timing cause; neither issue is
+  declared resolved solely by changing a deadline or rerunning a green job.
+- Validation results and exact CI commit belong in the PR. Target-host security,
+  real Flint/Unsloth integration and code execution remain **NO_GO**.
+
 ## v0.42 – per-attempt synthetic AppContainer file handoff (CI candidate, NO EXEC)
 
 - [PR #61](https://github.com/Griggelor/MinionOne/pull/61): manager stages only immutable synthetic input and a private manager output canary. Disposable AppContainer package SID has RX on input, Modify on a dedicated work area, no explicit grant to manager output.
@@ -95,7 +117,7 @@
 - Installed Python package still identifies as `0.25.0.dev0` by design of existing wheel tests; **v0.32 refers to the implementation milestone, not a published versioned release**. Coordinate package/version markers before the next Windows system-test distribution.
 
 
-**Version:** 0.25.0.dev0 (GitHub development; TARGET_PRODUCT NO-GO)
+**Version:** 0.43.0.dev0 (GitHub development; TARGET_PRODUCT NO-GO)
 **Channel:** Public PRE-ALPHA — not a beta, release **NO-GO**.
 
 ## v0.18.0.dev0 — complete test-document job path

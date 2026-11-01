@@ -20,6 +20,8 @@ on:
   workflow_dispatch:
 jobs:
   collect-evidence:
+    env:
+      MINIONONE_TEST_EVIDENCE_DIR: evidence/bridge-failures
     strategy:
       fail-fast: false
       matrix:
@@ -40,5 +42,7 @@ jobs:
         if: always()
         with:
           name: product-acceptance-${{ matrix.os }}
-          path: evidence/product-status/
+          path: |
+            evidence/product-status/
+            evidence/bridge-failures/
           if-no-files-found: error

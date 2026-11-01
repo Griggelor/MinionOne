@@ -53,7 +53,7 @@ class BoxedProbeJournal:
     """Manager-selected fixed-PING receipt registry. Manager DB path trusted."""
 
     def __init__(self, database_path):
-        if type(database_path) not in (str, Path):
+        if type(database_path) is not str and not isinstance(database_path, Path):
             raise FrameRejected("trusted journal database path required")
         self._path = str(database_path)
         if not self._path:

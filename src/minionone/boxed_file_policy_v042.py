@@ -6,6 +6,7 @@ Requires separate target-host isolation approval before any real data.
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 import stat
 
@@ -39,7 +40,7 @@ def _fixed_regular(path, *, max_bytes):
         fd_stat = source.fileno()
         # Never read beyond the hard cap, even if the file changes.
         data = source.read(max_bytes + 1)
-        actual = source_stat = __import__("os").fstat(fd_stat)
+        actual = os.fstat(fd_stat)
         if (actual.st_dev != info.st_dev or actual.st_ino != info.st_ino or
                 len(data) > max_bytes):
             raise SyntheticArtifactRejected("untrusted file changed during inspection")

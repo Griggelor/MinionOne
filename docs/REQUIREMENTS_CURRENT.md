@@ -104,6 +104,15 @@
   Denialtests, sichere IPC, getrennte Hostrechte und Target-Host-Gate fehlen.
   [Prozesskontrolle](WIN32_JOB_OBJECT_PROBE_V035.md) /
   [AppContainer-Kindtoken](WIN32_APPCONTAINER_TOKEN_V036.md).
+- v0.37: [Adversariale AppContainer-Zugriffsversuche](WIN32_APPCONTAINER_ACCESS_DENIAL_V037.md)
+  wurden **auf echtem Windows-CI-Runner mit synthetischen Canaries** erfolgreich
+  ausgeführt (PR #55: 22/22 CI). Je ein normaler Hostprozess bewies vorher
+  tatsächliche Lesbarkeit von Manager-/Fremdjobdateien und Schreibzugriff
+  auf synthetischen Output; im AppContainer wurden diese drei Zugriffe
+  explizit verweigert und alle Datei-Hashes blieben unverändert.
+  Loopbackverbindung: POSIX/Host-Gegenversuch positiv, AppContainer-Timeout,
+  aber **keine explizite Netz-Zugriffsverweigerung**, somit
+  `network_denial_verified=false`. Kein Host-G1b-PASS, kein Worker-Exec-GO.
 - **Noch nicht erfüllt**: vollständiger Windows-Dateibroker mit nachgewiesener
   NTFS-Isolation; echte OS-Sandbox/ACL und nicht-kooperierende Race-Tests;
   Crash-Replay-/Idempotenz-Verträge für Work-Mutationen; sichere Wiederaufnahme

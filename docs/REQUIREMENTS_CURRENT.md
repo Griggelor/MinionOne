@@ -110,7 +110,7 @@
   tatsächliche Lesbarkeit von Manager-/Fremdjobdateien und Schreibzugriff
   auf synthetischen Output; im AppContainer wurden diese drei Zugriffe
   explizit verweigert und alle Datei-Hashes blieben unverändert.
-  Loopbackverbindung: POSIX/Host-Gegenversuch positiv, AppContainer-Timeout,
+  Loopbackverbindung: Windows-Host-Gegenversuch positiv, AppContainer-Timeout,
   aber **keine explizite Netz-Zugriffsverweigerung**, somit
   `network_denial_verified=false`. Kein Host-G1b-PASS, kein Worker-Exec-GO.
 - **Noch nicht erfüllt**: vollständiger Windows-Dateibroker mit nachgewiesener

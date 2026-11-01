@@ -459,10 +459,19 @@ class PilotJobs:
         dispatched=False
         try:
             with self.owner._connection() as con:
-                data=con.execute('''SELECT r.task,p.profile_json FROM pilot_runs r
-                    JOIN pilot_text_profiles p USING(job_id) WHERE r.job_id=?''',(job,)).fetchone()
-                profile=WorkerProfile(**json.loads(data['profile_json']))
+                data=con.execute('''SELECT r.task,r.model_id,p.profile_json,j.input_digest
+                    FROM pilot_runs r JOIN pilot_text_profiles p USING(job_id)
+                    JOIN jobs j USING(job_id) WHERE r.job_id=?''',(job,)).fetchone()
+                if data is None:raise PilotError('PILOT_FILE_CHANGED')
+                try:
+                    config=json.loads(data['profile_json'])
+                    profile=WorkerProfile(**config)
+                except (ValueError,TypeError):
+                    raise PilotError('PILOT_FILE_CHANGED') from None
                 task=data['task']
+                if (_digest([config,task])!=data['input_digest'] or
+                        profile.model_id!=data['model_id']):
+                    raise PilotError('PILOT_FILE_CHANGED')
             worker=TextWorker(profile)
             if profile.provider!='cloud' and available_memory_mb()<self.config.min_free_mb:
                 raise PilotError('PILOT_RESOURCE_UNVERIFIED')

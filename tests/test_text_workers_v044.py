@@ -94,8 +94,21 @@ class TextMCPTests(unittest.TestCase):
                     'result_digest':result['result_digest'],'operation_id':'ack-'+profile+'-operation-001'})
                 self.assertEqual(ack['state'],'COMPLETED')
         self.assertEqual(len(self.http.requests),2)
-        for request in self.http.requests:
-            self.assertNotIn('tools',request)
+        for index,request in enumerate(self.http.requests):
+            if index==0:self.assertNotIn('tools',request)
+            else:
+                self.assertEqual(request['tools'],[])
+                self.assertEqual(request['tool_choice'],'none')
+                self.assertIs(request['enable_tools'],False)
+                self.assertIs(request['mcp_enabled'],False)
+                self.assertEqual(request['enabled_tools'],[])
+                self.assertEqual(request['max_tool_calls_per_message'],0)
+                self.assertIs(request['deep_research_armed'],False)
+                self.assertIs(request['run_tools_locally'],False)
+                self.assertEqual(request['context_overflow'],'error')
+                self.assertIsNone(request['thread_id'])
+                self.assertIsNone(request['session_id'])
+                self.assertIsNone(request['rag_scope'])
             self.assertEqual(len(request['messages']),2)
             supplied=json.loads(request['messages'][1]['content'])
             self.assertEqual(supplied['context'],'')
@@ -124,6 +137,26 @@ class TextMCPTests(unittest.TestCase):
             status=self.terminal(job)
         self.assertEqual(status['state'],'FAILED')
         self.assertEqual(status['text_job']['error']['code'],'PILOT_RESOURCE_UNVERIFIED')
+        self.assertFalse(self.http.requests)
+
+    def test_replaced_profile_snapshot_fails_before_any_provider_request(self):
+        captured=[]
+        with patch.object(self.server.pilot,'_run',side_effect=lambda job,cap:captured.append((job,cap))):
+            job=self.consult()
+            until=time.monotonic()+5
+            while not captured and time.monotonic()<until:time.sleep(.01)
+        self.assertTrue(captured)
+        with self.server.store._connection() as con:
+            config=json.loads(con.execute('SELECT profile_json FROM pilot_text_profiles WHERE job_id=?',
+                                          (job['job_id'],)).fetchone()[0])
+            config['instructions']='A replaced role must not inherit the sealed request.'
+            con.execute('DELETE FROM pilot_text_profiles WHERE job_id=?',(job['job_id'],))
+            con.execute('INSERT INTO pilot_text_profiles VALUES(?,?)',
+                        (job['job_id'],json.dumps(config)))
+        self.server.pilot._run_text(*captured[0])
+        status=self.terminal(job)
+        self.assertEqual(status['state'],'FAILED')
+        self.assertEqual(status['text_job']['error']['code'],'PILOT_FILE_CHANGED')
         self.assertFalse(self.http.requests)
 
     def test_uncertain_post_is_fenced_and_blocks_next_worker(self):

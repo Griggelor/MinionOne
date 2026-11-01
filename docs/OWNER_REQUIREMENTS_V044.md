@@ -57,6 +57,12 @@ Profilanweisungen sind ausdrücklich vom Operator konfigurierte Rollenbeschreibu
   Unsloth prüft `/api/inference/status`, aktiven `model_identifier`, `loaded` und
   leeres `loading`; zusätzlich muss die Antwort das gewählte Unsloth-Modell bestätigen.
   **Diese Adapter verwenden in v0.44 bereits geladene lokale Modelle.**
+- Der native Unsloth-Textrequest setzt eigene Tool-/MCP-/Research-Flags explizit
+  aus, Tool-Limit auf null und `tool_choice=none`. Thread-/Session-/RAG-Scope
+  bleiben leer; Context-Overflow wird abgewiesen. Ein fehlendes OpenAI-`tools`
+  allein wird nicht als Abschaltung des nativen Unsloth-Toolloops interpretiert.
+  Quelle: der unten gepinnte `ChatCompletionRequest`-Vertrag. Unbekannte ältere
+  Host-Versionen benötigen gesonderte Kompatibilitätsprüfung.
 - Cloud-Textadapter für konfigurierte OpenAI-kompatible Chat-Completions-Endpunkte:
   HTTPS, kein Redirect, Secrets nur aus benannter Umgebungsvariable, Operatorfreigabe
   im Profil plus explizites `allow_cloud=true` im Auftrag, begrenzte Eingabe/Ausgabe,

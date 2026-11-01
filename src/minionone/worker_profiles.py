@@ -202,6 +202,16 @@ class TextWorker:
                    'messages': [{'role': 'system', 'content': self.profile.instructions},
                                 {'role': 'user', 'content': task}],
                    'stream': False, self.profile.token_parameter: self.profile.max_output_tokens}
+        if self.profile.provider=='unsloth':
+            # Native Studio has its own tool loop and per-request inheritance.
+            # Omitting OpenAI tools alone does not explicitly disable that loop.
+            # Fields verified against the pinned ChatCompletionRequest schema.
+            payload.update({'tools':[], 'tool_choice':'none',
+                'enable_tools':False, 'enabled_tools':[], 'mcp_enabled':False,
+                'max_tool_calls_per_message':0, 'deep_research_armed':False,
+                'run_tools_locally':False, 'auto_heal_tool_calls':False,
+                'nudge_tool_calls':False, 'context_overflow':'error',
+                'thread_id':None, 'session_id':None, 'rag_scope':None})
         body = json.dumps(payload, ensure_ascii=True, separators=(',', ':')).encode('ascii')
         if len(body) > 96 * 1024:
             raise InputRejected('serialized text input exceeds transport budget')

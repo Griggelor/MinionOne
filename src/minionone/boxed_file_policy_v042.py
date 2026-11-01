@@ -56,6 +56,12 @@ def inspect_fixed_result(stage):
         raise SyntheticArtifactRejected("work zone invalid")
     if sorted(entry.name for entry in folder.iterdir()) != ["result.bin"]:
         raise SyntheticArtifactRejected("unexpected work zone contents")
+    output_folder = stage / "output"
+    output_stat = output_folder.lstat()
+    if (not stat.S_ISDIR(output_stat.st_mode) or
+            getattr(output_stat, "st_file_attributes", 0) & 0x400 or
+            sorted(entry.name for entry in output_folder.iterdir()) != ["immutable.bin"]):
+        raise SyntheticArtifactRejected("unexpected manager output zone contents")
     result = _fixed_regular(folder / "result.bin", max_bytes=MAX_RESULT_BYTES)
     if result != RESULT or sha(result) != sha(RESULT):
         raise SyntheticArtifactRejected("untrusted output content mismatch")

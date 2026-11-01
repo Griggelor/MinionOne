@@ -1,5 +1,12 @@
 # Development status — 2026-11-01
 
+## v0.42 – per-attempt synthetic AppContainer file handoff (CI candidate, NO EXEC)
+
+- [PR #61](https://github.com/Griggelor/MinionOne/pull/61): manager stages only immutable synthetic input and a private manager output canary. Disposable AppContainer package SID has RX on input, Modify on a dedicated work area, no explicit grant to manager output.
+- Fixed MSVC child checks input contents, denied writes to input/output, and writes one result file with CREATE_NEW; exact protocol PONG is still not a trusted result. Manager verifies regular file/no reparse/hardlinks, 4 KiB quota, exact bytes and hash, unchanged input and immutable output before publishing a new synthetic snapshot.
+- Hostile file_bad returns valid PONG but emits wrong bytes; receipt enters durable NEEDS_RECONCILIATION and must never auto-retry or publish. Cross-platform negative tests cover malformed, oversized, symlinks, hardlinks, extra files and persisted quarantine.
+- [Scope / remaining gaps](docs/WIN32_SYNTHETIC_FILE_HANDOFF_V042.md). Native Windows CI is required before treating this as a measured synthetic boundary. The Python verification is not race-free enough for hostile concurrent processes; no general importer, worker execution or real host security approval. **NO_GO.**
+
 ## v0.41 – real native Windows AppContainer boundary negatives (NO EXEC)
 
 - [PR #60](https://github.com/Griggelor/MinionOne/pull/60): an explicitly inheritable manager event is excluded by the exact two-handle child HANDLE_LIST. The fixed child verifies ERROR_INVALID_HANDLE or the equivalent precisely caught STATUS_INVALID_HANDLE from GetHandleInformation. The host positive control verifies the event is signalled and inheritable.

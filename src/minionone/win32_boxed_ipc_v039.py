@@ -10,6 +10,7 @@ import ctypes
 from ctypes import wintypes
 from dataclasses import dataclass
 import hashlib
+import os
 from pathlib import Path
 import secrets
 import socket
@@ -19,6 +20,9 @@ import tempfile
 
 from .boxed_ipc_v038 import MAX_FRAME_BYTES, ProtocolUncertain, FrameRejected
 from .boxed_ipc_journal_v038 import BoxedProbeJournal
+from .boxed_file_policy_v042 import (
+    INPUT, MANAGER_CANARY, SyntheticArtifactRejected, inspect_fixed_result, sha,
+)
 from .win32_appcontainer_adversarial_v037 import (
     _apis, _sid_string, _allow_probe_executable_only,
 )
@@ -88,7 +92,24 @@ class BoxedBoundaryEvidence:
     product_release: str = "NO_GO"
 
 
+@dataclass(frozen=True, slots=True)
+class BoxedFileEvidence:
+    """Manager-only disposable file proof, NEVER a worker output publication."""
+    mode: str
+    input_digest: str
+    result_digest: str | None
+    journal_state: str
+    synthetic_artifact_published: bool
+    result_validation_rejected: bool
+    appcontainer_token_verified: bool = True
+    worker_tool_exposed: bool = False
+    os_sandbox_attested: bool = False
+    target_host_attested: bool = False
+    product_release: str = "NO_GO"
+
+
 # Internal-only, fixed CI adversarial scenarios. Not accepted from model or MCP.
+_FILE_MODES = frozenset({"file_ok", "file_bad"})
 _BOUNDARY_MODES = frozenset({"handle", "breakaway", "network"})
 _FAULT_MODES = frozenset({
     "crash", "hang", "truncated", "oversized", "wrong_nonce", "trailing",
@@ -165,7 +186,7 @@ def _run_fixed_boxed_ipc_case(case):
     RESPONSE_OBSERVED is explicitly not sandbox attestation, result publication,
     generic test execution, a parent ACK or safe target-host execution.
     """
-    if type(case) is not str or case not in _FAULT_MODES | _BOUNDARY_MODES | {"ok"}:
+    if type(case) is not str or case not in _FAULT_MODES | _BOUNDARY_MODES | _FILE_MODES | {"ok"}:
         raise JobProbeUnavailable("unknown or unapproved fixed native CI probe mode")
     exe = _fixed_helper()
     k, u, a = _apis()
@@ -181,6 +202,7 @@ def _run_fixed_boxed_ipc_case(case):
     process_exited = False
     handles = []
     listener = None
+    stage = None
     canary_confirmed = False
     boundary_arg = None
     moniker = "MinionOne.IPC." + secrets.token_hex(12)
@@ -203,7 +225,29 @@ def _run_fixed_boxed_ipc_case(case):
             raise JobProbeUnavailable("cannot provision per-attempt AppContainer identity")
         profile_created = True
         # Only the runnable ancestor/executable, NOT the manager state folder.
-        _allow_probe_executable_only(_sid_string(k, a, sid), runnable, helper)
+        package_sid = _sid_string(k, a, sid)
+        _allow_probe_executable_only(package_sid, runnable, helper)
+        if case in _FILE_MODES:
+            # Only synthetic bytes, exact filenames and per-attempt paths.
+            # No model/user-provided path may reach the child or the ACL grant.
+            stage = root / "stage"
+            input_folder = stage / "input"
+            work_folder = stage / "work"
+            output_folder = stage / "output"
+            for folder in (stage, input_folder, work_folder, output_folder):
+                folder.mkdir()
+            (input_folder / "sealed.bin").write_bytes(INPUT)
+            (output_folder / "immutable.bin").write_bytes(MANAGER_CANARY)
+            # Explicit package SID grants: traversal/read for stage/input,
+            # modify only for scratch work. NO SID grant to output directory.
+            for target, rights in (
+                    (stage, "(RX)"), (input_folder, "(RX)"),
+                    (input_folder / "sealed.bin", "(R)"),
+                    (work_folder, "(OI)(CI)(M)")):
+                subprocess.run(
+                    ["icacls.exe", str(target), "/grant", "*" + package_sid + ":" + rights],
+                    check=True, timeout=12, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL)
 
         journal = BoxedProbeJournal(manager_state / "manager_control.sqlite3")
         grant = journal.prepare("JOB-" + secrets.token_hex(16),
@@ -308,7 +352,8 @@ def _run_fixed_boxed_ipc_case(case):
             case_args.append(boundary_arg)
         command = ctypes.create_unicode_buffer(subprocess.list2cmdline(case_args))
         if not k.CreateProcessW(str(helper), command, None, None, True, flags,
-                                ctypes.cast(env, ctypes.c_void_p), windows.value,
+                                ctypes.cast(env, ctypes.c_void_p),
+                                str(stage) if stage is not None else windows.value,
                                 ctypes.cast(ctypes.byref(startup),
                                             ctypes.POINTER(_StartupInfo)),
                                 ctypes.byref(process)):
@@ -345,10 +390,10 @@ def _run_fixed_boxed_ipc_case(case):
             if not k.GetExitCodeProcess(process.hProcess, ctypes.byref(exit_code)):
                 raise ProtocolUncertain("IPC child exit receipt unavailable")
             if exit_code.value != 0:
-                if case in _BOUNDARY_MODES:
+                if case in _BOUNDARY_MODES | _FILE_MODES:
                     raise JobProbeUnavailable(
-                        "fixed v041 native boundary child rejected attempt; exit=" +
-                        str(exit_code.value))
+                        "fixed native test child rejected attempt; mode=" + case +
+                        " exit=" + str(exit_code.value))
                 raise ProtocolUncertain("IPC child failed or exit receipt unavailable")
             response = _read_reply(k, manager_out_read)
             # Record hostile reply bytes in the durable journal. Malformed,
@@ -359,7 +404,7 @@ def _run_fixed_boxed_ipc_case(case):
                     not (case == "network" and receipt.observed_code == "DENIED")):
                 raise ProtocolUncertain("durable bounded IPC observation missing")
         except (FrameRejected, ProtocolUncertain):
-            if case == "ok":
+            if case == "ok" or case in _FILE_MODES:
                 raise
             state = journal.status(grant.job_id, grant.attempt_id, grant.operation_id)
             expected = ("IN_FLIGHT" if case in ("crash", "hang")
@@ -367,6 +412,38 @@ def _run_fixed_boxed_ipc_case(case):
             if state.state != expected or state.automatic_replay_allowed:
                 raise JobProbeUnavailable("native failure did not remain durably fenced")
             return BoxedFaultEvidence(case, state.state, False)
+        if case in _FILE_MODES:
+            if stage is None:
+                raise JobProbeUnavailable("trusted synthetic file stage missing")
+            try:
+                payload = inspect_fixed_result(stage)
+            except (SyntheticArtifactRejected, OSError) as exc:
+                state = journal.quarantine_artifact(grant)
+                if case != "file_bad" or state.state != "NEEDS_RECONCILIATION":
+                    raise JobProbeUnavailable("unexpected synthetic artifact rejection") from exc
+                if (stage / "output" / "result.bin").exists():
+                    raise JobProbeUnavailable("rejected synthetic artifact was published")
+                return BoxedFileEvidence(
+                    mode=case, input_digest=sha(INPUT), result_digest=None,
+                    journal_state=state.state, synthetic_artifact_published=False,
+                    result_validation_rejected=True,
+                )
+            if case != "file_ok":
+                journal.quarantine_artifact(grant)
+                raise JobProbeUnavailable("corrupted synthetic output unexpectedly accepted")
+            published = stage / "output" / "result.bin"
+            with published.open("xb") as sink:
+                sink.write(payload)
+                sink.flush()
+                os.fsync(sink.fileno())
+            if published.read_bytes() != payload:
+                journal.quarantine_artifact(grant)
+                raise JobProbeUnavailable("manager-only synthetic publication changed")
+            return BoxedFileEvidence(
+                mode=case, input_digest=sha(INPUT), result_digest=sha(payload),
+                journal_state=receipt.state, synthetic_artifact_published=True,
+                result_validation_rejected=False,
+            )
         if case in _BOUNDARY_MODES:
             network_status = "NOT_TESTED"
             if case == "network":

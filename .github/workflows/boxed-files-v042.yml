@@ -1,0 +1,73 @@
+name: v0.42 native Windows synthetic file staging and sealed result
+on:
+  pull_request:
+    paths:
+      - "src/minionone/win32_boxed_ipc_v039.py"
+      - "src/minionone/boxed_ipc_journal_v038.py"
+      - "src/minionone/boxed_file_policy_v042.py"
+      - "tests/native/boxed_ipc_child_v039.c"
+      - "tests/test_boxed_files_v042.py"
+      - ".github/workflows/boxed-files-v042.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-real-file-boundary:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+      - name: Install exact source
+        run: python -m pip install --disable-pip-version-check -e .
+      - name: Build immutable native child using MSVC
+        run: python scripts/build_win32_ipc_v039.py
+      - name: Real AppContainer native synthetic input, work and output
+        env:
+          MINIONONE_V042_NATIVE: "1"
+        run: python -m unittest discover -s tests -p test_boxed_files_v042.py -v
+      - name: Previous IPC native normal case
+        env:
+          MINIONONE_V039_NATIVE: "1"
+        run: python -m unittest discover -s tests -p test_win32_boxed_ipc_v039.py -v
+      - name: Previous real OS handle, Job and loopback boundaries
+        env:
+          MINIONONE_V041_NATIVE: "1"
+        run: python -m unittest discover -s tests -p test_win32_boundary_v041.py -v
+      - name: Previous native fault matrix
+        env:
+          MINIONONE_V040_NATIVE: "1"
+        run: python -m unittest discover -s tests -p test_win32_boxed_faults_v040.py -v
+      - name: IPC journal and frame regression
+        run: python -m unittest discover -s tests -p test_boxed_ipc_v038.py -v
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v042-windows-synthetic-file-handoff
+          path: evidence/v042/FILE_HANDOFF_EVIDENCE.json
+          if-no-files-found: ignore
+
+  linux-no-os-attestation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+      - name: Install exact source
+        run: python -m pip install --disable-pip-version-check -e .
+      - name: Pure file receipt and no-replay gates only
+        run: python -m unittest discover -s tests -p test_boxed_files_v042.py -v
+      - name: IPC receipt regression
+        run: python -m unittest discover -s tests -p test_boxed_ipc_v038.py -v

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.42 synthetic AppContainer file handoff — 2026-11-01 (CI candidate / NO_GO)
+
+- Fixed native child reads a manager-staged immutable synthetic input, verifies denied writes to input and output, creates only one synthetic work artifact and reports through the existing narrow IPC receipt.
+- Manager verifies exact regular-file bytes, limits, digest, unchanged canaries, then performs exclusive creation of a synthetic output snapshot only if valid; corrupt data despite valid PONG is quarantined durably, never published or replayed.
+- Windows-native and Linux-contract CI added; release remains PRE-ALPHA NO_GO. [Technical scope](docs/WIN32_SYNTHETIC_FILE_HANDOFF_V042.md).
+
 ## v0.41 AppContainer inherited-handle, breakaway and loopback negative probes — 2026-11-01 (PRE-ALPHA / NO_GO)
 
 - Native fixed-child checks that an explicitly inheritable manager event excluded from HANDLE_LIST is invalid inside the AppContainer (Win32 ERROR_INVALID_HANDLE or exact NTSTATUS), and that a fixed self-CreateProcessW breakaway attempt fails while Job Object confinement is active.

@@ -1,6 +1,7 @@
 # MinionOne – aktueller Requirements-Einstiegspunkt (Stand 2026-10-31)
 
 > **Status: Development / PRE-ALPHA / PRODUCT NO-GO.**
+> v0.42 ergänzt ausschließlich den festen synthetischen AppContainer-Dateipfad mit isoliertem Input, Work und Manager-Output. Vorläufiger CI-Kandidat in [PR #61](https://github.com/Griggelor/MinionOne/pull/61); keine Freigabe für beliebigen Worker-Code, Echtdaten, Zielhost oder allgemeine Dateisystemimporte. [Grenzen](WIN32_SYNTHETIC_FILE_HANDOFF_V042.md).
 > Dieses Dokument ist der **Wegweiser für gültige Requirements**, kein Ersatz für die
 > vollständigen normativen Anforderungen, Tests oder Zielhost-Nachweise.
 > Es stellt explizit klar, welche älteren Texte durch spätere Owner-Entscheidungen

@@ -43,20 +43,20 @@ class FramedProbeTests(unittest.TestCase):
 
     def test_bad_ids_and_nonce_refused_before_encoding(self):
         for index, bad in enumerate((
-            dataclasses.replace(grant(), job_id="JOB-../../x"),
-            dataclasses.replace(grant(), attempt_id="ATT-" + "B"*32),
-            dataclasses.replace(grant(), operation_id="OP-" + "c"*31),
-            dataclasses.replace(grant(), nonce="x"*32),
+            {"job_id": "JOB-../../x"},
+            {"attempt_id": "ATT-" + "B"*32},
+            {"operation_id": "OP-" + "c"*31},
+            {"nonce": "x"*32},
         )):
             with self.subTest(index=index), self.assertRaises(FrameRejected):
-                request_frame(bad)
+                dataclasses.replace(grant(), **bad)
 
     def test_unknown_tools_and_extra_fields_cannot_be_smuggled(self):
         base = decode_frame(request_frame(grant()))
         for update in (
             {"capability": "run_tests"}, {"command": "powershell"},
             {"version": 2}, {"kind": "response"},
-            {"nonce": "d"*31+"e"}, {"capability": 1},
+            {"nonce": "Z"*32}, {"capability": 1},
         ):
             with self.subTest(update=update):
                 modified = dict(base, **update)

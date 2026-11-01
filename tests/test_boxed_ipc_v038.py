@@ -130,12 +130,16 @@ class FramedProbeTests(unittest.TestCase):
         self.assertIsNone(r.feed(wire[:-1]))
         with self.assertRaises(ProtocolUncertain):
             r.finish()
+        with self.assertRaises(FrameRejected):
+            r.feed(wire[-1:])
         r = FrameReader()
         with self.assertRaises(FrameRejected):
             r.feed(wire+wire)
         r = FrameReader()
         with self.assertRaises(FrameRejected):
             r.feed(struct.pack(">I", 0xffffffff))
+        with self.assertRaises(FrameRejected):
+            r.feed(request_frame(grant()))
         with self.assertRaises(FrameRejected):
             FrameReader().feed("untrusted string")
 

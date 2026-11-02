@@ -1,4 +1,8 @@
-# Development status — 2026-11-01
+# Development status — 2026-11-02
+
+## v0.48 – offline cloud operator recovery
+
+Added independently attested `resolve-cloud` closure with native read verification, immutable receipt, no inference retry or reservation refund, preserved budgets and original native parent failure return after restart. See docs/OWNER_REQUIREMENTS_V048.md. This does not assert remote quiescence automatically or complete the live host/cloud acceptance.
 
 ## v0.47 – question continuation and cloud controls
 

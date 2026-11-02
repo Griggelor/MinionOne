@@ -447,11 +447,33 @@ def main(argv=None):
     model_reconcile.add_argument('--parent-host',type=Path)
     model_reconcile.add_argument('--confirm-provider-stopped',action='store_true',required=True)
     model_reconcile.add_argument('--confirm-work-inspected',action='store_true')
+    cloud_resolve=sub.add_parser('resolve-cloud',help='Offline operator closure of an uncertain cloud workspace job; no retry or refund')
+    cloud_resolve.add_argument('--job',required=True)
+    cloud_resolve.add_argument('--parent-host',type=Path)
+    cloud_resolve.add_argument('--expected-version',type=int)
+    cloud_resolve.add_argument('--confirm-provider-stopped',action='store_true',required=True)
+    cloud_resolve.add_argument('--confirm-work-inspected',action='store_true',required=True)
     sub.add_parser('facts')
     args=parser.parse_args(argv)
     try:
         if args.command=='facts':print(json.dumps(facts(),indent=2));return 0
         state=args.state or default_state()
+        if args.command=='resolve-cloud':
+            config=_settings(state);token=_token(state)
+            from .unsloth_parent import load_parent_config
+            from .workspace_preparation import WorkspacePreparation
+            from .workspace_jobs import WorkspaceJobs
+            parent_config=load_parent_config(args.parent_host) if args.parent_host else None
+            thread=parent_config.thread_id if parent_config else 'configured-pilot'
+            with closing(PilotLock(state/'jobs.sqlite')):
+                owner=AdmissionStore(state/'jobs.sqlite',credentials={token:('local-operator',{thread})})
+                pilot=PilotJobs(owner,PilotConfig(config['model'],config.get('provider_url','http://127.0.0.1:1234')))
+                projects=config.get('workspace_projects') or {}
+                if projects:pilot.workspace_execution=WorkspaceJobs(WorkspacePreparation(owner,projects),pilot,token,thread)
+                receipt=pilot.resolve_cloud_for_operator(token,thread,args.job,
+                    confirm_provider_stopped=args.confirm_provider_stopped,
+                    confirm_work_inspected=args.confirm_work_inspected,expected_version=args.expected_version)
+                print(json.dumps(receipt,sort_keys=True));return 0
         if args.command=='reconcile-models':
             config=_settings(state);token=_token(state)
             from .unsloth_parent import load_parent_config,UnslothParent

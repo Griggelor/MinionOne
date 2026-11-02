@@ -72,10 +72,9 @@ wird weder wegen kleinerer gemeldeter Tokenzahlen noch nach Timeout/Verbindungsf
 erstattet. Ein unbekannter Ausgang bleibt zudem durch das bestehende Inferenz-Fencing
 gesperrt. Der Status nennt ausdrücklich reservierte Obergrenzen, keine Rechnungsbeträge.
 
-Die Self-Service-Operator-Recovery für unklare Cloud-Generierungen in Workspace-Jobs
-bleibt offen; die Sperre wird nicht durch einen Neustart oder ein Löschen der
-Budgetbelege umgangen. Die bestehenden Dokumentpilot-/Modell-Recoverybefehle sind
-dafür nicht automatisch freigegeben.
+Historischer Stand v0.47: Die Operator-Recovery für unklare Cloud-Generierungen
+war offen. Ab v0.48 gilt dafür [OWNER_REQUIREMENTS_V048.md](OWNER_REQUIREMENTS_V048.md).
+Ein Neustart oder Löschen der Budgetbelege ersetzt diese Prüfung nicht.
 
 Das Limit gilt unter dem vom Operator eingetragenen Text-Token-/Preisvertrag des
 Providers. Eingangstoken-Obergrenze, Werkzeug-/Formatierungsaufwand, billbare

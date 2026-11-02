@@ -2,7 +2,14 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.47.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.48.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+
+**v0.48 offline cloud recovery:** [operator contract](docs/OWNER_REQUIREMENTS_V048.md).
+After independently stopping an uncertain cloud generation and inspecting Work,
+the operator can close that job with `resolve-cloud`. No inference is repeated,
+files are retained and all cost reservations remain charged. The restarted
+manager returns the failure to the bound original Flash chat.
+[German command and prerequisites](system_test/JOB_CONTINUATION_CLOUD_DE.md#unklare-cloud-generierung-abschließen).
 
 **v0.47 question continuation and cloud controls:** [implemented contract](docs/OWNER_REQUIREMENTS_V047.md).
 An explicit parent answer resumes the same verified worker checkpoint with new

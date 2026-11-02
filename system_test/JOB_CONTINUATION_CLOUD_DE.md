@@ -1,4 +1,4 @@
-# MinionOne v0.47 – Rückfragen und Cloud-Freigaben
+# MinionOne v0.48 – Rückfragen, Cloud-Freigaben und Recovery
 
 Aufträge kommen weiterhin von Flash: direkt oder als TASK.md im vorbereiteten
 Ordner. Einrichtung von Modellwechsel und Original-Chat-Rückgabe steht in
@@ -106,11 +106,53 @@ bereits angefallene Reservierungen bleiben erhalten.
 - Netzwerk-/Provider-Timeout: Reservierung bleibt belastet; unbekannte Generierung
   bleibt gesperrt und wird nicht automatisch wiederholt.
 
-Für unklare Cloud-Generierungen in Workspace-Jobs gibt es aktuell noch keinen
-freigegebenen Self-Service-Recovery-Befehl. Ein normaler Neustart hebt diese Sperre
-nicht auf. Die bisherigen Operatorbefehle für den isolierten Dokumentpilot und
-für Modell-Leases sind kein Ersatz dafür. Dies bleibt eigene Produktarbeit;
-die private State-DB und Budgetreservierungen dürfen dafür nicht gelöscht werden.
+## Unklare Cloud-Generierung abschließen
+
+Ab v0.48 gibt es einen **lokalen Operatorbefehl**, kein Flash-/Worker-Tool.
+Ein normaler Neustart hebt die Sperre weiterhin nicht auf.
+
+1. Beim Provider unabhängig feststellen, dass die Generierung beendet oder
+   abgebrochen ist. Ein Timeout, ein geschlossener HTTP-Client oder das Beenden
+   von MinionOne beweist dies nicht. Ohne diese Feststellung bleibt der Job gesperrt.
+2. MinionOne für genau dieses State-Verzeichnis beenden. Ein laufender Manager
+   hält die Prozesssperre; der Befehl verweigert dann jede Auflösung.
+3. `work/`, veröffentlichte Dateien und Protokolle des betroffenen Jobs prüfen.
+   Die Prüfung ist lesend; Dateien nicht für den Befehl verändern oder löschen.
+4. In PowerShell den Job mit seinem echten Job-ID-/Versionswert abschließen:
+
+```powershell
+.\app\MinionOne.exe --state "$env:LOCALAPPDATA\MinionOne\WorkspaceSystemTest" resolve-cloud --job "JOB-…" --expected-version 7 --confirm-provider-stopped --confirm-work-inspected
+```
+
+Bei einer nativen Flash-Anbindung zusätzlich `--parent-host "C:\Pfad\parent_host.json"`
+mit der ursprünglichen Thread-Konfiguration angeben. Das State-Verzeichnis muss
+zur gestarteten Instanz gehören; beim eigenen Setup dessen tatsächlichen Pfad
+verwenden. Die Versionsprüfung ist optional, aber empfohlen. Den Wert vorher aus
+`minionone_job_status` übernehmen. Beide Bestätigungsflags sind verpflichtend.
+Für Python: `python -m minionone.pilot_cli` statt `.\app\MinionOne.exe` verwenden.
+
+Die JSON-Quittung meldet `FAILED_NO_RETRY`, die beibehaltene Kostenreservierung
+und Prüfsummen. Der Job wird `FAILED` mit `CLOUD_OPERATOR_RESOLVED`. Er wird
+weder erneut ausgeführt noch als erfolgreiches Ergebnis übernommen. Alle
+Reservierungen bleiben auch bei unbekanntem Provider-Ausgang belastet.
+Dieselbe Befehlswiederholung einschließlich `--expected-version` liefert dieselbe
+dauerhafte Quittung. Eine veränderte Anfrage wird abgelehnt.
+
+Der Befehl prüft die versiegelte Cloud-Profilbindung, Eingaben, echten Work-Baum,
+das vollständige physische Worker-I/O gegen das private Journal und bereits
+veröffentlichte Dateien. Beschädigte/fehlende Protokolle, Dateilinks, ausstehende
+Publikationen und zugehörige Modell-Leases bleiben gesperrt und benötigen eine
+eigene Untersuchung. Der Cloud-Befehl stellt keine lokalen Modelle wieder her.
+
+5. MinionOne anschließend mit derselben Konfiguration neu starten. Bei bestehender
+   nativer Bindung wird der Fehler automatisch an den ursprünglichen Flash-Chat
+   zurückgegeben; dessen bisherige Zustellungsprüfungen gelten weiter. Weitere
+   Aufträge sind wieder möglich, sofern alle übrigen Sperren und Budgets es erlauben.
+   Eine erneute fachliche Bearbeitung benötigt einen neuen ausdrücklichen Auftrag.
+
+Die private State-DB, Budgetreservierungen und Arbeitsdateien zur Freigabe niemals
+löschen. `resolve` für den alten Dokumentpilot und `reconcile-models` für lokale
+Modell-Leases ersetzen `resolve-cloud` nicht.
 
 Keine automatische Anonymisierung, kein Pseudonym-Vault, keine globale Kontrolle
 anderer API-Kontonutzer und keine Live-Abnahme echter Modell-/GPU-/Cloudsysteme

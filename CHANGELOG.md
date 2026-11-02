@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.46.0.dev0 – automatic models and native return
+
+Added real model runtime control, bounded resource probes, durable leases, original native parent binding/resumption and optional native UI recovery patch. Known outcomes restore resources before return; unknown effects remain fenced. Existing results can be recovered after independent operator restoration without repeating inference. Added native HTTP/MCP and frozen-EXE coverage. Real target host acceptance remains open.
+
 ## 0.45.0.dev0 – universal jobs
 
 Removed the v0.44 Consult tool family and text executor. Added task-only direct delegation without dummy files; both direct and prepared-file jobs can select LM Studio, native Unsloth or an approved compatible Cloud backend. Shared broker/receipt/state contracts; preserved historical TEXT rows. Native return integration and automatic model lifecycle remain open.

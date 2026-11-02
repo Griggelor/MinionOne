@@ -1,0 +1,12 @@
+{
+  "contract": "unsloth-studio-f9cecc99",
+  "thread_id": "EXACT_ORIGINAL_FLASH_THREAD_ID",
+  "model_id": "EXACT_ACTIVE_FLASH_MODEL_IDENTIFIER",
+  "base_url": "http://127.0.0.1:8888",
+  "secret_env": "MINIONONE_UNSLOTH_API_KEY",
+  "memory_ram_mb": 0,
+  "memory_vram_mb": 0,
+  "allow_parent_unload": false,
+  "load_options": {},
+  "resume_options": {}
+}

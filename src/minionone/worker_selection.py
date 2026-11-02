@@ -51,9 +51,10 @@ def load(con, job):
     if data is None or row['worker_profile_sha256'] is None:
         raise InputRejected('missing worker snapshot')
     try:
-        profile = WorkerProfile(**json.loads(data['profile_json']))
+        config=json.loads(data['profile_json'])
+        profile = WorkerProfile(**config)
         approved = bool(data['allow_cloud'])
-        if (identity(row['input_digest'], profile, approved) != row['worker_profile_sha256']
+        if (_digest([row['input_digest'],config,approved]) != row['worker_profile_sha256']
                 or profile.model_id != row['model_id']
                 or (profile.provider == 'cloud' and not approved)):
             raise ValueError('changed worker snapshot')

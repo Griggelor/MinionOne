@@ -26,6 +26,11 @@ class Diagnostic:
 
 
 _CATALOG = {
+    "MODEL_LIFECYCLE_BLOCKED": ("Model lifecycle is waiting or blocked.","End the parent turn and inspect model lease status; reconcile unknown operations before starting another worker.",False),
+    "MODEL_LIFECYCLE_UNCERTAIN": ("A model load, unload or restore has an unverified outcome.","Inspect backend inventories, restore the original models, then run explicit operator reconciliation. No automatic effect replay.",False),
+    "NATIVE_PARENT_UNAVAILABLE": ("The original native parent chat could not be verified or resumed.","Check the configured authenticated Unsloth thread, model and supported durable-run API.",False),
+    "NATIVE_CHAT_AMBIGUOUS": ("The original conversation branch is ambiguous.","Resolve the original thread's branch before returning; no new chat is substituted.",False),
+    "NATIVE_CHAT_UNSUPPORTED": ("The native parent history contains unsupported media or structure.","Use a supported text/tool-history thread; no history is silently discarded.",False),
     "PILOT_NOT_CONFIGURED": ("The local system-test pilot has not been configured.",
                               "Start the pilot once with the exact loaded LM Studio model ID, then open the connection helper in the same Windows account.",False),
     "PILOT_CREDENTIAL_UNAVAILABLE": ("The local pilot credential could not be read by this account.",

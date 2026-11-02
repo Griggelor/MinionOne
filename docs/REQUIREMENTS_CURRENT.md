@@ -1,14 +1,15 @@
-# MinionOne – aktueller Requirements-Einstiegspunkt (Stand 2026-11-01)
+# MinionOne – aktueller Requirements-Einstiegspunkt (Stand 2026-11-02)
 
-## Owner correction v0.45 takes precedence
+## v0.46 implements lifecycle and native return; v0.45 handoffs remain binding
 
-See [OWNER_REQUIREMENTS_V045.md](OWNER_REQUIREMENTS_V045.md): one universal job system, direct task or prepared files, no separate Consult/role path, no automatic parent context transfer. Original backend/automatic-return/model-lifecycle targets remain binding.
+See [OWNER_REQUIREMENTS_V046.md](OWNER_REQUIREMENTS_V046.md) for implemented model lifecycle and native Unsloth return, supported contracts and live acceptance limits. [OWNER_REQUIREMENTS_V045.md](OWNER_REQUIREMENTS_V045.md) still defines one job system with direct/file handoffs and no implicit worker context.
 
 > **Status: Development / PRE-ALPHA / PRODUCT NO-GO.**
 > v0.45 setzt die [aktuelle Owner-Korrektur](OWNER_REQUIREMENTS_V045.md) um:
 > universelle Aufträge über Direktübergabe oder vorbereitete TASK.md-Dateien,
 > gemeinsame Backend-/Modellwahl und Rückgabesteuerung; kein separater Text-/Rollenpfad.
-> Nativer Parent-Driver, tatsächlicher Model-Lifecycle und Zielhostnachweise bleiben offen.
+> v0.46 implementiert den nativen Unsloth-Parent-Driver und Model-Lifecycle.
+> Zielhost-/UI-/GPU-Abnahme bleibt offen; siehe [v0.46-Vertrag](OWNER_REQUIREMENTS_V046.md).
 > v0.43 vereinheitlicht Windows-Paket/Runtime auf `0.43.0.dev0` und macht den
 > aktuellen physischen Workspace-Test direkt über die nummerierten Starter
 > zugänglich. [Paket-Anleitung](../system_test/README_DE.md). Produkt NO-GO bleibt.
@@ -21,7 +22,8 @@ See [OWNER_REQUIREMENTS_V045.md](OWNER_REQUIREMENTS_V045.md): one universal job 
 
 ## 1. Dokumentenrangfolge bei Widersprüchen
 
-1. **Explizite neueste Produktowner-Entscheidungen**: zuerst
+1. **Implementierungsstand und native Schnittstellen:** [OWNER_REQUIREMENTS_V046.md](OWNER_REQUIREMENTS_V046.md).
+   **Explizite neueste Produktowner-Entscheidungen**: zuerst
    [OWNER_REQUIREMENTS_V045.md](OWNER_REQUIREMENTS_V045.md) (ein Auftragssystem,
    zwei Übergabewege, drei Provider und kein separater Text-/Rollenpfad); die
    Originalzuordnungen und übrigen Anforderungen aus

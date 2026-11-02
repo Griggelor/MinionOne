@@ -67,6 +67,8 @@ class ParentReturnController:
         state=self.driver.state(row['principal'],row['thread_id'])
         if not self._valid(state,row['principal'],row['thread_id']) or (not state.resident and not state.can_restore):
             raise InputRejected('original parent binding/restore capability unavailable')
+        if callable(getattr(self.driver,'capture',None)):
+            self.driver.capture(job_id,row['principal'],row['thread_id'])
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE')
             con.execute('INSERT INTO parent_bindings VALUES(?,?,?,?)',
@@ -76,17 +78,24 @@ class ParentReturnController:
     def enqueue(self, job_id):
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE')
-            row=con.execute('''SELECT j.state,p.result_digest FROM jobs j
+            row=con.execute('''SELECT j.state,p.result_digest,p.question,p.error_code FROM jobs j
                 JOIN pilot_runs p USING(job_id) JOIN parent_bindings b USING(job_id)
                 WHERE j.job_id=?''',(job_id,)).fetchone()
-            if row is None or row['state']!='RESULT_READY' or not row['result_digest']:
+            if row is None or row['state'] not in ('RESULT_READY','WAITING_FOR_PARENT','FAILED','CANCELLED'):
                 raise InputRejected('verified result and original binding required')
+            digest=(row['result_digest'] if row['state']=='RESULT_READY' else
+                    _digest([job_id,row['state'],row['question'],row['error_code']]))
+            if not digest:raise InputRejected('verified notification required')
             prior=con.execute('SELECT result_digest FROM parent_returns WHERE job_id=?',(job_id,)).fetchone()
             if prior is not None:
-                if prior[0]!=row['result_digest']:raise VersionConflict('return payload changed')
+                if prior[0]!=digest:raise VersionConflict('return payload changed')
                 return
             con.execute('INSERT INTO parent_returns(job_id,result_digest,state) VALUES(?,?,?)',
-                        (job_id,row['result_digest'],'PENDING'))
+                        (job_id,digest,'PENDING'))
+            table=con.execute("SELECT 1 FROM sqlite_master WHERE name='model_leases'").fetchone()
+            if table:
+                lease=con.execute('SELECT parent_unloaded FROM model_leases WHERE job_id=?',(job_id,)).fetchone()
+                if lease and lease[0]:con.execute('UPDATE parent_returns SET restore_needed=1 WHERE job_id=?',(job_id,))
 
     def status(self, job_id):
         with self.owner._connection() as con:
@@ -96,6 +105,9 @@ class ParentReturnController:
 
     def require_delivery(self, job_id):
         result=self.status(job_id)
+        if result['state']!='DELIVERED' and callable(getattr(self.driver,'reconcile',None)):
+            self._reconcile(job_id)
+            result=self.status(job_id)
         if result['state']!='DELIVERED':
             raise VersionConflict('original parent delivery/restore not yet verified')
         return result['restore_needed']
@@ -110,30 +122,53 @@ class ParentReturnController:
                             (int(restore_needed),job))
             return bool(changed)
 
+    def _reconcile(self,job):
+        if not callable(getattr(self.driver,'reconcile',None)):return
+        with self.owner._connection() as con:
+            row=con.execute('SELECT r.*,b.principal,b.thread_id FROM parent_returns r JOIN parent_bindings b USING(job_id) WHERE job_id=?',(job,)).fetchone()
+        if row is None or row['state'] not in ('IN_FLIGHT','NEEDS_RECONCILIATION'):return
+        operation='return-'+_digest([job,row['result_digest']])
+        try:receipt=self.driver.reconcile(row['principal'],row['thread_id'],job,row['result_digest'],operation)
+        except Exception:return
+        if type(receipt) is ParentReceipt and receipt==ParentReceipt(job,row['thread_id'],row['result_digest'],operation):
+            self._set(job,'DELIVERED',row['state'])
+
     def tick(self):
         # No overlapping ticks, and never hold a SQLite write transaction
         # while the host is loading a model or accepting a notification.
         with self._tick_lock:
+            if self._stop.is_set():return
             # Repair the commit/enqueue boundary without rerunning inference:
             # a result may have committed before a transient queue failure.
             with self.owner._connection() as con:
                 missing=con.execute('''SELECT j.job_id FROM jobs j
                     JOIN parent_bindings b USING(job_id) LEFT JOIN parent_returns r USING(job_id)
-                    WHERE j.state='RESULT_READY' AND r.job_id IS NULL LIMIT 256''').fetchall()
+                    WHERE j.state IN ('RESULT_READY','WAITING_FOR_PARENT','FAILED','CANCELLED') AND r.job_id IS NULL LIMIT 256''').fetchall()
             for item in missing:self.enqueue(item[0])
+            if callable(getattr(self.driver,'reconcile',None)):
+                with self.owner._connection() as con:
+                    uncertain=con.execute("SELECT job_id FROM parent_returns WHERE state='NEEDS_RECONCILIATION' LIMIT 256").fetchall()
+                for item in uncertain:self._reconcile(item[0])
             with self.owner._connection() as con:
                 rows=con.execute('''SELECT r.*,b.principal,b.thread_id,b.model_id
                     FROM parent_returns r JOIN parent_bindings b USING(job_id)
                     JOIN jobs j USING(job_id) WHERE r.state IN ('PENDING','WAITING_PARENT')
-                    AND j.state='RESULT_READY' LIMIT 256''').fetchall()
+                    AND j.state IN ('RESULT_READY','WAITING_FOR_PARENT','FAILED','CANCELLED') LIMIT 256''').fetchall()
             for row in rows:
+                if self._stop.is_set():return
                 job=row['job_id']; old=row['state']
+                with self.owner._connection() as con:
+                    if con.execute("SELECT 1 FROM sqlite_master WHERE name='model_leases'").fetchone():
+                        lease=con.execute('SELECT state FROM model_leases WHERE job_id=?',(job,)).fetchone()
+                        if lease and lease[0]!='RELEASED':
+                            self._set(job,'WAITING_PARENT',old);continue
                 try: state=self.driver.state(row['principal'],row['thread_id'])
                 except Exception:
                     self._set(job,'WAITING_PARENT',old);continue
                 if not self._valid(state,row['principal'],row['thread_id'],row['model_id']) or state.busy:
                     self._set(job,'WAITING_PARENT',old);continue
                 self.verified=True
+                if self._stop.is_set():return
                 if not state.resident:
                     if not state.can_restore:
                         self._set(job,'RESTORE_FAILED',old);continue
@@ -149,6 +184,7 @@ class ParentReturnController:
                     self._set(job,'WAITING_PARENT','RESTORING')
                     old='WAITING_PARENT'
                     if state.busy:continue
+                if self._stop.is_set():return
                 if not self._set(job,'IN_FLIGHT',old):continue
                 operation='return-'+_digest([job,row['result_digest']])
                 try:
@@ -165,7 +201,7 @@ class ParentReturnController:
         # Recover only delivery intent for already finished workers, never
         # inference or unknown prior sends. Bindings were captured pre-start.
         with self.owner._connection() as con:
-            jobs=con.execute("SELECT job_id FROM jobs JOIN parent_bindings USING(job_id) WHERE state='RESULT_READY'").fetchall()
+            jobs=con.execute("SELECT job_id FROM jobs JOIN parent_bindings USING(job_id) WHERE state IN ('RESULT_READY','WAITING_FOR_PARENT','FAILED','CANCELLED')").fetchall()
         for job in jobs:self.enqueue(job[0])
         def run():
             while not self._stop.wait(.25):

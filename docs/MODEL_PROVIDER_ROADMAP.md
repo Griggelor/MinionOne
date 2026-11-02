@@ -1,5 +1,9 @@
 # MinionOne – Modellprovider und Adaptervertrag (v0.20 WIP)
 
+## v0.46 current implementation
+
+Actual model lifecycle now uses LM Studio v1 model instances or native Unsloth load/unload. Native Unsloth same-chat return is implemented, with optional frontend recovery integration. Worker backends remain independent. See [OWNER_REQUIREMENTS_V046.md](OWNER_REQUIREMENTS_V046.md) for exact contracts and target acceptance limits.
+
 ## v0.45 current scope
 
 Backend/model configuration now serves both direct and prepared-file jobs via the same AgentLoop and file broker. No separate role/text route. Local models remain preloaded; native parent return and actual model lifecycle remain open. See [OWNER_REQUIREMENTS_V045.md](OWNER_REQUIREMENTS_V045.md).

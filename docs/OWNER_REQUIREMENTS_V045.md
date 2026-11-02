@@ -1,5 +1,9 @@
 # MinionOne – universelle Aufträge von Flash, v0.45
 
+## v0.46 lifecycle extension
+
+The two task handoffs below remain binding. The missing model lifecycle and native parent implementation listed below are now supplied by [OWNER_REQUIREMENTS_V046.md](OWNER_REQUIREMENTS_V046.md); real host acceptance remains outstanding.
+
 Owner-Korrektur vom 01.11.2026. Diese Festlegung ersetzt die dritte Text-/Rollenroute
 in v0.44. Die ursprünglichen FR-/Testzuordnungen und Quellen stehen in
 [OWNER_REQUIREMENTS_V044.md](OWNER_REQUIREMENTS_V044.md); die Anforderungen an

@@ -20,6 +20,7 @@ def main(argv=None):
                    help="Opt in to PREPARING-only job workspaces under a trusted project. No worker file permissions.")
     p.add_argument('--experimental-workspace-jobs',action='store_true',
                    help='Enable the common bounded job executor for configured projects')
+    p.add_argument('--parent-host',type=Path,help='Trusted native Unsloth original-chat configuration')
     args=p.parse_args(argv)
     token=os.environ.get("MINIONONE_MCP_TOKEN")
     if token is None or len(token)<32:
@@ -44,10 +45,12 @@ def main(argv=None):
             projects[key]=directory
         from .worker_profiles import load_profiles
         profiles=load_profiles(args.worker_profiles) if args.worker_profiles else None
+        from .unsloth_parent import load_parent_config
+        parent=load_parent_config(args.parent_host) if args.parent_host else None
         server=LocalMCP(("127.0.0.1",args.port),token=token,
                         database_path=db,lmstudio_url=args.lmstudio_url,
                         workspace_projects=(projects or None),worker_profiles=profiles,
-                        enable_workspace_jobs=args.experimental_workspace_jobs)
+                        enable_workspace_jobs=args.experimental_workspace_jobs,parent_config=parent)
     except Exception as exc:
         fault=safe_tool_fault(exc)
         if isinstance(exc,OSError) and exc.errno==errno.EADDRINUSE:

@@ -1,5 +1,5 @@
 """Trusted backend/model configuration for the common job executor."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import multiprocessing
 import os
@@ -33,6 +33,11 @@ class WorkerProfile:
     max_output_tokens: int = 2048
     cloud_approved: bool = False
     token_parameter: str = 'max_tokens'
+    auto_load: bool = False
+    memory_ram_mb: int = 0
+    memory_vram_mb: int = 0
+    load_timeout_seconds: int = 240
+    load_options: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if (type(self.profile_id) is not str or
@@ -73,6 +78,26 @@ class WorkerProfile:
         if self.token_parameter not in ('max_tokens', 'max_completion_tokens'):
             raise InputRejected('unsupported provider token parameter')
 
+        if type(self.auto_load) is not bool or (self.provider=='cloud' and self.auto_load):
+            raise InputRejected('invalid automatic model lifecycle')
+        for value in (self.memory_ram_mb,self.memory_vram_mb):
+            if type(value) is not int or not 0<=value<=1048576:raise InputRejected('invalid calibrated memory estimate')
+        if self.auto_load and self.memory_ram_mb==0:raise InputRejected('automatic loading requires calibrated RAM estimate')
+        if type(self.load_timeout_seconds) is not int or not 1<=self.load_timeout_seconds<=300:
+            raise InputRejected('invalid model lifecycle deadline')
+        allowed=({'context_length','eval_batch_size','flash_attention','num_experts','offload_kv_cache_to_gpu'}
+                 if self.provider=='lmstudio' else {'max_seq_length','load_in_4bit','gguf_variant','device','gpu_layers','kv_cache_type'})
+        if type(self.load_options) is not dict or set(self.load_options)-allowed:
+            raise InputRejected('unapproved load option')
+        for key,value in self.load_options.items():
+            if key in ('flash_attention','offload_kv_cache_to_gpu','load_in_4bit'):
+                valid=type(value) is bool
+            elif key in ('device','gguf_variant','kv_cache_type'):
+                valid=type(value) is str and 1<=len(value)<=64 and all(32<=ord(c)<127 for c in value)
+                if key=='device':valid=valid and value in ('cpu','cuda','auto')
+            else:valid=type(value) is int and 0<=value<=1048576
+            if not valid:raise InputRejected('invalid load option')
+
     @property
     def endpoint(self):
         return self.base_url.rstrip('/').removesuffix('/v1') + '/v1'
@@ -83,7 +108,7 @@ class WorkerProfile:
                 'model_id': self.model_id, 'readiness': 'CONFIGURED_NOT_PROBED',
                 'context_source': 'EXPLICIT_JOB_INPUT_ONLY', 'worker_tools': 'JOB_SCOPED_MANAGER_BROKER',
                 'handoff_paths': ['direct', 'prepared_workspace'],
-                'automatic_model_loading': False,
+                'automatic_model_loading': self.auto_load,
                 'max_input_bytes': self.max_input_bytes,
                 'max_output_tokens': self.max_output_tokens}
 

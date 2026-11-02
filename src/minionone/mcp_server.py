@@ -139,7 +139,7 @@ class LocalMCP(ThreadingHTTPServer):
                  thread="configured-pilot", lmstudio_url="http://127.0.0.1:1234",
                  enable_test_jobs=False,worker_model=None,worker_api_key=None,
                  min_free_mb=4096,model_call_seconds=60,workspace_projects=None,
-                 enable_workspace_jobs=False, worker_profiles=None, parent_driver=None):
+                 enable_workspace_jobs=False, worker_profiles=None, parent_driver=None, parent_config=None):
         if (type(address) is not tuple or len(address) != 2 or
             address[0] != "127.0.0.1" or type(address[1]) is not int or
             not 0 <= address[1] <= 65535):
@@ -158,13 +158,18 @@ class LocalMCP(ThreadingHTTPServer):
                 raise ValueError('trusted worker profiles required')
             if not enable_workspace_jobs:
                 raise ValueError('worker profiles require the common workspace executor')
+        if parent_config is not None:
+            from .unsloth_parent import NativeParentConfig
+            if type(parent_config) is not NativeParentConfig or parent_driver is not None:
+                raise ValueError('one trusted parent integration required')
+            thread=parent_config.thread_id
         # Establish independent process/error files before SQLite, leases,
         # schema migration or network bind. A DB failure is still observable.
         self.logs=ProcessLogs(database_path)
         self._logs_closed=False
         self.logs.event("PROCESS_START",workspace_enabled=int(enable_workspace_jobs))
         self.pilot=None;self._pilot_lock=None;self.workspace=None;self.workspace_jobs=None
-        self.parent_return=None
+        self.parent_return=None;self.native_parent=None;self.model_lifecycle=None
         self.enable_workspace_jobs=enable_workspace_jobs
         self.tools=TOOLS+(PILOT_TOOLS if enable_test_jobs else [])+(WORKSPACE_TOOLS if workspace_projects is not None else [])
         if enable_workspace_jobs:
@@ -186,6 +191,10 @@ class LocalMCP(ThreadingHTTPServer):
                 from .pilot_lock import PilotLock
                 self._pilot_lock=PilotLock(database_path)
             self.store = AdmissionStore(database_path, credentials={token:(principal,{thread})})
+            if parent_config is not None:
+                from .unsloth_parent import UnslothParent
+                self.native_parent=UnslothParent(self.store,parent_config,principal=principal)
+                parent_driver=self.native_parent
             if workspace_projects is not None:
                 from .workspace_preparation import WorkspacePreparation
                 self.workspace = WorkspacePreparation(self.store,workspace_projects)
@@ -210,6 +219,10 @@ class LocalMCP(ThreadingHTTPServer):
                     from .workspace_jobs import WorkspaceJobs
                     self.workspace_jobs=WorkspaceJobs(self.workspace,self.pilot,token,thread)
                     self.pilot.workspace_execution=self.workspace_jobs
+                if self.native_parent is not None or any(p.auto_load for p in self.pilot.worker_profiles.values()):
+                    from .model_lifecycle import ModelLifecycle
+                    self.model_lifecycle=ModelLifecycle(self.store,parent=self.native_parent,ram_headroom_mb=max(1024,min_free_mb))
+                    self.pilot.model_lifecycle=self.model_lifecycle
                 count=self.pilot.recover()
                 if enable_test_jobs:self.recovery_summary['test_jobs_quarantined']=count
                 if enable_workspace_jobs:self.recovery_summary['workspace_jobs_recovery_checked']=True
@@ -279,7 +292,9 @@ class LocalMCP(ThreadingHTTPServer):
                     "boxed_execution_enabled":False,"os_sandbox_attested":False,
                     "windows_file_broker_verified":False,"auto_wakeup_enabled":bool(self.parent_return and self.parent_return.verified),
                     "automatic_return_required":True,
-                    "parent_return_backend":"TRUSTED_HOST_DRIVER" if self.parent_return else "UNAVAILABLE",
+                    "parent_return_backend":("UNSLOTH_NATIVE_CHAT_RUNS" if self.native_parent else "TRUSTED_HOST_DRIVER") if self.parent_return else "UNAVAILABLE",
+                    "automatic_model_lifecycle_enabled":self.model_lifecycle is not None,
+                    "native_parent_binding_verified":bool(self.native_parent and self.parent_return.verified),
                     "worker_profiles":len(self.pilot.worker_profiles) if self.pilot else 0,
                     "handoff_paths":["direct","prepared_workspace"] if self.workspace_jobs else [],
                     "implicit_context_transfer":False,
@@ -292,6 +307,7 @@ class LocalMCP(ThreadingHTTPServer):
             return self.store.admit(token,thread,args["input_digest"],args["operation_id"])
         if name == "minionone_job_status":
             result=self.store.status(token,thread,args['job_id'],include_timeout=True)
+            if self.model_lifecycle is not None:result['model_lifecycle']=self.model_lifecycle.status(args['job_id'])
             if self.parent_return is not None:
                 result['parent_return']=self.parent_return.status(args['job_id'])
             return result
@@ -492,7 +508,7 @@ class MCPHandler(BaseHTTPRequestHandler):
                         'minionone_workers lists backend/model profiles for either handoff. '
                         'Flash supplies every task; never attach its history implicitly. '
                         'Cloud requires operator configuration and allow_cloud=true. '
-                        'Same-chat return/restoration requires a verified host driver; '
+                        'When model_lifecycle.phase is WAITING_PARENT_TURN_END, finish the current Flash turn; do not keep polling inside that turn. The native return integration resumes this original chat. '
                         'inspect minionone_status before claiming wakeup.'
                     )
                 result={"protocolVersion":PROTOCOL,"capabilities":{"tools":{"listChanged":False}},

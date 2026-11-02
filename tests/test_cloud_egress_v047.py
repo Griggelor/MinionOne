@@ -120,6 +120,17 @@ class CloudGateTests(WorkerMCPFixture,unittest.TestCase):
         self.assertEqual(status['workspace_job']['error']['code'],'CLOUD_EGRESS_BLOCKED')
         self.assertEqual(len(self.seen),2)
 
+    def test_large_non_pii_payload_does_not_make_regex_scanning_quadratic(self):
+        import time
+        from minionone.cloud_egress import CloudEgressGuard
+        guard=CloudEgressGuard(self.server.pilot,'validation-only','unused',self.cloud)
+        body=json.dumps({'model':MODEL,'stream':False,'max_tokens':16,'tools':[],
+            'messages':[{'role':'user','content':('a.'*60000)+'@invalid '+('a-'*30000)}]}).encode('ascii')
+        started=time.perf_counter()
+        self.assertGreater(guard.validate(body),0)
+        self.assertLess(time.perf_counter()-started,5)
+        self.assertFalse(self.seen)
+
     def test_billing_policy_rejects_unknown_contract_float_prices_and_invalid_classes(self):
         for changes in ({'contract':'arbitrary_fees'}, {'data_class':'unclassified'},
                         {'input_price_microusd_per_million':0.5},

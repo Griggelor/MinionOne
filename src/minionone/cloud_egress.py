@@ -19,13 +19,13 @@ _REQUIRED={'contract','data_class','max_job_cost_microusd','max_total_cost_micro
 _OPTIONAL={'sensitive_terms','public_terms'}
 _SECRET=re.compile(r'-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16})\b')
 _PII=(
-    re.compile(r'\b[^\s@<>"\\]+@[^\s@<>"\\]+\.[A-Za-z]{2,}\b'),
+    re.compile(r'\b[^\s@<>"\\]{1,64}@[^\s@<>"\\]{1,253}\.[A-Za-z]{2,63}\b'),
     re.compile(r'\b[A-Z]{2}\s*\d{2}(?:\s*[A-Z0-9]){11,30}\b'),
     re.compile(r'(?<!\w)(?:\d[ -]?){13,19}(?!\w)'),
     re.compile(r'(?<!\w)\+\d[\d ()-]{7,24}\d(?!\w)'),
     re.compile(r'\b(?:phone|telefon|tel|mobile)\s*[:=]\s*[\d ()+-]{7,26}',re.I),
     re.compile(r'\b[A-ZÄÖÜ][a-zäöüß]{1,35}\s+[A-ZÄÖÜ][a-zäöüß]{1,35}\b'),
-    re.compile(r'\b[\wäöüß-]+(?:straße|strasse|str\.|weg|allee|street|road)\s+\d{1,5}\b',re.I),
+    re.compile(r'\b[\wäöüß-]{1,128}(?:straße|strasse|str\.|weg|allee|street|road)\s+\d{1,5}\b',re.I),
     re.compile(r'\b\d{1,5}\s+(?:[A-Za-z-]+\s+){1,4}(?:Street|Road|Avenue|Lane)\b',re.I),
     re.compile(r'(?:[A-Za-z]:[\\/](?:Users|Documents and Settings)[\\/]|/(?:home|Users)/)[^\s"<>]+',re.I),
 )

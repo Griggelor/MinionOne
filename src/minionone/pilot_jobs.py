@@ -79,6 +79,7 @@ class PilotJobs:
         self.workspace_execution=None  # Explicit opt-in manager-side attachment, never model-supplied.
         self.worker_profiles={}
         self.parent_return=None
+        self.model_lifecycle=None
         with owner._connection() as con:
             con.executescript('''
             CREATE TABLE IF NOT EXISTS pilot_runs(
@@ -128,13 +129,16 @@ class PilotJobs:
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE')
             for row in con.execute("SELECT j.* FROM jobs j JOIN pilot_runs p USING(job_id) WHERE (p.active=1 OR p.provider_inflight=1) AND j.state IN ('RESOURCE_CHECK','RUNNING','CANCEL_REQUESTED')").fetchall():
-                target='FAILED' if row['state']=='RESOURCE_CHECK' else 'NEEDS_RECONCILIATION'
-                code='PILOT_START_FAILED' if target=='FAILED' else 'PILOT_PROVIDER_UNCERTAIN'
+                uncertain_model=(self.model_lifecycle is not None and
+                    self.model_lifecycle.status(row['job_id'])['state']=='NEEDS_RECONCILIATION')
+                target='FAILED' if row['state']=='RESOURCE_CHECK' and not uncertain_model else 'NEEDS_RECONCILIATION'
+                code=('MODEL_LIFECYCLE_UNCERTAIN' if uncertain_model else
+                      'PILOT_START_FAILED' if target=='FAILED' else 'PILOT_PROVIDER_UNCERTAIN')
                 con.execute('UPDATE pilot_runs SET active=0,capability=NULL,provider_inflight=1,error_code=? WHERE job_id=?',
                             (code,row['job_id']))
                 if target=='FAILED':con.execute('UPDATE pilot_runs SET provider_inflight=0 WHERE job_id=?',(row['job_id'],))
                 self.owner._transition(con,row,target,
-                    Evidence(reconciliation_required=True,error_code='PILOT_PROVIDER_UNCERTAIN') if target=='NEEDS_RECONCILIATION' else
+                    Evidence(reconciliation_required=True,error_code=code) if target=='NEEDS_RECONCILIATION' else
                     Evidence(worker_outcome='FAILED',error_code='PILOT_START_FAILED'),
                     'pilot-recovery-'+secrets.token_hex(8))
                 count+=1
@@ -219,6 +223,7 @@ class PilotJobs:
             if row['job_kind']!=kind or kind not in ('ISOLATED_TEST','WORKSPACE') or row['state']!='QUEUED' or row['version']!=expected_version:
                 raise VersionConflict('test job not queued at expected version')
             if con.execute('SELECT 1 FROM pilot_runs WHERE active=1 OR provider_inflight=1').fetchone():raise PilotError('PILOT_JOB_BUSY')
+            if self.model_lifecycle is not None and self.model_lifecycle.blocked(con):raise PilotError('MODEL_LIFECYCLE_BLOCKED')
             con.execute('UPDATE pilot_runs SET active=1,capability=? WHERE job_id=?',(sha256(cap.encode()).hexdigest(),job_id))
             row=self.owner._transition(con,row,'RESOURCE_CHECK',Evidence(),'pilot-start-'+_digest(operation_id))
             receipt=self.owner._snapshot(row)
@@ -228,9 +233,11 @@ class PilotJobs:
         try:
             if self.parent_return is not None:self.parent_return.bind(job_id)
             worker.start()
-        except Exception:
+        except Exception as exc:
             with self._lock:self._threads.discard(worker)
-            self._finish(job_id,'FAILED','PILOT_START_FAILED');raise PilotError('PILOT_START_FAILED') from None
+            code=safe_tool_fault(exc).code
+            if code in ('INTERNAL_ERROR','INVALID_INPUT'):code='PILOT_START_FAILED'
+            self._finish(job_id,'FAILED',code);raise PilotError(code) from None
         return receipt
 
     def _current(self,con,job,cap):
@@ -262,6 +269,8 @@ class PilotJobs:
                 configured=con.execute('SELECT model_id FROM pilot_runs WHERE job_id=?',(job,)).fetchone()
                 if profile is None and configured['model_id']!=self.config.model_id:
                     raise PilotError('PILOT_MODEL_NOT_LOADED')
+            if self.model_lifecycle is not None:
+                profile=self.model_lifecycle.prepare(job,profile,lambda:self._cancelled(job)) or profile
             if profile is None:
                 self._readiness()
             else:
@@ -277,7 +286,7 @@ class PilotJobs:
             with self.owner._connection() as con:
                 con.execute('BEGIN IMMEDIATE');row=con.execute('SELECT * FROM jobs WHERE job_id=?',(job,)).fetchone()
                 if row['state']=='CANCEL_REQUESTED':
-                    self._finish_in(con,row,'CANCELLED',None);return
+                    raise PilotError('MODEL_LIFECYCLE_BLOCKED')
                 if row['state']!='RESOURCE_CHECK':raise PilotError('PILOT_STATE_INVALID')
                 workspace_job=row['job_kind']=='WORKSPACE'
                 self.owner._transition(con,row,'RUNNING',Evidence(attempt_no=1,active_lease=True,worker_outcome='RUNNING'),'pilot-running-'+secrets.token_hex(8))
@@ -435,6 +444,7 @@ class PilotJobs:
             return row is None or row['state']=='CANCEL_REQUESTED'
 
     def close(self):
+        if self.model_lifecycle is not None:self.model_lifecycle.stop.set()
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE')
             rows=con.execute("SELECT j.* FROM jobs j JOIN pilot_runs p USING(job_id) WHERE p.active=1 AND j.state IN ('RUNNING','RESOURCE_CHECK')").fetchall()
@@ -461,6 +471,47 @@ class PilotJobs:
                     error_code='PILOT_PROVIDER_UNCERTAIN'),'pilot-operator-resolved-'+secrets.token_hex(8),actor='LOCAL_OPERATOR')
             return self.owner._snapshot(row)
 
+    def reconcile_models_for_operator(self,token,thread,job,*,confirm_worker_stopped=False,confirm_work_inspected=False):
+        if confirm_worker_stopped is not True or self.model_lifecycle is None:
+            raise InputRejected('explicit independent provider-stop confirmation required')
+        principal=self.owner._principal(token,thread)
+        with self.owner._connection() as con:
+            row=self.owner._owned_row(con,principal,thread,job)
+            run=con.execute('SELECT * FROM pilot_runs WHERE job_id=?',(job,)).fetchone()
+            lease=con.execute('SELECT * FROM model_leases WHERE job_id=?',(job,)).fetchone()
+            if row['state']!='NEEDS_RECONCILIATION' or run is None or lease is None:
+                raise VersionConflict('no quarantined model job')
+            if run['turns'] and confirm_work_inspected is not True:
+                raise InputRejected('independent workspace inspection required after inference')
+        digest=None
+        ready=lease['finish_outcome']=='RESULT_READY'
+        if ready:
+            if self.workspace_execution is None:raise InputRejected('workspace verifier required')
+            self.workspace_execution.workspace.verify_input(token,thread,job)
+            with self.owner._connection() as con:
+                files,digest=self._outputs(con,job)
+                publications=con.execute("SELECT * FROM workspace_publications WHERE job_id=? AND state='PUBLISHED'",(job,)).fetchall()
+                by_name={p['name']:p for p in publications}
+            for output in files:
+                publication=by_name.get(output['name'])
+                if publication is None or publication['sha256']!=output['digest']:
+                    raise InputRejected('verified physical publication missing')
+                # A PUBLISHED receipt makes this a read verification, never a new write.
+                self.workspace_execution.publisher.publish(token,thread,job,output['name'],publication['operation_id'])
+        self.model_lifecycle.reconcile(job)
+        with self.owner._connection() as con:
+            con.execute('BEGIN IMMEDIATE');row=self.owner._owned_row(con,principal,thread,job)
+            if row['state']!='NEEDS_RECONCILIATION':raise VersionConflict('reconciliation changed')
+            con.execute('UPDATE pilot_runs SET active=0,provider_inflight=0,capability=NULL,result_digest=?,error_code=? WHERE job_id=?',
+                        (digest,None if ready else 'MODEL_LIFECYCLE_UNCERTAIN',job))
+            row=self.owner._transition(con,row,'RESULT_READY' if ready else 'FAILED',
+                Evidence(reconciliation_verified=True,worker_outcome='DONE' if ready else 'FAILED',
+                         result_digest=digest,error_code=None if ready else 'MODEL_LIFECYCLE_UNCERTAIN'),
+                'operator-model-reconciled-'+secrets.token_hex(8),actor='LOCAL_OPERATOR')
+            result=self.owner._snapshot(row)
+        if self.parent_return is not None:self.parent_return.enqueue(job)
+        return result
+
     @staticmethod
     def _outputs(con,job):
         rows=con.execute("SELECT name,content,digest FROM pilot_files WHERE job_id=? AND zone='output' ORDER BY name",(job,)).fetchall()
@@ -470,11 +521,17 @@ class PilotJobs:
         return rows,_digest([(r['name'],r['digest']) for r in rows])
 
     def _finish(self,job,state,code):
+        if self.model_lifecycle is not None:
+            try:self.model_lifecycle.finish(job,state)
+            except Exception:
+                state='NEEDS_RECONCILIATION';code='MODEL_LIFECYCLE_UNCERTAIN'
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE');row=con.execute('SELECT * FROM jobs WHERE job_id=?',(job,)).fetchone()
             self._finish_in(con,row,state,code)
-            ready=(self.parent_return is not None and state=='RESULT_READY' and
-                   con.execute('SELECT state FROM jobs WHERE job_id=?',(job,)).fetchone()[0]=='RESULT_READY')
+            ready=(self.parent_return is not None and
+                   con.execute('SELECT state FROM jobs WHERE job_id=?',(job,)).fetchone()[0] in
+                   ('RESULT_READY','WAITING_FOR_PARENT','FAILED','CANCELLED') and
+                   con.execute('SELECT 1 FROM parent_bindings WHERE job_id=?',(job,)).fetchone() is not None)
         if ready:
             self.parent_return.enqueue(job)
 
@@ -512,6 +569,8 @@ class PilotJobs:
     def acknowledge(self,token,thread,job_id,expected_version,result_digest,operation_id,*,kind='ISOLATED_TEST'):
         principal=self.owner._principal(token,thread);_field(_OP,operation_id,'operation')
         restored=False
+        if self.model_lifecycle is not None and self.model_lifecycle.status(job_id)['state'] not in ('RELEASED','NOT_REQUIRED'):
+            raise VersionConflict('model lease is not released')
         if self.parent_return is not None:
             with self.owner._connection() as con:
                 self.owner._owned_row(con,principal,thread,job_id)

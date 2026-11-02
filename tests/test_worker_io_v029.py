@@ -11,7 +11,7 @@ import unittest
 
 from minionone.agent_loop import BrokerReply, ModelStep
 from minionone.lmstudio_agent import LMStudioAgentProvider
-from test_flash_delegation_v027 import FlashHTTPFixture
+from test_flash_delegation_v027 import FlashHTTPFixture,WORKER_COMPLETION_SECONDS
 
 
 class FakeProviderResponse:
@@ -113,7 +113,7 @@ class FlashRawWorkerIO(FlashHTTPFixture,unittest.TestCase):
             args=self.arguments()
             started=self.call("minionone_delegate",args)
             job=started["job_id"]
-            deadline=time.monotonic()+15
+            deadline=time.monotonic()+WORKER_COMPLETION_SECONDS
             while time.monotonic()<deadline:
                 status=self.call("minionone_job_status",{"job_id":job})
                 if status["state"] not in ("QUEUED","RESOURCE_CHECK","RUNNING"):
@@ -161,7 +161,7 @@ class FlashRawWorkerIO(FlashHTTPFixture,unittest.TestCase):
              patch("minionone.pilot_jobs.LMStudioAgentProvider",MaliciousLogWriter):
             started=self.call("minionone_delegate",self.arguments())
             job=started["job_id"]
-            deadline=time.monotonic()+15
+            deadline=time.monotonic()+WORKER_COMPLETION_SECONDS
             while time.monotonic()<deadline:
                 status=self.call("minionone_job_status",{"job_id":job})
                 if status["state"] not in ("QUEUED","RESOURCE_CHECK","RUNNING"):

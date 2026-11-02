@@ -1,4 +1,4 @@
-# MinionOne 0.45 – Windows-Test mit echten Arbeitsdateien
+# MinionOne 0.46 – Windows-Test mit echten Arbeitsdateien
 
 **PRE-ALPHA · nur synthetische Testdaten · Produktfreigabe NO-GO.**
 
@@ -11,6 +11,11 @@ Backend-/Modellwahl für beide Übergabewege über LM Studio, direktes Unsloth u
 für direkt übergebene oder vorbereitete Datei-Aufträge: [WORKER_BACKENDS_DE.md](WORKER_BACKENDS_DE.md).
 Flash bestimmt sämtliche übergebenen Informationen; kein impliziter Kontexttransfer.
 
+## Automatischer Modellwechsel und native Rückgabe
+
+Für den neuen Ablauf siehe [NATIVE_RETURN_DE.md](NATIVE_RETURN_DE.md). Die bisherigen
+synthetischen Workspace-Tests bleiben ohne Parent-Konfiguration verfügbar.
+
 ## 1. Vorbereiten
 
 1. ZIP vollständig in einen lokalen Ordner entpacken.
@@ -19,7 +24,7 @@ Flash bestimmt sämtliche übergebenen Informationen; kein impliziter Kontexttra
    Modell-ID notieren. MinionOne lädt oder entlädt keine Modelle.
 4. Für den ersten Test keine echten Dokumente hinzufügen.
 
-Die Paketversion lautet `0.45.0.dev0`. `bundle.json` nennt die Version, den
+Die Paketversion lautet `0.46.0.dev0`. `bundle.json` nennt die Version, den
 Quell-Commit und den Standardtest. `SHA256SUMS.txt` enthält die Datei-Hashes.
 
 ## 2. Starten und testen

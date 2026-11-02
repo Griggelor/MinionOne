@@ -9,6 +9,7 @@ from hashlib import sha256
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 import http.client
 import json
+import os
 from pathlib import Path
 import socket
 import subprocess
@@ -164,12 +165,61 @@ def run(executable,output):
         finish_profile(profile_file,16,'frozen-profile-file-ack-001')
         assert secret not in json.dumps(workspace_report)
         assert str(workspace_state) not in json.dumps(workspace_report)
+        process.terminate();process.communicate(timeout=10);process=None
+        from native_fixture import NativeFixture,PARENT,WORKER,THREAD
+        native=NativeFixture().start();native.capacity=6000
+        try:
+            native_state=Path(tmp)/'native lifecycle state';native_state.mkdir()
+            native_profiles=Path(tmp)/'native worker profiles.json'
+            native_profiles.write_text(json.dumps({'profiles':[{'profile_id':'managed-worker','provider':'lmstudio',
+                'model_id':WORKER,'base_url':native.url,'auto_load':True,'memory_ram_mb':1,'inference_ram_mb':0,'inference_vram_mb':0,'load_timeout_seconds':15}]}))
+            parent_config=Path(tmp)/'native parent.json'
+            parent_config.write_text(json.dumps({'thread_id':THREAD,'model_id':PARENT,'base_url':native.url,
+                'secret_env':'MINIONONE_FROZEN_PARENT_KEY','memory_ram_mb':1,'inference_ram_mb':0,'inference_vram_mb':0,'allow_parent_unload':True}))
+            command=[str(executable),'--state',str(native_state),'serve','--synthetic-workspace',
+                '--port',str(port),'--min-free-mb','1','--model-call-seconds','15',
+                '--worker-profiles',str(native_profiles),'--parent-host',str(parent_config)]
+            env=dict(os.environ,MINIONONE_FROZEN_PARENT_KEY='synthetic-key')
+            process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,env=env)
+            deadline=time.monotonic()+40
+            while time.monotonic()<deadline:
+                if process.poll() is not None:raise RuntimeError('native frozen server exited during startup')
+                if (native_state/'settings.json').exists():break
+                time.sleep(.2)
+            else:raise RuntimeError('native startup deadline')
+            connection=subprocess.run([str(executable),'--state',str(native_state),'connection','--show-token'],
+                capture_output=True,text=True,timeout=20,check=True)
+            workspace_secret=json.loads(connection.stdout)['header_value']
+            job=rpc('minionone_delegate',{'project_id':'demo','profile_id':'managed-worker',
+                'task':'Publish the explicit synthetic task result.','operation_id':'frozen-native-operation-001'})
+            native.end_turn()
+            deadline=time.monotonic()+90
+            while time.monotonic()<deadline:
+                status=rpc('minionone_job_status',{'job_id':job['job_id']})
+                if status['state'] in ('FAILED','NEEDS_RECONCILIATION'):raise AssertionError(status)
+                if status['state']=='RESULT_READY' and status['parent_return']['state']=='DELIVERED':break
+                time.sleep(.2)
+            else:raise RuntimeError('native automatic return deadline')
+            value=rpc('minionone_workspace_result',{'job_id':job['job_id']})
+            assert value['files'][0]['text']=='NATIVE LIFECYCLE RESULT'
+            assert rpc('minionone_accept_workspace_result',{'job_id':job['job_id'],'expected_version':value['version'],
+                'result_digest':value['result_digest'],'operation_id':'frozen-native-ack-001'})['state']=='COMPLETED'
+            assert native.events.count('parent-run')==1 and len(native.requests)==3
+            assert 'lm-load' in native.events and 'lm-unload' in native.events
+            assert 'PRIVATE ORIGINAL FLASH HISTORY' not in json.dumps(native.requests)
+            process.terminate();process.communicate(timeout=10);process=None
+        finally:
+            if process is not None:
+                process.terminate();process.communicate(timeout=10);process=None
+            native.shutdown();native.server_close()
         output.parent.mkdir(parents=True,exist_ok=True)
         output.write_text(json.dumps({'passed':True,'scope':'frozen-executable + synthetic HTTP provider',
             'generation_requests':model.calls,'report':report,'export_verified':True,
             'credential_protection_verified':True,'duplicate_instance_rejected':True,
             'workspace_report':workspace_report,'native_work_verified':True,
-            'profiled_handoffs_verified':True},indent=2)+'\n')
+            'profiled_handoffs_verified':True,'native_parent_return_verified':True,
+            'automatic_model_lifecycle_verified':True,'native_worker_requests':len(native.requests),
+            'native_parent_runs':native.events.count('parent-run'),'native_scope':'synthetic HTTP host contract, not real Studio/GPU'},indent=2)+'\n')
     finally:
         if process is not None:
             process.terminate()

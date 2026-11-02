@@ -1,5 +1,9 @@
 # MinionOne WORKLOG — 2026-10-29
 
+## v0.46 implementation
+
+Implemented the two remaining core mechanisms against pinned native API contracts. No separate role route or implicit worker context. Actual resource/model operations and native same-thread creation are exercised with controlled HTTP services; parent histories remain on the parent path. Added early-ACK, lost-response, restore failure, operator recovery, wrong-credential and branch checks. Native UI source installer requires rebuilding the target frontend. No live UI/GPU attestation is inferred.
+
 ## v0.45 owner correction
 
 The owner rejected the separate reviewer/text role path. Unified provider selection under the two existing handoffs. Flash supplies task content; backend configuration grants no new filesystem or context rights. Added provider/selection/replay tests, migrated parent-return tests to the universal workspace and extended frozen Windows tests to both profiled handoffs. No live target-host or Cloud evidence is claimed.

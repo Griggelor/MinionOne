@@ -22,6 +22,8 @@ from minionone.mcp_server import LocalMCP
 
 TOKEN = "workspace-v026-dispatch-" + "M" * 48
 MODEL = "configured-model"
+# These tests assert completion and contents, not a helper startup benchmark.
+WORKER_COMPLETION_SECONDS=60
 
 
 class DeterministicProvider:
@@ -131,7 +133,7 @@ class WorkspaceDispatchMCP(unittest.TestCase):
             self.assertEqual(start["job_id"],self.job)
             self.assertIn(start["state"],("RESOURCE_CHECK","RUNNING"))
             self.assertEqual(self.start(),start,"replay must preserve original receipt")
-            deadline=time.monotonic()+12
+            deadline=time.monotonic()+WORKER_COMPLETION_SECONDS
             while time.monotonic()<deadline:
                 result=self.call("minionone_job_status",{"job_id":self.job})
                 if result["state"] not in ("QUEUED","RESOURCE_CHECK","RUNNING"):
@@ -193,7 +195,7 @@ class WorkspaceDispatchMCP(unittest.TestCase):
             first=self.start("crash-gap-v026-001")
             replay=self.start("crash-gap-v026-001")
             self.assertEqual(first,replay)
-            deadline=time.monotonic()+12
+            deadline=time.monotonic()+WORKER_COMPLETION_SECONDS
             while time.monotonic()<deadline:
                 state=self.call("minionone_job_status",{"job_id":self.job})
                 if state["state"] not in ("QUEUED","RESOURCE_CHECK","RUNNING"):

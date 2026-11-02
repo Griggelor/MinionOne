@@ -420,6 +420,7 @@ def main(argv=None):
     serve.add_argument('--port',type=int,default=None);serve.add_argument('--min-free-mb',type=int,default=4096)
     serve.add_argument('--model-call-seconds',type=int,default=120)
     serve.add_argument('--ask-api-key',action='store_true')
+    serve.add_argument('--parent-host',type=Path,help='Trusted native Unsloth original-chat binding and restore configuration')
     serve.add_argument('--worker-profiles',type=Path,
         help='Operator-owned backend/model configuration for both task handoffs; no implicit parent context')
     serve.add_argument('--experimental-workspace-jobs',action='store_true',
@@ -441,11 +442,34 @@ def main(argv=None):
     diag=sub.add_parser('diagnostics',help='Export durable redacted job trace as JSON (create-only)')
     diag.add_argument('--job',required=True);diag.add_argument('--out',type=Path,required=True)
     resolve=sub.add_parser('resolve');resolve.add_argument('--job',required=True);resolve.add_argument('--confirm-provider-stopped',action='store_true',required=True)
+    model_reconcile=sub.add_parser('reconcile-models',help='Read-verify externally restored models and reconcile the quarantined job; never retries inference')
+    model_reconcile.add_argument('--job',required=True)
+    model_reconcile.add_argument('--parent-host',type=Path)
+    model_reconcile.add_argument('--confirm-provider-stopped',action='store_true',required=True)
+    model_reconcile.add_argument('--confirm-work-inspected',action='store_true')
     sub.add_parser('facts')
     args=parser.parse_args(argv)
     try:
         if args.command=='facts':print(json.dumps(facts(),indent=2));return 0
         state=args.state or default_state()
+        if args.command=='reconcile-models':
+            config=_settings(state);token=_token(state)
+            from .unsloth_parent import load_parent_config,UnslothParent
+            from .model_lifecycle import ModelLifecycle
+            from .workspace_preparation import WorkspacePreparation
+            from .workspace_jobs import WorkspaceJobs
+            parent_config=load_parent_config(args.parent_host) if args.parent_host else None
+            thread=parent_config.thread_id if parent_config else 'configured-pilot'
+            with closing(PilotLock(state/'jobs.sqlite')):
+                owner=AdmissionStore(state/'jobs.sqlite',credentials={token:('local-operator',{thread})})
+                pilot=PilotJobs(owner,PilotConfig(config['model'],config.get('provider_url','http://127.0.0.1:1234')))
+                parent=UnslothParent(owner,parent_config) if parent_config else None
+                pilot.model_lifecycle=ModelLifecycle(owner,parent=parent)
+                projects=config.get('workspace_projects') or {}
+                if projects:pilot.workspace_execution=WorkspaceJobs(WorkspacePreparation(owner,projects),pilot,token,thread)
+                receipt=pilot.reconcile_models_for_operator(token,thread,args.job,
+                    confirm_worker_stopped=args.confirm_provider_stopped,confirm_work_inspected=args.confirm_work_inspected)
+                print(json.dumps(receipt,sort_keys=True));return 0
         if args.command=='serve':
             state.mkdir(parents=True,exist_ok=True,mode=0o700)
             if os.name!='nt':os.chmod(state,0o700)
@@ -482,11 +506,13 @@ def main(argv=None):
             config=PilotConfig(model,provider,key,
                                model_call_seconds=args.model_call_seconds,min_free_mb=args.min_free_mb)
             token=_token(state,True)
+            from .unsloth_parent import load_parent_config
+            parent=load_parent_config(args.parent_host) if args.parent_host else None
             server=LocalMCP(('127.0.0.1',port),token=token,database_path=state/'jobs.sqlite',
                 lmstudio_url=config.base_url,enable_test_jobs=not args.experimental_workspace_jobs,worker_model=model,worker_api_key=config.api_key,
                 min_free_mb=config.min_free_mb,model_call_seconds=config.model_call_seconds,
                 workspace_projects=projects or None,
-                enable_workspace_jobs=args.experimental_workspace_jobs,worker_profiles=profiles)
+                enable_workspace_jobs=args.experimental_workspace_jobs,worker_profiles=profiles,parent_config=parent)
             try:
                 (state/'settings.json').write_text(json.dumps({
                     'port':port,'model':model,'provider_url':config.base_url,

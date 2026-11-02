@@ -24,18 +24,20 @@ def build(wheel,output,app=None,evidence=None):
     with tempfile.TemporaryDirectory(prefix='minionone-bundle-') as tmp:
         stage=Path(tmp)/('MinionOne_SystemTest_'+version);stage.mkdir()
         (stage/'packages').mkdir();shutil.copyfile(wheel,stage/'packages'/wheel.name)
-        for name in ('README_DE.md','README_LEGACY_DE.md','WORKER_BACKENDS_DE.md','bootstrap.py'):
+        for name in ('README_DE.md','README_LEGACY_DE.md','WORKER_BACKENDS_DE.md','NATIVE_RETURN_DE.md','bootstrap.py'):
             shutil.copyfile(root/'system_test'/name,stage/name)
         for name in ('local','cloud'):
             shutil.copyfile(root/'examples'/('worker_profiles.'+name+'.json'),
                             stage/('worker_profiles.'+name+'.example.json'))
+        for source,target in (('parent_host.unsloth.json','parent_host.unsloth.example.json'),('worker_profiles.autoload.json','worker_profiles.autoload.example.json')):
+            shutil.copyfile(root/'examples'/source,stage/target)
         manifest={'schema_version':1,'version':version,'mode':'windows-native' if app else 'python-offline',
                   'wheel':{'filename':wheel.name,'sha256':sha256(wheel.read_bytes()).hexdigest()},
                   'default_test':'synthetic_sealed_workspace',
                   'source_commit':os.environ.get('GITHUB_SHA','local-unattested'),
                   'worker_file_backend':'native_win32_work_sqlite_output' if app else 'native_platform_work_sqlite_output',
                   'legacy_document_pilot_available':True,
-                  'handoff_paths':['direct','prepared_workspace'],'profiled_handoffs_supported':True,'native_parent_return_driver_available':False,
+                  'handoff_paths':['direct','prepared_workspace'],'profiled_handoffs_supported':True,'native_parent_return_driver_available':True,'automatic_model_lifecycle_available':True,'native_parent_api_contract':'unsloth-studio-f9cecc99',
                   'host_filesystem_tools_enabled':False,
                   'boxed_execution_enabled':False,'product_release':'NO_GO'}
         (stage/'bundle.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')

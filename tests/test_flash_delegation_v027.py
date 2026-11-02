@@ -22,6 +22,8 @@ from minionone.worker_contract import SYSTEM_POLICY,WORKSPACE_SYSTEM_POLICY,dele
 
 TOKEN="trusted-parent-flash-"+"X"*48
 MODEL="flint-loaded-exact-id"
+# Native helper process startup varies under Windows CI load.
+WORKER_COMPLETION_SECONDS=60
 
 
 class ScriptedFlint:
@@ -108,7 +110,7 @@ class FlashDelegationHTTP(FlashHTTPFixture,unittest.TestCase):
             job=started["job_id"]
             self.assertEqual(self.call("minionone_delegate",args),started,
                              "same operation must replay without starting worker")
-            deadline=time.monotonic()+15
+            deadline=time.monotonic()+WORKER_COMPLETION_SECONDS
             while time.monotonic()<deadline:
                 status=self.call("minionone_job_status",{"job_id":job})
                 if status["state"] not in ("QUEUED","RESOURCE_CHECK","RUNNING"):
@@ -169,7 +171,7 @@ class FlashDelegationHTTP(FlashHTTPFixture,unittest.TestCase):
              patch("minionone.pilot_jobs.LMStudioAgentProvider",ScriptedFlint):
             started=self.call("minionone_delegate",self.arguments())
             job=started["job_id"]
-            deadline=time.monotonic()+15
+            deadline=time.monotonic()+WORKER_COMPLETION_SECONDS
             while time.monotonic()<deadline:
                 status=self.call("minionone_job_status",{"job_id":job})
                 if status["state"] not in ("QUEUED","RESOURCE_CHECK","RUNNING"):
@@ -224,7 +226,7 @@ class FlashDelegationHTTP(FlashHTTPFixture,unittest.TestCase):
              patch("minionone.pilot_jobs.LMStudioAgentProvider",ScriptedFlint):
             started=self.call("minionone_delegate",self.arguments())
             job=started["job_id"]
-            deadline=time.monotonic()+15
+            deadline=time.monotonic()+WORKER_COMPLETION_SECONDS
             while time.monotonic()<deadline:
                 status=self.call("minionone_job_status",{"job_id":job})
                 if status["state"] not in ("QUEUED","RESOURCE_CHECK","RUNNING"):

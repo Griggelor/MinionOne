@@ -1,0 +1,19 @@
+{
+  "profiles": [
+    {
+      "profile_id": "managed-worker",
+      "provider": "lmstudio",
+      "model_id": "EXACT_INSTALLED_MODEL_KEY",
+      "base_url": "http://127.0.0.1:1234",
+      "auto_load": true,
+      "memory_ram_mb": 0,
+      "memory_vram_mb": 0,
+      "load_timeout_seconds": 240,
+      "load_options": {
+        "context_length": 4096
+      },
+      "inference_ram_mb": null,
+      "inference_vram_mb": null
+    }
+  ]
+}

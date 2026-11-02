@@ -2,15 +2,16 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.45.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.46.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
-**v0.45 universal jobs:** [binding owner correction](docs/OWNER_REQUIREMENTS_V045.md).
-Flash supplies every task, directly or as prepared TASK.md. Both handoffs use the
-same sealed workspace, worker broker, result and ACK. Configured LM Studio,
-native Unsloth and compatible approved Cloud backends are available for both.
-There is no separate Consult/reviewer/role route and no implicit Flash-context transfer.
-Local models must already be loaded. Native same-chat return and automatic model
-load/unload remain open; parent-return orchestration has synthetic-host tests only.
+**v0.46 model lifecycle and native parent return:** [implementation and requirements](docs/OWNER_REQUIREMENTS_V046.md).
+Flash still supplies every task directly or as TASK.md. Optional calibrated resource
+budgets now drive real worker load/unload, retaining Flash when possible or swapping
+after its turn ends. The native Unsloth adapter restores and resumes the original
+thread through durable server-owned chat runs. [Setup and recovery](system_test/NATIVE_RETURN_DE.md)
+include the version-checked frontend recovery hook. Workers receive no implicit
+Flash history. Tests use controlled API servers; real Studio/UI/GPU acceptance is
+still required. PRE-ALPHA / NO-GO remains.
 
 **v0.43 Windows test package:** the numbered launchers now start the physical
 Workspace pilot in a separate state directory, run the real native Work self-test

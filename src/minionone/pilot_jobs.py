@@ -233,9 +233,11 @@ class PilotJobs:
         try:
             if self.parent_return is not None:self.parent_return.bind(job_id)
             worker.start()
-        except Exception:
+        except Exception as exc:
             with self._lock:self._threads.discard(worker)
-            self._finish(job_id,'FAILED','PILOT_START_FAILED');raise PilotError('PILOT_START_FAILED') from None
+            code=safe_tool_fault(exc).code
+            if code in ('INTERNAL_ERROR','INVALID_INPUT'):code='PILOT_START_FAILED'
+            self._finish(job_id,'FAILED',code);raise PilotError(code) from None
         return receipt
 
     def _current(self,con,job,cap):

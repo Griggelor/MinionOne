@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import threading
 
 from .admission import InputRejected, VersionConflict, _digest
+from .diagnostics import diagnostic,safe_tool_fault
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,8 @@ class ParentReturnController:
                     restore_needed INTEGER NOT NULL DEFAULT 0 CHECK(restore_needed IN (0,1)));
             ''')
             con.execute("UPDATE parent_returns SET state='NEEDS_RECONCILIATION' WHERE state IN ('IN_FLIGHT','RESTORING')")
+            if 'last_error_code' not in {r[1] for r in con.execute('PRAGMA table_info(parent_returns)')}:
+                con.execute('ALTER TABLE parent_returns ADD COLUMN last_error_code TEXT')
 
     @staticmethod
     def _valid(state, principal, thread, model=None):
@@ -99,8 +102,9 @@ class ParentReturnController:
 
     def status(self, job_id):
         with self.owner._connection() as con:
-            row=con.execute('SELECT state,restore_needed FROM parent_returns WHERE job_id=?',(job_id,)).fetchone()
-        return ({'state':row['state'],'restore_needed':bool(row['restore_needed'])}
+            row=con.execute('SELECT state,restore_needed,last_error_code FROM parent_returns WHERE job_id=?',(job_id,)).fetchone()
+        return ({'state':row['state'],'restore_needed':bool(row['restore_needed']),
+                 **({'error':diagnostic(row['last_error_code']).to_dict()} if row['last_error_code'] else {})}
                 if row else {'state':'NOT_QUEUED','restore_needed':False})
 
     def require_delivery(self, job_id):
@@ -112,11 +116,11 @@ class ParentReturnController:
             raise VersionConflict('original parent delivery/restore not yet verified')
         return result['restore_needed']
 
-    def _set(self, job, state, expected, *, restore_needed=None):
+    def _set(self, job, state, expected, *, restore_needed=None,error_code=None):
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE')
-            changed=con.execute('UPDATE parent_returns SET state=? WHERE job_id=? AND state=?',
-                                (state,job,expected)).rowcount
+            changed=con.execute('UPDATE parent_returns SET state=?,last_error_code=? WHERE job_id=? AND state=?',
+                                (state,error_code,job,expected)).rowcount
             if changed and restore_needed is not None:
                 con.execute('UPDATE parent_returns SET restore_needed=? WHERE job_id=?',
                             (int(restore_needed),job))
@@ -132,6 +136,10 @@ class ParentReturnController:
         except Exception:return
         if type(receipt) is ParentReceipt and receipt==ParentReceipt(job,row['thread_id'],row['result_digest'],operation):
             self._set(job,'DELIVERED',row['state'])
+        elif receipt is None and callable(getattr(self.driver,'delivery_uncertain',None)):
+            try:uncertain=self.driver.delivery_uncertain(job)
+            except Exception:return
+            if not uncertain:self._set(job,'WAITING_PARENT',row['state'])
 
     def tick(self):
         # No overlapping ticks, and never hold a SQLite write transaction
@@ -163,8 +171,8 @@ class ParentReturnController:
                         if lease and lease[0]!='RELEASED':
                             self._set(job,'WAITING_PARENT',old);continue
                 try: state=self.driver.state(row['principal'],row['thread_id'])
-                except Exception:
-                    self._set(job,'WAITING_PARENT',old);continue
+                except Exception as exc:
+                    self._set(job,'WAITING_PARENT',old,error_code=safe_tool_fault(exc).code);continue
                 if not self._valid(state,row['principal'],row['thread_id'],row['model_id']) or state.busy:
                     self._set(job,'WAITING_PARENT',old);continue
                 self.verified=True
@@ -176,8 +184,8 @@ class ParentReturnController:
                     try:
                         state=self.driver.restore(row['principal'],row['thread_id'],row['model_id'],
                                                   'restore-'+_digest(job))
-                    except Exception:
-                        self._set(job,'RESTORE_FAILED','RESTORING');continue
+                    except Exception as exc:
+                        self._set(job,'RESTORE_FAILED','RESTORING',error_code=safe_tool_fault(exc).code);continue
                     if (not self._valid(state,row['principal'],row['thread_id'],row['model_id']) or
                             not state.resident):
                         self._set(job,'RESTORE_FAILED','RESTORING');continue
@@ -193,8 +201,12 @@ class ParentReturnController:
                     expected=ParentReceipt(job,row['thread_id'],row['result_digest'],operation)
                     if type(receipt) is not ParentReceipt or receipt!=expected:
                         raise ValueError('unverified return receipt')
-                except Exception:
-                    self._set(job,'NEEDS_RECONCILIATION','IN_FLIGHT');continue
+                except Exception as exc:
+                    uncertain=True
+                    if callable(getattr(self.driver,'delivery_uncertain',None)):
+                        try:uncertain=self.driver.delivery_uncertain(job)
+                        except Exception:pass
+                    self._set(job,'NEEDS_RECONCILIATION' if uncertain else 'WAITING_PARENT','IN_FLIGHT',error_code=safe_tool_fault(exc).code);continue
                 self._set(job,'DELIVERED','IN_FLIGHT')
 
     def start(self):

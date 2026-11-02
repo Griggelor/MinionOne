@@ -101,8 +101,9 @@ class ModelLifecycle:
         if (type(s) is not MemoryReading or type(s.ram_mb) is not int or s.ram_mb<0
                 or time.monotonic()-s.measured>5 or s.measured>time.monotonic()):
             raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
-        ram=0 if already_loaded else profile.memory_ram_mb
-        gpu=0 if already_loaded else profile.memory_vram_mb
+        ram=profile.inference_ram_mb if already_loaded else profile.memory_ram_mb
+        gpu=profile.inference_vram_mb if already_loaded else profile.memory_vram_mb
+        if ram is None or gpu is None:raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
         return (s.ram_mb>=ram+self.ram_headroom and
                 (profile.memory_vram_mb==0 or (type(s.vram_mb) is int and s.vram_mb>=gpu+self.vram_headroom)))
     def _idle(self,job,cancelled):

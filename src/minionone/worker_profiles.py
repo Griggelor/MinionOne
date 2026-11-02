@@ -36,6 +36,8 @@ class WorkerProfile:
     auto_load: bool = False
     memory_ram_mb: int = 0
     memory_vram_mb: int = 0
+    inference_ram_mb: int | None = None
+    inference_vram_mb: int | None = None
     load_timeout_seconds: int = 240
     load_options: dict = field(default_factory=dict)
 
@@ -83,6 +85,11 @@ class WorkerProfile:
         for value in (self.memory_ram_mb,self.memory_vram_mb):
             if type(value) is not int or not 0<=value<=1048576:raise InputRejected('invalid calibrated memory estimate')
         if self.auto_load and self.memory_ram_mb==0:raise InputRejected('automatic loading requires calibrated RAM estimate')
+        for value,peak in ((self.inference_ram_mb,self.memory_ram_mb),(self.inference_vram_mb,self.memory_vram_mb)):
+            if value is None:
+                if self.auto_load:raise InputRejected('automatic loading requires explicit incremental inference budgets')
+            elif type(value) is not int or not 0<=value<=peak:
+                raise InputRejected('invalid incremental inference budget')
         if type(self.load_timeout_seconds) is not int or not 1<=self.load_timeout_seconds<=300:
             raise InputRejected('invalid model lifecycle deadline')
         allowed=({'context_length','eval_batch_size','flash_attention','num_experts','offload_kv_cache_to_gpu'}

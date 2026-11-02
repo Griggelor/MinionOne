@@ -8,5 +8,7 @@
   "memory_vram_mb": 0,
   "allow_parent_unload": false,
   "load_options": {},
-  "resume_options": {}
+  "resume_options": {},
+  "inference_ram_mb": null,
+  "inference_vram_mb": null
 }

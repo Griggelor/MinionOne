@@ -29,7 +29,11 @@ werden bei eingeschalteter nativer Bindung abgewiesen.
    positive Obergrenze setzen, einschließlich Kontext/KV-Cache und Ladeoptionen.
    Bei diskretem NVIDIA-GPU-Betrieb zusätzlich `memory_vram_mb` passend setzen.
    Null VRAM ist für CPU/UMA-Konfigurationen mit entsprechendem RAM-Budget gedacht.
-   Keine Freigabe aus der Dateigröße allein ableiten. NVML-GPU-Index ist zunächst 0;
+   Zusätzlich müssen `inference_ram_mb` und `inference_vram_mb` ausdrücklich
+   die noch zusätzlich benötigte Inferenz-/KV-Spitze eines bereits geladenen
+   Modells angeben. `null` wird abgewiesen; `0` ist nur bei gemessen vollständig
+   vorallokiertem Speicher korrekt. Auch residente Modelle reservieren diese
+   zusätzliche Last plus Headroom. Keine Freigabe aus der Dateigröße allein ableiten. NVML-GPU-Index ist zunächst 0;
    Backend-Platzierung und Messung müssen dazu passen. Mehrgeräte-Verteilung ist
    nicht implementiert. Fehlende GPU-Telemetrie wird abgewiesen.
 3. `allow_parent_unload` bewusst konfigurieren: `false` lässt Flash im Speicher;
@@ -76,8 +80,10 @@ allgemeiner Browser-/GUI-Automationsprozess.
 Flash wählt `profile_id` und delegiert wie zuvor. `minionone_job_status` enthält
 zusätzlich `model_lifecycle` und `parent_return`.
 
-Wenn `phase=WAITING_PARENT_TURN_END`, muss Flash seinen aktuellen Turn abschließen.
-Nicht innerhalb desselben Turns endlos Status abfragen: Bei freigegebenem Swap
+Bei aktivierter nativer Rückgabe schließt Flash nach dem Start seinen aktuellen
+Turn ab und wartet auf die automatische Original-Chat-Benachrichtigung. Nicht
+innerhalb desselben Turns bis zum Ergebnis pollen oder vorzeitig bestätigen.
+Insbesondere bei `phase=WAITING_PARENT_TURN_END` ist das erforderlich: Bei freigegebenem Swap
 wartet der Manager genau auf dessen Ende. Danach läuft der Worker selbstständig.
 Ein belastbarer Original-Thread-Run startet nach Ressourcenfreigabe und nötigem
 Flash-Restore automatisch. Flash liest das Ergebnis über die bestehenden Tools,

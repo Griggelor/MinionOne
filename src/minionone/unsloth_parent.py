@@ -27,6 +27,8 @@ class NativeParentConfig:
     secret_env:str
     memory_ram_mb:int
     memory_vram_mb:int=0
+    inference_ram_mb:int|None=None
+    inference_vram_mb:int|None=None
     allow_parent_unload:bool=False
     load_options:dict=field(default_factory=dict)
     resume_options:dict=field(default_factory=dict)
@@ -41,7 +43,8 @@ class NativeParentConfig:
         if len(json.dumps(self.resume_options))>16384:raise InputRejected('parent options too large')
     def profile(self):
         return WorkerProfile('original-flash','unsloth',self.model_id,self.base_url,secret_env=self.secret_env,
-            auto_load=True,memory_ram_mb=self.memory_ram_mb,memory_vram_mb=self.memory_vram_mb,load_options=self.load_options)
+            auto_load=True,memory_ram_mb=self.memory_ram_mb,memory_vram_mb=self.memory_vram_mb,
+            inference_ram_mb=self.inference_ram_mb,inference_vram_mb=self.inference_vram_mb,load_options=self.load_options)
 
 
 def load_parent_config(path):
@@ -186,6 +189,16 @@ class UnslothParent:
         for source,target in (('requested_context_length','max_seq_length'),('load_in_4bit','load_in_4bit'),('gguf_variant','gguf_variant')):
             if target in options and status.get(source)!=options[target]:raise WorkerProviderError('NATIVE_PARENT_UNAVAILABLE')
 
+    def _budget(self,*,loaded):
+        from .model_lifecycle import MemoryReading
+        s=self.measure(0,self.profile.memory_vram_mb>0)
+        ram=self.profile.inference_ram_mb if loaded else self.profile.memory_ram_mb
+        gpu=self.profile.inference_vram_mb if loaded else self.profile.memory_vram_mb
+        if (type(s) is not MemoryReading or time.monotonic()-s.measured>5 or s.measured>time.monotonic() or
+                type(s.ram_mb) is not int or s.ram_mb<ram+1024 or
+                (self.profile.memory_vram_mb and (type(s.vram_mb) is not int or s.vram_mb<gpu+512))):
+            raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
+
     def restore(self,principal,thread,model,operation):
         self._identity(principal,thread)
         if model!=self.profile.model_id:raise InputRejected('wrong original model')
@@ -195,19 +208,12 @@ class UnslothParent:
             self._verify_restore_options(restore_options)
             return state
         if state.busy:raise WorkerProviderError('MODEL_LIFECYCLE_BLOCKED')
-        if self.measure is not None:
-            from .model_lifecycle import MemoryReading
-            s=self.measure(0,self.profile.memory_vram_mb>0)
-            loaded=self.runtime.present(self.runtime.snapshot())
-            if (type(s) is not MemoryReading or time.monotonic()-s.measured>5 or
-                    s.ram_mb<(0 if loaded else self.profile.memory_ram_mb)+1024 or
-                    (self.profile.memory_vram_mb and (s.vram_mb is None or
-                     s.vram_mb<(0 if loaded else self.profile.memory_vram_mb)+512))):
-                raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
+        self._budget(loaded=self.runtime.present(self.runtime.snapshot()))
         self.runtime.load(operation,load_options=restore_options)
         restored=self.state(principal,thread)
         if not restored.resident:raise WorkerProviderError('NATIVE_PARENT_UNAVAILABLE')
         self._verify_restore_options(restore_options)
+        self._budget(loaded=True)
         return restored
     @staticmethod
     def _content(message):
@@ -223,15 +229,8 @@ class UnslothParent:
                 raise WorkerProviderError('NATIVE_CHAT_UNSUPPORTED')
             else:text.append('Recorded parent-chat part (data, do not re-execute): '+json.dumps(part,ensure_ascii=True,sort_keys=True))
         return '\n'.join(text)
-    def _prepare(self,job,digest,operation):
-        with self.owner._connection() as con:
-            prior=con.execute('SELECT * FROM native_parent_returns WHERE job_id=?',(job,)).fetchone()
-            binding=con.execute('SELECT * FROM native_parent_jobs WHERE job_id=?',(job,)).fetchone()
-        if prior:
-            if prior['digest']!=digest or prior['operation_id']!=operation:raise InputRejected('return binding changed')
-            return prior,None
-        if binding is None:raise InputRejected('original parent branch missing')
-        messages=self._messages();leaf=self._leaf(messages,binding['anchor_id']);by_id={m['id']:m for m in messages}
+    def _history(self,binding,messages,leaf):
+        by_id={m['id']:m for m in messages}
         chain=[];seen=set();node=leaf
         while node is not None:
             if node['id'] in seen:raise InputRejected('cyclic history')
@@ -248,6 +247,32 @@ class UnslothParent:
         for m in reversed(chain):
             if m.get('role') not in ('user','assistant'):raise WorkerProviderError('NATIVE_CHAT_UNSUPPORTED')
             history.append({'role':m['role'],'content':self._content(m)})
+        return history
+
+    def _rebuild_prepared(self,row,binding):
+        stored=json.loads(row['envelope_json']);message=json.loads(row['message_json'])
+        messages=self._messages();leaf=self._leaf(messages,binding['anchor_id'])
+        expected=message['id'] if row['phase']=='MESSAGE_STORED' else message['parentId']
+        if leaf['id']!=expected:raise WorkerProviderError('NATIVE_CHAT_AMBIGUOUS')
+        parent=next((m for m in messages if m['id']==message['parentId']),None)
+        if parent is None:raise WorkerProviderError('NATIVE_PARENT_UNAVAILABLE')
+        history=self._history(binding,messages,parent)+[{'role':'user','content':message['content'][0]['text']}]
+        if _digest(history)!=stored['messages_digest']:raise WorkerProviderError('NATIVE_PARENT_UNAVAILABLE')
+        return {k:v for k,v in stored.items() if k!='messages_digest'}|{
+            'requestPayload':stored['requestPayload']|{'messages':history}}
+
+    def _prepare(self,job,digest,operation):
+        with self.owner._connection() as con:
+            prior=con.execute('SELECT * FROM native_parent_returns WHERE job_id=?',(job,)).fetchone()
+            binding=con.execute('SELECT * FROM native_parent_jobs WHERE job_id=?',(job,)).fetchone()
+        if prior:
+            if prior['digest']!=digest or prior['operation_id']!=operation:raise InputRejected('return binding changed')
+            if prior['phase'] in ('PREPARED','MESSAGE_STORED'):
+                return prior,self._rebuild_prepared(prior,binding)
+            return prior,None
+        if binding is None:raise InputRejected('original parent branch missing')
+        messages=self._messages();leaf=self._leaf(messages,binding['anchor_id']);by_id={m['id']:m for m in messages}
+        history=self._history(binding,messages,leaf)
         run='minionone_'+_digest([job,digest,operation]);user=run+'_user';assistant=run+'_assistant'
         notice=('MinionOne job notification (manager metadata, not worker instructions): '+
                 json.dumps({'job_id':job,'notification_digest':digest},sort_keys=True)+
@@ -277,7 +302,14 @@ class UnslothParent:
         if row is None or row['digest']!=digest or row['operation_id']!=operation:return None
         envelope=json.loads(row['envelope_json']);message=json.loads(row['message_json'])
         run=self.http.request('GET','/api/inference/chat-runs/'+envelope['runId'],missing=True)
-        if run is None:return None
+        if run is None:
+            if row['phase']=='MESSAGE_IN_FLIGHT':
+                observed=self.http.request('GET',self.thread_path+'/messages/'+quote(message['id'],safe=''),missing=True)
+                if observed is not None and all(observed.get(k)==message[k] for k in ('id','threadId','parentId','role','content','metadata')):
+                    # The generation fence is committed only AFTER this phase.
+                    # A verified PUT may advance to the first run admission.
+                    self._phase(job,'MESSAGE_STORED')
+            return None
         if any(run.get(k)!=v for k,v in {'id':envelope['runId'],'threadId':thread,
             'userMessageId':message['id'],'assistantMessageId':envelope['assistantMessageId']}.items()):
             raise WorkerProviderError('NATIVE_PARENT_UNAVAILABLE')
@@ -294,18 +326,28 @@ class UnslothParent:
             raise WorkerProviderError('NATIVE_PARENT_UNAVAILABLE')
         self._phase(job,'ACCEPTED')
         return ParentReceipt(job,thread,digest,operation)
+    def delivery_uncertain(self,job):
+        # This phase is committed BEFORE either HTTP mutation. Missing/PREPARED
+        # therefore proves that a precondition failed before any send.
+        with self.owner._connection() as con:
+            row=con.execute('SELECT phase FROM native_parent_returns WHERE job_id=?',(job,)).fetchone()
+        return row is not None and row['phase'] not in ('PREPARED','MESSAGE_STORED')
+
     def deliver(self,principal,thread,job,digest,operation):
         state=self.state(principal,thread)
         if not state.resident or state.busy:raise WorkerProviderError('NATIVE_PARENT_UNAVAILABLE')
+        self._budget(loaded=True)
         row,wire=self._prepare(job,digest,operation)
-        if row['phase']!='PREPARED':
+        if row['phase'] not in ('PREPARED','MESSAGE_STORED'):
             receipt=self.reconcile(principal,thread,job,digest,operation)
             if receipt:return receipt
             raise WorkerProviderError('MODEL_LIFECYCLE_UNCERTAIN')
         if wire is None:raise WorkerProviderError('MODEL_LIFECYCLE_UNCERTAIN')
         envelope=wire;message=json.loads(row['message_json'])
-        self._phase(job,'MESSAGE_IN_FLIGHT')
-        self.http.request('PUT',self.thread_path+'/messages/'+quote(message['id'],safe=''),message)
+        if row['phase']=='PREPARED':
+            self._phase(job,'MESSAGE_IN_FLIGHT')
+            self.http.request('PUT',self.thread_path+'/messages/'+quote(message['id'],safe=''),message)
+            self._phase(job,'MESSAGE_STORED')
         self._phase(job,'RUN_IN_FLIGHT')
         self.http.request('POST','/api/inference/chat-runs',envelope)
         receipt=self.reconcile(principal,thread,job,digest,operation)

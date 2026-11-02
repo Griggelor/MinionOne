@@ -10,7 +10,9 @@ Kein automatischer Chatkontext für Worker.
 - Optionale automatische Worker-Loads/Unloads über die echten nativen
   LM-Studio-v1- und Unsloth-REST-Endpunkte. Cloud bleibt ein externer Inferenzpfad.
 - Explizite kalibrierte RAM-/VRAM-Budgets, echte OS-RAM-/NVML-Messung, Frischeprüfung,
-  Reserven, ein Worker und persistierte Modell-Leases. Keine Vermutung aus Dateigröße.
+  Reserven, ein Worker und persistierte Modell-Leases. Lastspitze beim Laden und
+  zusätzlicher Inferenz-/KV-Bedarf eines geladenen Modells sind ausdrücklich
+  getrennt zu kalibrieren; fehlende Zusatzbudgets werden nicht als null angenommen. Keine Vermutung aus Dateigröße.
 - Flash bleibt resident, wenn die Budgets passen. Sonst ist ein explizit erlaubter
   Unload möglich, ausschließlich nach verifiziertem Ende des ursprünglichen Turns.
   Keine erzwungene Abbruch- oder Eviction-Option. Bestände werden davor/danach geprüft.
@@ -29,7 +31,10 @@ Kein automatischer Chatkontext für Worker.
   bleibt erforderlich. Auch frühe ACKs während der HTTP-Runannahme werden mit
   lesender Receipt-Prüfung korrekt behandelt.
 - Verlorene native POST-Antwort: nur beobachtend mit exakt korrelierten Run- und
-  Nachrichtenbelegen auflösen. Keine blinde zweite Generierung. Unklare Modell-
+  Nachrichtenbelegen auflösen. Keine blinde zweite Generierung. Vorbereitete, noch nicht gesendete Nachrichten
+  werden nach Neustart aus dem Originalzweig mit Digestprüfung rekonstruiert.
+  Ein verifiziert gespeicherter PUT darf zur belegbar noch nicht gestarteten
+  ersten Run-Annahme weitergehen; ein unklarer Run-POST wird nie wiederholt. Unklare Modell-
   Operationen bleiben gesperrt und werden nach Neustart nicht wiederholt.
 - Operator-Reconciliation prüft unabhängig wiederhergestellte Bestände und,
   bei Ergebnis-Recovery, die ursprünglichen versiegelten Eingaben und verifizierte

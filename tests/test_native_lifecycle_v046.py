@@ -30,9 +30,9 @@ class NativeLifecycleTests(unittest.TestCase):
         self.addCleanup(self.host.server_close);self.addCleanup(self.host.shutdown)
         self.env=patch.dict(os.environ,{'MINIONONE_NATIVE_TEST_KEY':'synthetic-key'});self.env.start();self.addCleanup(self.env.stop)
         self.parent=NativeParentConfig(fixture.THREAD,fixture.PARENT,self.host.url,'MINIONONE_NATIVE_TEST_KEY',
-            memory_ram_mb=2000,allow_parent_unload=True)
+            memory_ram_mb=2000,inference_ram_mb=0,inference_vram_mb=0,allow_parent_unload=True)
         self.profiles={p:WorkerProfile(p,p,fixture.WORKER,self.host.url,auto_load=True,
-            memory_ram_mb=1500,load_timeout_seconds=15,secret_env='MINIONONE_NATIVE_TEST_KEY') for p in ('unsloth','lmstudio')}
+            memory_ram_mb=1500,inference_ram_mb=0,inference_vram_mb=0,load_timeout_seconds=15,secret_env='MINIONONE_NATIVE_TEST_KEY') for p in ('unsloth','lmstudio')}
         self.manager=LocalMCP(('127.0.0.1',0),token=TOKEN,database_path=self.root/'jobs.sqlite',
             parent_config=self.parent,worker_profiles=self.profiles,workspace_projects={'demo':self.project},
             enable_workspace_jobs=True,min_free_mb=1)
@@ -67,7 +67,7 @@ class NativeLifecycleTests(unittest.TestCase):
         from minionone.admission import _digest
         from minionone.worker_selection import load
         config=asdict(replace(self.profiles['unsloth'],auto_load=False))
-        for field in ('auto_load','memory_ram_mb','memory_vram_mb','load_timeout_seconds','load_options'):config.pop(field)
+        for field in ('auto_load','memory_ram_mb','memory_vram_mb','inference_ram_mb','inference_vram_mb','load_timeout_seconds','load_options'):config.pop(field)
         admitted=self.manager.store.admit(TOKEN,fixture.THREAD,'a'*64,'legacy-profile-operation-001')
         digest=_digest(['a'*64,config,False])
         with self.manager.store._connection() as con:
@@ -186,7 +186,7 @@ class NativeLifecycleTests(unittest.TestCase):
         self.host.messages.extend([{'id':name,'threadId':fixture.THREAD,'parentId':'assistant-original',
             'role':'user','content':[{'type':'text','text':'another branch'}],'createdAt':3} for name in ('branch-a','branch-b')])
         self.assertEqual(self.await_state(job)['state'],'RESULT_READY')
-        self.await_return(job,'NEEDS_RECONCILIATION')
+        self.await_return(job,'WAITING_PARENT')
         self.assertNotIn('parent-run',self.host.events)
     def test_cleanup_cannot_unload_another_model_even_with_a_wrong_lease_instance(self):
         job=self.submit();self.host.end_turn();self.await_state(job);self.await_return(job)
@@ -208,6 +208,62 @@ class NativeLifecycleTests(unittest.TestCase):
         for args in ({'auto_load':True},{'auto_load':True,'memory_ram_mb':2,'load_options':{'force_alongside':True}},
                      {'memory_ram_mb':True},{'load_options':{'device':'shell'}}):
             with self.assertRaises(InputRejected):WorkerProfile('worker','unsloth','model',self.host.url,**args)
+    def _restart_notification(self,*,message_stored):
+        from minionone.admission import _digest
+        from minionone.parent_return import ParentReturnController
+        self.manager.parent_return.close();self.host.capacity=6000
+        job=self.submit('lmstudio');self.host.end_turn();self.await_state(job)
+        with self.manager.store._connection() as con:
+            digest=con.execute('SELECT result_digest FROM parent_returns WHERE job_id=?',(job['job_id'],)).fetchone()[0]
+        operation='return-'+_digest([job['job_id'],digest])
+        row,wire=self.manager.native_parent._prepare(job['job_id'],digest,operation)
+        if message_stored:
+            message=json.loads(row['message_json'])
+            self.manager.native_parent.http.request('PUT',self.manager.native_parent.thread_path+'/messages/'+message['id'],message)
+            self.manager.native_parent._phase(job['job_id'],'MESSAGE_IN_FLIGHT')
+        with self.manager.store._connection() as con:
+            con.execute("UPDATE parent_returns SET state='IN_FLIGHT' WHERE job_id=?",(job['job_id'],))
+        fresh=UnslothParent(self.manager.store,self.parent,measure=self.host.memory)
+        recovered=ParentReturnController(self.manager.store,fresh)
+        self.addCleanup(recovered.close)
+        recovered.tick()
+        self.assertEqual(recovered.status(job['job_id'])['state'],'DELIVERED')
+        self.assertEqual(self.host.events.count('notification'),1)
+        self.assertEqual(self.host.events.count('parent-run'),1)
+        self.assertEqual(len(self.host.requests),3)
+
+    def test_restart_of_prepared_unsent_notification_rebuilds_parent_data_without_duplication(self):
+        self._restart_notification(message_stored=False)
+
+    def test_restart_after_lost_message_put_only_starts_the_first_native_run(self):
+        self._restart_notification(message_stored=True)
+
+    def test_known_return_memory_precondition_waits_without_sending_and_recovers_once(self):
+        returns=self.manager.parent_return
+        returns.close()
+        self.host.capacity=6000
+        job=self.submit('lmstudio');self.host.end_turn()
+        self.assertEqual(self.await_state(job)['state'],'RESULT_READY')
+        self.manager.native_parent.measure=lambda *args:MemoryReading(500,None,time.monotonic())
+        returns._stop.clear();returns.tick()
+        self.assertEqual(returns.status(job['job_id'])['state'],'WAITING_PARENT')
+        self.assertNotIn('parent-run',self.host.events)
+        self.manager.native_parent.measure=self.host.memory
+        returns.tick()
+        self.assertEqual(returns.status(job['job_id'])['state'],'DELIVERED')
+        self.assertEqual(self.host.events.count('parent-run'),1)
+        self.assertEqual(len(self.host.requests),3)
+
+    def test_loaded_models_still_reserve_incremental_KV_memory(self):
+        lease=self.manager.model_lifecycle
+        profile=replace(self.profiles['unsloth'],memory_vram_mb=1024,inference_vram_mb=512)
+        lease.measure=lambda *args:MemoryReading(10000,768,time.monotonic())
+        self.assertFalse(lease.fits(profile,already_loaded=True))
+        lease.measure=lambda *args:MemoryReading(10000,1100,time.monotonic())
+        self.assertTrue(lease.fits(profile,already_loaded=True))
+        with self.assertRaises(InputRejected):WorkerProfile('missing-cache','unsloth','model',self.host.url,
+            auto_load=True,memory_ram_mb=1500)
+
     def test_stale_or_missing_gpu_telemetry_never_authorizes_a_load(self):
         lease=self.manager.model_lifecycle
         lease.measure=lambda *args:MemoryReading(100000,None,time.monotonic()-6)

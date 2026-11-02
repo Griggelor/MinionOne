@@ -9,7 +9,11 @@
       "memory_ram_mb": 0,
       "memory_vram_mb": 0,
       "load_timeout_seconds": 240,
-      "load_options": {"context_length": 4096}
+      "load_options": {
+        "context_length": 4096
+      },
+      "inference_ram_mb": null,
+      "inference_vram_mb": null
     }
   ]
 }

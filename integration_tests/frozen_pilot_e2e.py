@@ -172,10 +172,10 @@ def run(executable,output):
             native_state=Path(tmp)/'native lifecycle state';native_state.mkdir()
             native_profiles=Path(tmp)/'native worker profiles.json'
             native_profiles.write_text(json.dumps({'profiles':[{'profile_id':'managed-worker','provider':'lmstudio',
-                'model_id':WORKER,'base_url':native.url,'auto_load':True,'memory_ram_mb':1,'load_timeout_seconds':15}]}))
+                'model_id':WORKER,'base_url':native.url,'auto_load':True,'memory_ram_mb':1,'inference_ram_mb':0,'inference_vram_mb':0,'load_timeout_seconds':15}]}))
             parent_config=Path(tmp)/'native parent.json'
             parent_config.write_text(json.dumps({'thread_id':THREAD,'model_id':PARENT,'base_url':native.url,
-                'secret_env':'MINIONONE_FROZEN_PARENT_KEY','memory_ram_mb':1,'allow_parent_unload':True}))
+                'secret_env':'MINIONONE_FROZEN_PARENT_KEY','memory_ram_mb':1,'inference_ram_mb':0,'inference_vram_mb':0,'allow_parent_unload':True}))
             command=[str(executable),'--state',str(native_state),'serve','--synthetic-workspace',
                 '--port',str(port),'--min-free-mb','1','--model-call-seconds','15',
                 '--worker-profiles',str(native_profiles),'--parent-host',str(parent_config)]

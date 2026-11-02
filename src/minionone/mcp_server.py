@@ -511,6 +511,13 @@ class MCPHandler(BaseHTTPRequestHandler):
                         'When model_lifecycle.phase is WAITING_PARENT_TURN_END, finish the current Flash turn; do not keep polling inside that turn. The native return integration resumes this original chat. '
                         'inspect minionone_status before claiming wakeup.'
                     )
+                if self.server.native_parent is not None:
+                    instructions += (
+                        ' NATIVE RETURN ENABLED: after starting a delegated job, end the current '
+                        'Flash turn and await the automatic original-chat notification. Do not keep '
+                        'polling to completion or ACK before that resumption. On the resumed '
+                        'notification, read status/result and integrate/ACK the exact result.'
+                    )
                 result={"protocolVersion":PROTOCOL,"capabilities":{"tools":{"listChanged":False}},
                         "serverInfo":{"name":"minionone-pilot","version":__version__},
                         "instructions":instructions}

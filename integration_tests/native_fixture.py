@@ -15,7 +15,7 @@ class NativeFixture(ThreadingHTTPServer):
         super().__init__(('127.0.0.1',0),Handler)
         self.lock=threading.RLock();self.loaded={PARENT};self.active=PARENT;self.lm_loaded={}
         self.load_payloads=[];self.busy=True;self.events=[];self.requests=[];self.runs={};self.reject_restore=False
-        self.lose_return_response=False;self.branch=False;self.early_ack=None
+        self.lose_return_response=False;self.branch=False;self.early_ack=None;self.worker_reply=None
         self.messages=[{'id':'user-original','threadId':THREAD,'parentId':None,'role':'user',
             'content':[{'type':'text','text':'PRIVATE ORIGINAL FLASH HISTORY'}],'createdAt':1},
             {'id':'assistant-original','threadId':THREAD,'parentId':'user-original','role':'assistant',
@@ -32,8 +32,18 @@ class NativeFixture(ThreadingHTTPServer):
     def start(self):threading.Thread(target=self.serve_forever,daemon=True).start();return self
     def end_turn(self):
         with self.lock:
-            self.busy=False;self.original['status']='completed'
-            self.messages[1]['metadata']['generationStatus']='completed'
+            self.busy=False
+            for run in self.runs.values():
+                if run['status'] in ('running','queued'):run['status']='completed'
+            for message in self.messages:
+                if message.get('metadata',{}).get('generationStatus') in ('running','queued'):
+                    message['metadata']['generationStatus']='completed'
+    def begin_parent_turn(self):
+        with self.lock:
+            run=list(self.runs.values())[-1];run['status']='running';self.busy=True
+            message=next(m for m in self.messages if m['id']==run['assistantMessageId'])
+            message['metadata']['generationStatus']='running'
+
     def memory(self,*args):
         from minionone.model_lifecycle import MemoryReading
         used=(2000 if PARENT in self.loaded else 0)+(1500 if WORKER in self.loaded else 0)+(1500 if self.lm_loaded else 0)
@@ -113,6 +123,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond({'instance_id':data['instance_id']})
             if path!='/v1/chat/completions':return self.respond({},404)
             s.requests.append(data);s.events.append('worker-inference')
+            if s.worker_reply is not None:return self.respond(s.worker_reply(data))
             count=sum(m['role']=='tool' for m in data['messages'])
             if count==0:name,args='create_work',{'name':'result.txt','content':'NATIVE LIFECYCLE RESULT'}
             elif count==1:name,args='publish_artifact',{'name':'result.txt'}
@@ -122,3 +133,18 @@ class Handler(BaseHTTPRequestHandler):
                 'message':{'role':'assistant','content':None,'tool_calls':[{'id':'call-'+str(count),
                 'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}}],
                 'usage':{'total_tokens':12}})
+
+
+def question_worker_reply(data):
+    """Deterministic paused/resumed native worker, used by the frozen app check."""
+    count=sum(m['role']=='tool' for m in data['messages'])
+    answered=any(m.get('role')=='user' and m.get('content','').startswith('Explicit parent answer') for m in data['messages'])
+    if count==0:name,args='create_work',{'name':'result.txt','content':'NATIVE LIFECYCLE RESULT'}
+    elif not answered:name,args='ask_question',{'question':'May the existing result be published?'}
+    elif count==2:name,args='publish_artifact',{'name':'result.txt'}
+    else:return {'model':data['model'],'choices':[{'finish_reason':'stop',
+        'message':{'role':'assistant','content':'Published.'}}],'usage':{'total_tokens':12}}
+    return {'model':data['model'],'choices':[{'finish_reason':'tool_calls',
+        'message':{'role':'assistant','content':None,'tool_calls':[{'id':'question-call-'+str(count),
+        'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}}],
+        'usage':{'total_tokens':12}}

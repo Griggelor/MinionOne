@@ -1,5 +1,9 @@
 # MinionOne – aktueller Requirements-Einstiegspunkt (Stand 2026-11-02)
 
+## v0.47 adds question continuation and cloud data/cost gates
+
+See [OWNER_REQUIREMENTS_V047.md](OWNER_REQUIREMENTS_V047.md) for the current answer/checkpoint and cloud policy contract, its detection/billing assumptions and live acceptance limits.
+
 ## v0.46 implements lifecycle and native return; v0.45 handoffs remain binding
 
 See [OWNER_REQUIREMENTS_V046.md](OWNER_REQUIREMENTS_V046.md) for implemented model lifecycle and native Unsloth return, supported contracts and live acceptance limits. [OWNER_REQUIREMENTS_V045.md](OWNER_REQUIREMENTS_V045.md) still defines one job system with direct/file handoffs and no implicit worker context.
@@ -22,7 +26,8 @@ See [OWNER_REQUIREMENTS_V046.md](OWNER_REQUIREMENTS_V046.md) for implemented mod
 
 ## 1. Dokumentenrangfolge bei Widersprüchen
 
-1. **Implementierungsstand und native Schnittstellen:** [OWNER_REQUIREMENTS_V046.md](OWNER_REQUIREMENTS_V046.md).
+1. **Aktueller Fortsetzungs-/Cloud-Vertrag:** [OWNER_REQUIREMENTS_V047.md](OWNER_REQUIREMENTS_V047.md).
+   **Implementierungsstand und native Schnittstellen:** [OWNER_REQUIREMENTS_V046.md](OWNER_REQUIREMENTS_V046.md).
    **Explizite neueste Produktowner-Entscheidungen**: zuerst
    [OWNER_REQUIREMENTS_V045.md](OWNER_REQUIREMENTS_V045.md) (ein Auftragssystem,
    zwei Übergabewege, drei Provider und kein separater Text-/Rollenpfad); die

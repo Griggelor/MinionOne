@@ -34,6 +34,15 @@ class LiveJobFiles:
         stack=ExitStack()
         try:
             self._stack=stack
+            with self.manager.workspace.store._connection() as con:
+                attempt=con.execute('SELECT attempt_no FROM pilot_runs WHERE job_id=?',(self.job_id,)).fetchone()[0]
+                from .worker_io import jsonl
+                prior_io=jsonl(con,self.job_id) if attempt>1 else b''
+                prior_log_digest=None
+                if attempt>1:
+                    from .question_resume import _load
+                    _,checkpoint=_load(con,self.job_id,attempt-1)
+                    prior_log_digest=checkpoint['job_log_digest']
             publisher=self.manager.publisher
             row=publisher._row(self.manager.token,self.manager.thread,self.job_id)
             if os.name=="nt":
@@ -55,7 +64,7 @@ class LiveJobFiles:
                 seek.restype=wintypes.BOOL
                 self._seek=seek
                 for name,disposition in (
-                        ("worker-io.jsonl",_FILE_CREATE),
+                        ("worker-io.jsonl",_FILE_OPEN if attempt>1 else _FILE_CREATE),
                         ("job.log.jsonl",_FILE_OPEN)):
                     handle=api._open(directory,name,_FILE_READ_DATA|
                              _FILE_WRITE_DATA|_READ_ATTRIBUTES|_SYNCHRONIZE,
@@ -75,8 +84,8 @@ class LiveJobFiles:
                     _job_directory(self.manager.workspace,row,"output"))
                 directory_stat=os.fstat(directory)
                 for name,flags in (
-                        ("worker-io.jsonl",os.O_RDWR|os.O_CREAT|os.O_EXCL),
-                        ("job.log.jsonl",os.O_WRONLY|os.O_APPEND)):
+                        ("worker-io.jsonl",os.O_RDWR|os.O_APPEND if attempt>1 else os.O_RDWR|os.O_CREAT|os.O_EXCL),
+                        ("job.log.jsonl",os.O_RDWR|os.O_APPEND)):
                     handle=os.open(name,flags|os.O_NOFOLLOW|
                                    getattr(os,"O_CLOEXEC",0),0o600,dir_fd=directory)
                     stack.callback(os.close,handle)
@@ -86,11 +95,20 @@ class LiveJobFiles:
                         raise InputRejected("manager live output identity denied")
                     self._handles[name]=handle
                     self._sizes[name]=info.st_size
-            if self._sizes["worker-io.jsonl"]!=0:
+            if attempt>1:
+                if not self.verify_worker_bytes(prior_io):raise InputRejected("paused transcript changed")
+            elif self._sizes["worker-io.jsonl"]!=0:
                 raise InputRejected("new worker transcript not empty")
             if self._sizes["job.log.jsonl"]>_JOB_LIMIT:
                 raise InputRejected("job log quota exhausted")
-            self.job_event("WORKER_SESSION_OPENED",{"attempt":1})
+            # A resumed append must never silently adopt a partial prior tail.
+            if attempt>1:
+                blob=self._read_bytes("job.log.jsonl",_JOB_LIMIT)
+                from hashlib import sha256
+                if (not blob.endswith(b"\n") or sha256(blob).hexdigest()!=prior_log_digest or
+                        any(type(json.loads(line)) is not dict for line in blob.splitlines())):
+                    raise InputRejected("paused manager log changed")
+            self.job_event("WORKER_SESSION_OPENED",{"attempt":attempt})
             return self
         except BaseException:
             stack.close()
@@ -141,20 +159,26 @@ class LiveJobFiles:
         handle=self._handles.get("worker-io.jsonl")
         if self._stack is None or handle is None:
             raise InputRejected("worker IO handle unavailable")
-        if self._windows:
-            if not self._seek(handle,0,None,0):
-                raise InputRejected("Windows worker IO verify seek failed")
-            actual=self._native.read_regular(handle,max_bytes=_MAX_FILE)
-        else:
-            parts=[];offset=0
-            while offset<len(expected)+1:
-                data=os.pread(handle,min(65536,len(expected)+1-offset),offset)
-                if not data:break
-                parts.append(data);offset+=len(data)
-            actual=b"".join(parts)
+        actual=self._read_bytes("worker-io.jsonl",_MAX_FILE)
         if actual!=expected or len(actual)!=self._sizes["worker-io.jsonl"]:
             raise InputRejected("worker IO file differs from SQLite journal")
         return True
+
+    def _read_bytes(self,name,limit):
+        handle=self._handles[name]
+        if self._windows:
+            if not self._seek(handle,0,None,0):raise InputRejected("manager log seek failed")
+            data=self._native.read_regular(handle,max_bytes=limit)
+            if not self._seek(handle,0,None,2):raise InputRejected("manager log append seek failed")
+            return data
+        parts=[];offset=0
+        while offset<=limit:
+            block=os.pread(handle,min(65536,limit+1-offset),offset)
+            if not block:break
+            parts.append(block);offset+=len(block)
+        data=b"".join(parts)
+        if len(data)>limit:raise InputRejected("manager log quota exceeded")
+        return data
 
     def job_event(self,event,fields=None):
         # Closed schema, never write task text, path, prompt or model payload.

@@ -40,6 +40,7 @@ class WorkerProfile:
     inference_vram_mb: int | None = None
     load_timeout_seconds: int = 240
     load_options: dict = field(default_factory=dict)
+    cloud_policy: dict | None = None
 
     def __post_init__(self):
         if (type(self.profile_id) is not str or
@@ -105,6 +106,11 @@ class WorkerProfile:
             else:valid=type(value) is int and 0<=value<=1048576
             if not valid:raise InputRejected('invalid load option')
 
+        from .cloud_egress import validate_policy
+        validate_policy(self.cloud_policy)
+        if self.provider!='cloud' and self.cloud_policy is not None:
+            raise InputRejected('cloud policy on a local profile')
+
     @property
     def endpoint(self):
         return self.base_url.rstrip('/').removesuffix('/v1') + '/v1'
@@ -116,6 +122,9 @@ class WorkerProfile:
                 'context_source': 'EXPLICIT_JOB_INPUT_ONLY', 'worker_tools': 'JOB_SCOPED_MANAGER_BROKER',
                 'handoff_paths': ['direct', 'prepared_workspace'],
                 'automatic_model_loading': self.auto_load,
+                **({'cloud_policy_required':self.cloud_policy is None,
+                    'cloud_data_class':self.cloud_policy['data_class'] if self.cloud_policy else None}
+                   if self.provider=='cloud' else {}),
                 'max_input_bytes': self.max_input_bytes,
                 'max_output_tokens': self.max_output_tokens}
 
@@ -196,10 +205,11 @@ def bounded_request(url, body, key, timeout):
 
 class ConfiguredWorker:
     """Provider readiness and bounded transport; executes no model tools."""
-    def __init__(self, profile, *, transport=None):
+    def __init__(self, profile, *, transport=None, egress_guard=None):
         if type(profile) is not WorkerProfile:
             raise InputRejected('trusted worker profile required')
         self.profile = profile
+        self.egress_guard=egress_guard
         self.transport = transport or bounded_request
 
     def _key(self):
@@ -245,6 +255,15 @@ class ConfiguredWorker:
                 'thread_id':None, 'session_id':None, 'rag_scope':None})
         return payload
 
+    def validate_payload(self,body):
+        if self.profile.provider=='cloud':
+            if self.egress_guard is None:raise WorkerProviderError('CLOUD_POLICY_REQUIRED')
+            self.egress_guard.validate(body)
+
     def request(self, body, timeout):
+        if self.profile.provider=='cloud':
+            self.validate_payload(body)
+            return self.egress_guard.request(body,lambda:self.transport(
+                self.profile.endpoint+'/chat/completions',body,self._key(),min(timeout,self.profile.timeout_seconds)))
         return self.transport(self.profile.endpoint + '/chat/completions', body,
                               self._key(), min(timeout, self.profile.timeout_seconds))

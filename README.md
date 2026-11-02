@@ -2,7 +2,16 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.46.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+> **Public PRE-ALPHA · 0.47.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
+
+**v0.47 question continuation and cloud controls:** [implemented contract](docs/OWNER_REQUIREMENTS_V047.md).
+An explicit parent answer resumes the same verified worker checkpoint with new
+fenced access, retained physical Work and cumulative budgets. Multiple questions
+return to the same native Flash chat. Every cloud request is checked locally,
+including later tool data and answers, and charged a durable conservative USD
+reservation before sending. Cloud requires a reviewed data/billing policy.
+[German setup](system_test/JOB_CONTINUATION_CLOUD_DE.md) describes the rule-based
+PII detector's limits; no universal anonymization or real billing attestation is claimed.
 
 **v0.46 model lifecycle and native parent return:** [implementation and requirements](docs/OWNER_REQUIREMENTS_V046.md).
 Flash still supplies every task directly or as TASK.md. Optional calibrated resource

@@ -220,7 +220,7 @@ class NativeLifecycleTests(unittest.TestCase):
         if message_stored:
             message=json.loads(row['message_json'])
             self.manager.native_parent.http.request('PUT',self.manager.native_parent.thread_path+'/messages/'+message['id'],message)
-            self.manager.native_parent._phase(job['job_id'],'MESSAGE_IN_FLIGHT')
+            self.manager.native_parent._phase(job['job_id'],'MESSAGE_IN_FLIGHT',operation)
         with self.manager.store._connection() as con:
             con.execute("UPDATE parent_returns SET state='IN_FLIGHT' WHERE job_id=?",(job['job_id'],))
         fresh=UnslothParent(self.manager.store,self.parent,measure=self.host.memory)

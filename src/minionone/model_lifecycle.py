@@ -88,6 +88,9 @@ class ModelLifecycle:
                     WHERE state IN ('PREPARING','ACTIVE','RELEASING');''')
             if 'finish_outcome' not in {r[1] for r in con.execute('PRAGMA table_info(model_leases)')}:
                 con.execute('ALTER TABLE model_leases ADD COLUMN finish_outcome TEXT')
+            con.execute("""CREATE TABLE IF NOT EXISTS model_lease_history(
+                job_id TEXT NOT NULL,generation INTEGER NOT NULL,lease_json TEXT NOT NULL,
+                PRIMARY KEY(job_id,generation))""")
     def blocked(self,con):
         return con.execute("SELECT 1 FROM model_leases WHERE state!='RELEASED'").fetchone() is not None
     def _set(self,job,*,state=None,phase=None,owned=None,parent_unloaded=None,finish_outcome=None):
@@ -96,6 +99,10 @@ class ModelLifecycle:
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE')
             con.execute('UPDATE model_leases SET '+','.join(k+'=?' for k in changes)+' WHERE job_id=?',[*changes.values(),job])
+    def _cycle(self,job):
+        with self.owner._connection() as con:
+            attempt=con.execute('SELECT attempt_no FROM pilot_runs WHERE job_id=?',(job,)).fetchone()[0]
+        return _digest([job,attempt])
     def fits(self,profile,*,already_loaded=False):
         s=self.measure(self.gpu_index,profile.memory_vram_mb>0)
         if (type(s) is not MemoryReading or type(s.ram_mb) is not int or s.ram_mb<0
@@ -129,6 +136,11 @@ class ModelLifecycle:
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE')
             if self.blocked(con):raise WorkerProviderError('MODEL_LIFECYCLE_BLOCKED')
+            prior=con.execute('SELECT * FROM model_leases WHERE job_id=?',(job,)).fetchone()
+            if prior is not None:
+                generation=con.execute('SELECT COUNT(*)+1 FROM model_lease_history WHERE job_id=?',(job,)).fetchone()[0]
+                con.execute('INSERT INTO model_lease_history VALUES(?,?,?)',(job,generation,json.dumps(dict(prior),sort_keys=True)))
+                con.execute("DELETE FROM model_leases WHERE job_id=? AND state='RELEASED'",(job,))
             con.execute('INSERT INTO model_leases(job_id,state,profile_json,before_json,phase) VALUES(?,?,?,?,?)',
                 (job,'PREPARING',json.dumps(asdict(profile),sort_keys=True),json.dumps({'worker':sorted(before['loaded']),
                     'parent':parent_before}),'PLANNING'))
@@ -141,14 +153,14 @@ class ModelLifecycle:
                     raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
                 self._idle(job,cancelled)
                 self._set(job,phase='PARENT_UNLOAD_IN_FLIGHT',parent_unloaded=1)
-                self.parent.unload('parent-unload-'+_digest(job))
+                self.parent.unload('parent-unload-'+self._cycle(job))
                 self._set(job,phase='PARENT_UNLOADED')
                 if not self.fits(profile,already_loaded=runtime.present(runtime.snapshot())):
                     raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
             if cancelled() or self.stop.is_set():raise WorkerProviderError('MODEL_LIFECYCLE_BLOCKED')
             if not runtime.ready(runtime.snapshot()):
                 self._set(job,phase='WORKER_LOAD_IN_FLIGHT')
-                instance=runtime.load('worker-load-'+_digest(job))
+                instance=runtime.load('worker-load-'+self._cycle(job))
                 if instance is not None:self._set(job,owned=instance)
             self._set(job,state='ACTIVE',phase='WORKER_READY')
             if not self.fits(profile,already_loaded=True):raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
@@ -179,7 +191,7 @@ class ModelLifecycle:
             if row['owned_instance']:self.runtime(profile).unload(row['owned_instance'])
             self._set(job,phase='PARENT_RESTORE_IN_FLIGHT')
             if self.parent is not None:
-                self.parent.restore(self.parent.principal,self.parent.thread_id,self.parent.profile.model_id,'parent-restore-'+_digest(job))
+                self.parent.restore(self.parent.principal,self.parent.thread_id,self.parent.profile.model_id,'parent-restore-'+self._cycle(job))
             self._set(job,state='RELEASED',phase='RESTORED')
         except Exception:
             self._set(job,state='NEEDS_RECONCILIATION');raise

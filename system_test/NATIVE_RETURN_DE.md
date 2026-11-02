@@ -75,6 +75,11 @@ anderen Quellstand verweigert er die Änderung. Die AGPL-Lizenz des Hostfiles
 bleibt erhalten. Das ist eine Hostintegration, kein Workerwerkzeug und kein
 allgemeiner Browser-/GUI-Automationsprozess.
 
+## Rückfragen ab v0.47
+
+Ein explizites `minionone_answer_question` setzt denselben geprüften Job fort.
+[Anleitung und Cloud-Gates](JOB_CONTINUATION_CLOUD_DE.md). Danach wieder den Flash-Turn beenden.
+
 ## Ablauf durch Flash
 
 Flash wählt `profile_id` und delegiert wie zuvor. `minionone_job_status` enthält

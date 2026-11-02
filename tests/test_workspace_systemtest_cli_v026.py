@@ -19,6 +19,8 @@ from minionone.mcp_server import LocalMCP
 from minionone.pilot_cli import PilotClient,main,workspace_exercise
 
 TOKEN='workspace-standalone-test-'+('Q'*48)
+# Real native helpers spawn processes; CI load is not a correctness assertion.
+WORKER_COMPLETION_SECONDS=60
 
 
 class DeterministicFlintFixture:
@@ -71,7 +73,7 @@ class WorkspaceExerciseTests(unittest.TestCase):
         with patch('minionone.pilot_jobs.PilotJobs._readiness',return_value=None), \
              patch('minionone.pilot_jobs.LMStudioAgentProvider',DeterministicFlintFixture):
             report=workspace_exercise(self.client,project_id='demo',
-                                      project_root=self.project,model='model-loaded',timeout=12)
+                                      project_root=self.project,model='model-loaded',timeout=WORKER_COMPLETION_SECONDS)
         self.assertTrue(report['passed'],report)
         self.assertEqual([r['step'] for r in report['steps']],[
             'opt_in_server_gate','real_manager_input_seal',
@@ -110,8 +112,8 @@ class WorkspaceExerciseTests(unittest.TestCase):
              patch('minionone.pilot_jobs.LMStudioAgentProvider',DeterministicFlintFixture), \
              patch.object(self.client,'tool',side_effect=remove_after_result):
             report=workspace_exercise(self.client,project_id='demo',
-                                      project_root=self.project,model='model-loaded',timeout=12)
-        self.assertTrue(sabotaged['done'])
+                                      project_root=self.project,model='model-loaded',timeout=WORKER_COMPLETION_SECONDS)
+        self.assertTrue(sabotaged['done'],report)
         self.assertFalse(report['passed'],report)
         self.assertEqual(report['error']['code'],'PILOT_FILE_CHANGED')
         self.assertNotIn('exact_parent_ack',[step['step'] for step in report['steps']])
@@ -144,7 +146,7 @@ class WorkspaceExerciseTests(unittest.TestCase):
              patch('minionone.pilot_jobs.PilotJobs._readiness',return_value=None), \
              patch('minionone.pilot_jobs.LMStudioAgentProvider',DeterministicFlintFixture), \
              redirect_stdout(stdout):
-            rc=main(['--state',str(self.root),'workspace-self-test','--timeout','12'])
+            rc=main(['--state',str(self.root),'workspace-self-test','--timeout',str(WORKER_COMPLETION_SECONDS)])
         self.assertEqual(rc,0,stdout.getvalue())
         report,_=json.JSONDecoder().raw_decode(stdout.getvalue())
         self.assertTrue(report['passed'])

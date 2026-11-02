@@ -1,5 +1,9 @@
 # MinionOne – aktueller Requirements-Einstiegspunkt (Stand 2026-11-02)
 
+## v0.48 adds offline operator recovery for uncertain cloud jobs
+
+See [OWNER_REQUIREMENTS_V048.md](OWNER_REQUIREMENTS_V048.md). Independent provider-stop and Work inspection are required; closure never repeats inference or refunds reservations. The two universal handoffs and explicit Flash-selected context remain unchanged.
+
 ## v0.47 adds question continuation and cloud data/cost gates
 
 See [OWNER_REQUIREMENTS_V047.md](OWNER_REQUIREMENTS_V047.md) for the current answer/checkpoint and cloud policy contract, its detection/billing assumptions and live acceptance limits.
@@ -26,7 +30,8 @@ See [OWNER_REQUIREMENTS_V046.md](OWNER_REQUIREMENTS_V046.md) for implemented mod
 
 ## 1. Dokumentenrangfolge bei Widersprüchen
 
-1. **Aktueller Fortsetzungs-/Cloud-Vertrag:** [OWNER_REQUIREMENTS_V047.md](OWNER_REQUIREMENTS_V047.md).
+1. **Aktuelle Cloud-Operator-Recovery:** [OWNER_REQUIREMENTS_V048.md](OWNER_REQUIREMENTS_V048.md).
+   **Fortsetzungs-/Cloud-Vertrag:** [OWNER_REQUIREMENTS_V047.md](OWNER_REQUIREMENTS_V047.md).
    **Implementierungsstand und native Schnittstellen:** [OWNER_REQUIREMENTS_V046.md](OWNER_REQUIREMENTS_V046.md).
    **Explizite neueste Produktowner-Entscheidungen**: zuerst
    [OWNER_REQUIREMENTS_V045.md](OWNER_REQUIREMENTS_V045.md) (ein Auftragssystem,

@@ -26,6 +26,7 @@ class Diagnostic:
 
 
 _CATALOG = {
+    "CLOUD_OPERATOR_RESOLVED": ("The uncertain cloud job was closed by the local operator.","No inference was retried and all cloud reservations remain charged. Inspect the operator receipt and retained Work files.",False),
     "MODEL_LIFECYCLE_BLOCKED": ("Model lifecycle is waiting or blocked.","End the parent turn and inspect model lease status; reconcile unknown operations before starting another worker.",False),
     "MODEL_LIFECYCLE_UNCERTAIN": ("A model load, unload or restore has an unverified outcome.","Inspect backend inventories, restore the original models, then run explicit operator reconciliation. No automatic effect replay.",False),
     "CLOUD_POLICY_REQUIRED": ("The cloud profile has no complete data/billing policy.","Configure the reviewed data class, input-token ceiling, conservative prices and job/total USD limits before cloud use.",False),

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.48.0.dev0 – offline cloud operator recovery
+
+Added `resolve-cloud` for independently stopped uncertain cloud WORKSPACE generations. It verifies sealed input/profile, native Work, private/physical IO, logs and published files, records an immutable idempotent operator receipt and closes FAILED without retry or refund. Restart preserves global costs and returns the failure through the original native Flash binding. Windows frozen coverage includes loopback TLS disconnect, offline closure and restart budget fencing. Real provider/UI/GPU acceptance remains open.
+
 ## 0.47.0.dev0 – question continuation and cloud controls
 
 Same-job question answers now restore immutable worker checkpoints, retained Work, append-verified logs and cumulative execution budgets with new capabilities and per-round native returns. Added full-payload cloud data/secret rules and durable conservative per-job/principal USD reservations. Rules do not constitute universal PII detection or automatic pseudonymization. Windows frozen coverage now includes question/answer/second return and pre-send cloud rejection. Target-host/model/billing acceptance remains separate.

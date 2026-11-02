@@ -44,7 +44,10 @@ class NativeLifecycleTests(unittest.TestCase):
         return self.client.tool('minionone_delegate',{'project_id':'demo','task':'Perform this explicit Flash task.',
             'profile_id':provider,'operation_id':'native-operation-'+provider})
     def await_state(self,job,states=('RESULT_READY','FAILED','NEEDS_RECONCILIATION')):
-        end=time.monotonic()+60
+        # Observe the whole lifecycle: parent swap/restore, worker load,
+        # bounded inference and durable native checkpoint IO. A fast provider
+        # alone does not bound total Windows fsync/scheduling time to 60s.
+        end=time.monotonic()+120
         while time.monotonic()<end:
             status=self.client.tool('minionone_job_status',{'job_id':job['job_id']})
             if status['state'] in states:return status

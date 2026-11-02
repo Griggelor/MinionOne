@@ -113,6 +113,8 @@ class PilotJobs:
             install_questions(con)
             from .cloud_egress import install as install_cloud
             install_cloud(con)
+            from .cloud_recovery import install as install_cloud_recovery
+            install_cloud_recovery(con)
             if 'worker_profile_sha256' not in {r[1] for r in con.execute('PRAGMA table_info(pilot_runs)')}:
                 con.execute('ALTER TABLE pilot_runs ADD COLUMN worker_profile_sha256 TEXT')
             con.executescript("""
@@ -500,6 +502,11 @@ class PilotJobs:
             row=self.owner._transition(con,row,'FAILED',Evidence(reconciliation_verified=True,worker_outcome='FAILED',
                     error_code='PILOT_PROVIDER_UNCERTAIN'),'pilot-operator-resolved-'+secrets.token_hex(8),actor='LOCAL_OPERATOR')
             return self.owner._snapshot(row)
+
+    def resolve_cloud_for_operator(self,token,thread,job,**confirmations):
+        # Operator-only; deliberately absent from the worker/parent MCP tools.
+        from .cloud_recovery import resolve
+        return resolve(self,token,thread,job,**confirmations)
 
     def reconcile_models_for_operator(self,token,thread,job,*,confirm_worker_stopped=False,confirm_work_inspected=False):
         if confirm_worker_stopped is not True or self.model_lifecycle is None:

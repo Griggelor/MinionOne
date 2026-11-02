@@ -82,13 +82,16 @@ class WorkerMCPFixture:
             task='Perform exactly the task supplied by Flash.',operation_id=op,**extra))
 
     def terminal(self,job):
-        until=time.monotonic()+40
+        # One readiness call plus three 15-second bounded model calls can
+        # legitimately exceed 40 seconds, before native fsync/publication.
+        # This is the test observer's deadline, never a provider/job budget.
+        until=time.monotonic()+90
         while time.monotonic()<until:
             status=self.client.tool('minionone_job_status',{'job_id':job['job_id']})
             if status['state'] in ('RESULT_READY','FAILED','NEEDS_RECONCILIATION','WAITING_FOR_PARENT'):
                 return status
             time.sleep(.05)
-        self.fail('bounded worker did not finish')
+        self.fail('bounded worker did not finish: '+str({k:status[k] for k in ('state','version')}))
 
     def staged(self,profile='local',op='staged-start-operation-001',**extra):
         job=self.client.tool('minionone_prepare_workspace',{'project_id':'demo','operation_id':'prepare-'+op})

@@ -39,6 +39,7 @@ def build(wheel,output,app=None,evidence=None):
                   'legacy_document_pilot_available':True,
                   'handoff_paths':['direct','prepared_workspace'],'profiled_handoffs_supported':True,'native_parent_return_driver_available':True,'automatic_model_lifecycle_available':True,'native_parent_api_contract':'unsloth-studio-f9cecc99',
                   'question_resume_available':True,'cloud_egress_gate_available':True,'cloud_budget_reservations_available':True,
+                  'cloud_operator_recovery_available':True,
                   'host_filesystem_tools_enabled':False,
                   'boxed_execution_enabled':False,'product_release':'NO_GO'}
         (stage/'bundle.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')

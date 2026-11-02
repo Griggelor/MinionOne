@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import socketserver
 import subprocess
 import tempfile
 import threading
@@ -44,7 +45,7 @@ def run(executable,output):
     executable=Path(executable).resolve();output=Path(output).resolve()
     model=ThreadingHTTPServer(('127.0.0.1',0),Handler);model.daemon_threads=True;model.calls=0
     threading.Thread(target=model.serve_forever,daemon=True).start()
-    process=None
+    process=None;cloud_wire=None
     temporary=tempfile.TemporaryDirectory(prefix='MinionOne Frozen Test ')
     try:
         tmp=temporary.name
@@ -230,17 +231,30 @@ def run(executable,output):
             if process is not None:
                 process.terminate();process.communicate(timeout=10);process=None
             native.shutdown();native.server_close()
-        # Real frozen control-plane rejects before HTTPS: no real cloud is used.
+        # Real frozen control-plane: pre-send gates and an ambiguous TLS failure.
+        # Accept and close a loopback socket during TLS; never run a cloud model.
+        class DropTLS(socketserver.BaseRequestHandler):
+            def handle(self):
+                self.server.connections+=1
+                self.request.recv(4096)
+        cloud_wire=socketserver.ThreadingTCPServer(('127.0.0.1',0),DropTLS)
+        cloud_wire.daemon_threads=True;cloud_wire.connections=0
+        threading.Thread(target=cloud_wire.serve_forever,daemon=True).start()
         cloud_state=Path(tmp)/'cloud gate state';cloud_state.mkdir()
         cloud_profiles=Path(tmp)/'cloud gate profiles.json'
         cloud_policy={'contract':'text_tokens_v1','data_class':'synthetic',
             'input_token_ceiling':262144,'input_price_microusd_per_million':1000000,
             'output_price_microusd_per_million':1000000,'max_total_cost_microusd':1000000}
-        cloud_profiles.write_text(json.dumps({'profiles':[{
+        profiles=[{
             'profile_id':name,'provider':'cloud','model_id':'synthetic-model',
             'base_url':'https://synthetic.invalid/v1','secret_env':'MINIONONE_FROZEN_CLOUD_KEY',
             'cloud_approved':True,'cloud_policy':dict(cloud_policy,max_job_cost_microusd=limit)
-        } for name,limit in (('private',1000000),('budget',1))]}))
+        } for name,limit in (('private',1000000),('budget',1))]
+        reserve=262144+2048
+        profiles.append(dict(profiles[0],profile_id='uncertain',
+            base_url=f'https://127.0.0.1:{cloud_wire.server_address[1]}/v1',
+            cloud_policy=dict(cloud_policy,max_job_cost_microusd=reserve,max_total_cost_microusd=reserve)))
+        cloud_profiles.write_text(json.dumps({'profiles':profiles}))
         command=[str(executable),'--state',str(cloud_state),'serve','--synthetic-workspace',
             '--port',str(port),'--min-free-mb','1','--worker-profiles',str(cloud_profiles)]
         process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,
@@ -266,6 +280,53 @@ def run(executable,output):
             else:raise RuntimeError('cloud gate rejection deadline')
             assert blocked['state']=='FAILED' and blocked['workspace_job']['error']['code']==code,blocked
             assert blocked['workspace_job']['cloud_budget']['requests_reserved']==0
+        job=rpc('minionone_delegate',{'project_id':'demo','profile_id':'uncertain','allow_cloud':True,
+            'task':'Review the synthetic material.','operation_id':'frozen-cloud-uncertain'})
+        deadline=time.monotonic()+60
+        while time.monotonic()<deadline:
+            uncertain=rpc('minionone_job_status',{'job_id':job['job_id']})
+            if uncertain['state'] in ('FAILED','NEEDS_RECONCILIATION'):break
+            time.sleep(.2)
+        else:raise RuntimeError('uncertain cloud transport deadline')
+        assert uncertain['state']=='NEEDS_RECONCILIATION',uncertain
+        assert uncertain['workspace_job']['cloud_budget']['reserved_upper_bound_microusd']==reserve
+        assert cloud_wire.connections==1
+        recovery=[str(executable),'--state',str(cloud_state),'resolve-cloud','--job',job['job_id'],
+            '--confirm-provider-stopped','--confirm-work-inspected','--expected-version',str(uncertain['version'])]
+        busy=subprocess.run(recovery,capture_output=True,text=True,timeout=20)
+        assert busy.returncode!=0 and 'PILOT_INSTANCE_BUSY' in busy.stderr
+        project=Path(json.loads((cloud_state/'settings.json').read_text())['workspace_projects']['demo'])
+        folder=project/'.minionone'/'jobs'/job['job_id']
+        before={p.relative_to(folder).as_posix():p.read_bytes() for p in folder.rglob('*') if p.is_file()}
+        process.terminate();process.communicate(timeout=10);process=None
+        resolved=subprocess.run(recovery,capture_output=True,text=True,timeout=30,check=True)
+        receipt=json.loads(resolved.stdout)
+        assert receipt['outcome']=='FAILED_NO_RETRY' and receipt['state']=='FAILED',receipt
+        assert receipt['cloud_budget']['reserved_upper_bound_microusd']==reserve
+        again=subprocess.run(recovery,capture_output=True,text=True,timeout=30,check=True)
+        assert json.loads(again.stdout)==receipt
+        assert before=={p.relative_to(folder).as_posix():p.read_bytes() for p in folder.rglob('*') if p.is_file()}
+        process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,
+            env=dict(os.environ,MINIONONE_FROZEN_CLOUD_KEY='frozen-synthetic-cloud-key'))
+        deadline=time.monotonic()+40
+        while time.monotonic()<deadline:
+            if process.poll() is not None:raise RuntimeError('recovered frozen server exited')
+            try:
+                old=rpc('minionone_job_status',{'job_id':job['job_id']})
+                break
+            except (OSError,http.client.HTTPException):time.sleep(.2)
+        else:raise RuntimeError('recovered frozen startup deadline')
+        assert old['state']=='FAILED',old
+        next_job=rpc('minionone_delegate',{'project_id':'demo','profile_id':'uncertain','allow_cloud':True,
+            'task':'Review the synthetic material.','operation_id':'frozen-cloud-after-resolution'})
+        deadline=time.monotonic()+40
+        while time.monotonic()<deadline:
+            blocked=rpc('minionone_job_status',{'job_id':next_job['job_id']})
+            if blocked['state'] in ('FAILED','NEEDS_RECONCILIATION'):break
+            time.sleep(.2)
+        else:raise RuntimeError('recovered cloud budget deadline')
+        assert blocked['state']=='FAILED' and blocked['workspace_job']['error']['code']=='CLOUD_BUDGET_EXHAUSTED',blocked
+        assert cloud_wire.connections==1  # Neither recovery nor restart repeats transport.
         process.terminate();process.communicate(timeout=10);process=None
         output.parent.mkdir(parents=True,exist_ok=True)
         output.write_text(json.dumps({'passed':True,'scope':'frozen-executable + synthetic HTTP provider',
@@ -275,13 +336,16 @@ def run(executable,output):
             'profiled_handoffs_verified':True,'native_parent_return_verified':True,
             'automatic_model_lifecycle_verified':True,'question_resume_verified':True,
             'cumulative_worker_budget_verified':True,'cloud_egress_gate_verified':True,'cloud_budget_gate_verified':True,
-            'cloud_scope':'deterministic pre-send rejection; no real cloud billing or model','native_worker_requests':len(native.requests),
+            'cloud_operator_recovery_verified':True,'cloud_recovery_no_retry_verified':True,
+            'cloud_recovery_budget_preserved':True,'cloud_uncertain_tls_connections':cloud_wire.connections,
+            'cloud_scope':'pre-send rejection and loopback TLS disconnect; no real cloud billing or model','native_worker_requests':len(native.requests),
             'native_parent_runs':native.events.count('parent-run'),'native_scope':'synthetic HTTP host contract, not real Studio/GPU'},indent=2)+'\n')
     finally:
         if process is not None:
             process.terminate()
             try:process.communicate(timeout=10)
             except subprocess.TimeoutExpired:process.kill();process.communicate(timeout=10)
+        if cloud_wire is not None:cloud_wire.shutdown();cloud_wire.server_close()
         model.shutdown();model.server_close()
         temporary.cleanup()
     print('FROZEN_SYSTEM_TEST_PASS')

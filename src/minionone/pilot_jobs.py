@@ -576,7 +576,8 @@ class PilotJobs:
                     (int(state=='NEEDS_RECONCILIATION'),code,result_digest,row['job_id']))
         if state=='RESULT_READY':con.execute('UPDATE pilot_runs SET percent=100 WHERE job_id=?',(row['job_id'],))
         evidence={'RESULT_READY':Evidence(worker_outcome='DONE',result_digest=result_digest,worker_quiescent=True),
-                  'CANCELLED':Evidence(worker_outcome='CANCELLED',worker_quiescent=True,attempt_no=1),
+                  'CANCELLED':Evidence(worker_outcome='CANCELLED',worker_quiescent=True,
+                      attempt_no=con.execute('SELECT attempt_no FROM pilot_runs WHERE job_id=?',(row['job_id'],)).fetchone()[0]),
                   'WAITING_FOR_PARENT':Evidence(worker_outcome='QUESTION',worker_quiescent=True),
                   'NEEDS_RECONCILIATION':Evidence(reconciliation_required=True,error_code=code or 'PILOT_PROVIDER_UNCERTAIN'),
                   'FAILED':Evidence(worker_outcome='FAILED',error_code=code or 'PILOT_JOB_FAILED')}[state]

@@ -10,7 +10,7 @@ import unittest
 from minionone.mcp_server import LocalMCP
 from minionone.process_logs import ProcessLogs
 from minionone.agent_loop import ModelStep
-from test_flash_delegation_v027 import FlashHTTPFixture,TOKEN
+from test_flash_delegation_v027 import FlashHTTPFixture,TOKEN,WORKER_COMPLETION_SECONDS
 
 
 class BlockingFlint:
@@ -79,7 +79,7 @@ class LiveJobLogIntegration(FlashHTTPFixture,unittest.TestCase):
                 self.assertNotIn("SENSITIVE LIVE INPUT",process_log.read_text())
             finally:
                 BlockingFlint.finish.set()
-            deadline=time.monotonic()+15
+            deadline=time.monotonic()+WORKER_COMPLETION_SECONDS
             while time.monotonic()<deadline:
                 status=self.call("minionone_job_status",{"job_id":job})
                 if status["state"] not in ("QUEUED","RESOURCE_CHECK","RUNNING"):

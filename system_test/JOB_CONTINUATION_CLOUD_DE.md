@@ -106,6 +106,12 @@ bereits angefallene Reservierungen bleiben erhalten.
 - Netzwerk-/Provider-Timeout: Reservierung bleibt belastet; unbekannte Generierung
   bleibt gesperrt und wird nicht automatisch wiederholt.
 
+Für unklare Cloud-Generierungen in Workspace-Jobs gibt es aktuell noch keinen
+freigegebenen Self-Service-Recovery-Befehl. Ein normaler Neustart hebt diese Sperre
+nicht auf. Die bisherigen Operatorbefehle für den isolierten Dokumentpilot und
+für Modell-Leases sind kein Ersatz dafür. Dies bleibt eigene Produktarbeit;
+die private State-DB und Budgetreservierungen dürfen dafür nicht gelöscht werden.
+
 Keine automatische Anonymisierung, kein Pseudonym-Vault, keine globale Kontrolle
 anderer API-Kontonutzer und keine Live-Abnahme echter Modell-/GPU-/Cloudsysteme
 werden behauptet. Der Stand bleibt ein Entwicklungstestpaket.

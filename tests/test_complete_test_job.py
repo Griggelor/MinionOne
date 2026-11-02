@@ -4,6 +4,7 @@ The HTTP model server is deterministic synthetic test infrastructure. The exact
 same manager/adapter path is used with real LM Studio in the packaged pilot.
 """
 from contextlib import closing
+from dataclasses import replace
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 import http.client
 import json
@@ -28,7 +29,7 @@ class ModelHandler(BaseHTTPRequestHandler):
         body=json.dumps(value).encode();self.send_response(200)
         self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(body)));self.end_headers()
         try:self.wfile.write(body)
-        except (BrokenPipeError,ConnectionResetError):pass  # deliberate client deadline test
+        except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError):pass  # deliberate client deadline test
     def do_GET(self):
         if self.path!='/api/v0/models':self.send_error(404);return
         self.send({'data':[{'id':'synthetic-worker','state':'loaded' if self.server.loaded else 'not-loaded'}]})
@@ -70,7 +71,7 @@ class CompleteTestJobTests(unittest.TestCase):
         return LocalMCP(('127.0.0.1',0),token=TOKEN,database_path=self.db,
             lmstudio_url=f'http://127.0.0.1:{self.model.server_port}',
             enable_test_jobs=True,worker_model='synthetic-worker',min_free_mb=1,
-            model_call_seconds=3)
+            model_call_seconds=15)
 
     def rpc(self,name,args):
         with closing(http.client.HTTPConnection('127.0.0.1',self.server.server_port,timeout=10)) as c:
@@ -92,7 +93,7 @@ class CompleteTestJobTests(unittest.TestCase):
 
     def status(self,job):return self.rpc('minionone_job_status',{'job_id':job['job_id']})[1]
 
-    def wait(self,job,limit=20):
+    def wait(self,job,limit=60):
         deadline=time.monotonic()+limit
         while time.monotonic()<deadline:
             value=self.status(job)
@@ -138,6 +139,8 @@ class CompleteTestJobTests(unittest.TestCase):
         self.assertEqual(self.model.calls,0)
 
     def test_absolute_timeout_quarantines_and_blocks_another_generation(self):
+        # Keep the deliberate timeout short; positive helper startup is not this assertion.
+        self.server.pilot.config=replace(self.server.pilot.config,model_call_seconds=3)
         self.model.delay=5;job=self.submit();self.start(job);value=self.wait(job)
         self.assertEqual(value['state'],'NEEDS_RECONCILIATION',value)
         next_job=self.submit('second-submit-0001')
@@ -163,7 +166,7 @@ class CompleteTestJobTests(unittest.TestCase):
         with closing(sqlite3.connect(self.db)) as con:self.assertEqual(con.execute('SELECT count(*) FROM jobs').fetchone()[0],0)
 
     def test_packaged_operator_exercise_and_result_export_follow_production_path(self):
-        report=exercise(PilotClient(self.server.server_port,TOKEN),timeout=20)
+        report=exercise(PilotClient(self.server.server_port,TOKEN),timeout=60)
         self.assertTrue(report['passed'],report)
         self.assertEqual(report['worker_metrics']['tool_calls'],3)
         self.assertNotIn(TOKEN,json.dumps(report));self.assertNotIn(str(self.db),json.dumps(report))

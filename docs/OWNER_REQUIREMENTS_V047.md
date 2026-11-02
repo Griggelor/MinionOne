@@ -72,6 +72,11 @@ wird weder wegen kleinerer gemeldeter Tokenzahlen noch nach Timeout/Verbindungsf
 erstattet. Ein unbekannter Ausgang bleibt zudem durch das bestehende Inferenz-Fencing
 gesperrt. Der Status nennt ausdrücklich reservierte Obergrenzen, keine Rechnungsbeträge.
 
+Die Self-Service-Operator-Recovery für unklare Cloud-Generierungen in Workspace-Jobs
+bleibt offen; die Sperre wird nicht durch einen Neustart oder ein Löschen der
+Budgetbelege umgangen. Die bestehenden Dokumentpilot-/Modell-Recoverybefehle sind
+dafür nicht automatisch freigegeben.
+
 Das Limit gilt unter dem vom Operator eingetragenen Text-Token-/Preisvertrag des
 Providers. Eingangstoken-Obergrenze, Werkzeug-/Formatierungsaufwand, billbare
 Ausgabe einschließlich Reasoning und Preise müssen zum konkreten Modell passen.

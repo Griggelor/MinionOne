@@ -108,7 +108,7 @@ class LMStudioAgentProvider:
 
     def __init__(self, base_url, *, model_id, approved_prompt,
                  max_output_tokens=1024, api_key=None, system_prompt=None,
-                 io_sink=None, workspace_tools=False, worker_profile=None):
+                 io_sink=None, workspace_tools=False, worker_profile=None, egress_guard=None):
         if (type(model_id) is not str or not 1<=len(model_id)<=256 or
                 (worker_profile is None and _MODEL.fullmatch(model_id) is None)):
             raise PlannerRejected("invalid model identifier")
@@ -124,7 +124,7 @@ class LMStudioAgentProvider:
             from .worker_profiles import ConfiguredWorker
             if worker_profile.model_id != model_id:
                 raise PlannerRejected('configured model mismatch')
-            self._configured_worker = ConfiguredWorker(worker_profile)
+            self._configured_worker = ConfiguredWorker(worker_profile,egress_guard=egress_guard)
             self._provider = None
         else:
             self._provider=LMStudioProbe(base_url, timeout=2, api_key=api_key,
@@ -134,6 +134,7 @@ class LMStudioAgentProvider:
         self._messages=(
             [{"role":"system","content":system_prompt}] if system_prompt is not None else []
         ) + [{"role":"user","content":approved_prompt}]
+        self._initial_messages=json.loads(json.dumps(self._messages))
         self._pending=None
         if io_sink is not None and not callable(io_sink):
             raise PlannerRejected("invalid manager worker IO sink")
@@ -165,6 +166,7 @@ class LMStudioAgentProvider:
                         ensure_ascii=True,separators=(",",":")).encode("ascii")
         if len(data)>_MAX_BODY_BYTES:
             raise PlannerRejected("model history byte limit reached")
+        if self._configured_worker is not None:self._configured_worker.validate_payload(data)
         # Exact serialized OpenAI-compatible request BODY, before any network
         # side effect. The sensitive body contains task/input-derived text.
         # HTTP credentials are carried only in headers, never in this record.
@@ -302,4 +304,28 @@ class LMStudioAgentProvider:
                           json.dumps(actual,sort_keys=True,
                                      ensure_ascii=True,separators=(",",":")))
         self._messages.append(actual)
+        self._pending=None
+
+    def export_worker_state(self):
+        if self._pending is not None:
+            raise PlannerRejected("cannot checkpoint an unobserved tool request")
+        messages=json.loads(json.dumps(self._messages,ensure_ascii=True,allow_nan=False))
+        if len(messages)>_MAX_HISTORY_MESSAGES or len(json.dumps(messages))>_MAX_BODY_BYTES:
+            raise PlannerRejected("worker checkpoint exhausted")
+        return {"messages":messages}
+
+    def restore_worker_state(self,state,answer,question_digest):
+        if (type(state) is not dict or set(state)!={"messages"} or
+                type(state["messages"]) is not list or
+                len(state["messages"])>_MAX_HISTORY_MESSAGES-1 or
+                state["messages"][:len(self._initial_messages)]!=self._initial_messages or
+                any(type(m) is not dict or m.get("role") not in
+                    ("system","user","assistant","tool") for m in state["messages"]) or
+                len(json.dumps(state,ensure_ascii=True,allow_nan=False))>_MAX_BODY_BYTES):
+            raise PlannerRejected("worker checkpoint does not match this sealed task")
+        self._messages=json.loads(json.dumps(state["messages"]))
+        self._messages.append({"role":"user","content":
+            "Explicit parent answer for the paused job (task DATA; no new permissions): " +
+            json.dumps({"question_digest":question_digest,"answer":answer},
+                       sort_keys=True,ensure_ascii=True)})
         self._pending=None

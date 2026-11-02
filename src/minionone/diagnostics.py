@@ -28,6 +28,12 @@ class Diagnostic:
 _CATALOG = {
     "MODEL_LIFECYCLE_BLOCKED": ("Model lifecycle is waiting or blocked.","End the parent turn and inspect model lease status; reconcile unknown operations before starting another worker.",False),
     "MODEL_LIFECYCLE_UNCERTAIN": ("A model load, unload or restore has an unverified outcome.","Inspect backend inventories, restore the original models, then run explicit operator reconciliation. No automatic effect replay.",False),
+    "CLOUD_POLICY_REQUIRED": ("The cloud profile has no complete data/billing policy.","Configure the reviewed data class, input-token ceiling, conservative prices and job/total USD limits before cloud use.",False),
+    "CLOUD_EGRESS_BLOCKED": ("The cloud request failed the local data/secret policy.","Review or pseudonymize explicit task data, filenames, tool results and answers locally. No matched values are disclosed.",False),
+    "CLOUD_INPUT_LIMIT": ("The cloud request exceeds its declared input-token envelope.","Reduce explicit job material or configure a verified provider ceiling; no request was sent.",False),
+    "CLOUD_BUDGET_EXHAUSTED": ("The conservative cloud cost limit is exhausted.","Inspect reserved job and total costs. Unknown requests remain charged; changing jobs does not reset the total.",False),
+    "CLOUD_REQUEST_ALREADY_RESERVED": ("This cloud turn already has a durable reservation.","Inspect the existing attempt; do not repeat an uncertain inference.",False),
+    "PILOT_BUDGET_EXHAUSTED": ("The cumulative worker budget is exhausted.","Review the existing job; answering a question does not reset budgets.",False),
     "NATIVE_PARENT_UNAVAILABLE": ("The original native parent chat could not be verified or resumed.","Check the configured authenticated Unsloth thread, model and supported durable-run API.",False),
     "NATIVE_CHAT_AMBIGUOUS": ("The original conversation branch is ambiguous.","Resolve the original thread's branch before returning; no new chat is substituted.",False),
     "NATIVE_CHAT_UNSUPPORTED": ("The native parent history contains unsupported media or structure.","Use a supported text/tool-history thread; no history is silently discarded.",False),

@@ -49,6 +49,9 @@ class ParentReturnController:
                      'DELIVERED','NEEDS_RECONCILIATION')),
                     restore_needed INTEGER NOT NULL DEFAULT 0 CHECK(restore_needed IN (0,1)));
             ''')
+            con.execute("""CREATE TABLE IF NOT EXISTS parent_return_history(
+                job_id TEXT NOT NULL, result_digest TEXT NOT NULL, record_json TEXT NOT NULL,
+                PRIMARY KEY(job_id,result_digest))""")
             con.execute("UPDATE parent_returns SET state='NEEDS_RECONCILIATION' WHERE state IN ('IN_FLIGHT','RESTORING')")
             if 'last_error_code' not in {r[1] for r in con.execute('PRAGMA table_info(parent_returns)')}:
                 con.execute('ALTER TABLE parent_returns ADD COLUMN last_error_code TEXT')
@@ -62,19 +65,20 @@ class ParentReturnController:
                         ('resident','busy','authenticated','can_restore','can_resume'))
                 and state.authenticated and state.can_resume)
 
-    def bind(self, job_id):
+    def bind(self, job_id, *, refresh=False):
         with self.owner._connection() as con:
             row=con.execute('SELECT * FROM jobs WHERE job_id=?',(job_id,)).fetchone()
             prior=con.execute('SELECT * FROM parent_bindings WHERE job_id=?',(job_id,)).fetchone()
-            if prior is not None:return
+            if prior is not None and not refresh:return
         state=self.driver.state(row['principal'],row['thread_id'])
-        if not self._valid(state,row['principal'],row['thread_id']) or (not state.resident and not state.can_restore):
+        if not self._valid(state,row['principal'],row['thread_id'],prior['model_id'] if prior else None) or (not state.resident and not state.can_restore):
             raise InputRejected('original parent binding/restore capability unavailable')
         if callable(getattr(self.driver,'capture',None)):
-            self.driver.capture(job_id,row['principal'],row['thread_id'])
+            capture=(getattr(self.driver,'refresh_capture',self.driver.capture) if refresh else self.driver.capture)
+            capture(job_id,row['principal'],row['thread_id'])
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE')
-            con.execute('INSERT INTO parent_bindings VALUES(?,?,?,?)',
+            con.execute('INSERT OR IGNORE INTO parent_bindings VALUES(?,?,?,?)',
                         (job_id,row['principal'],row['thread_id'],state.model_id))
         self.verified=True
 
@@ -87,7 +91,8 @@ class ParentReturnController:
             if row is None or row['state'] not in ('RESULT_READY','WAITING_FOR_PARENT','FAILED','CANCELLED'):
                 raise InputRejected('verified result and original binding required')
             digest=(row['result_digest'] if row['state']=='RESULT_READY' else
-                    _digest([job_id,row['state'],row['question'],row['error_code']]))
+                    _digest([job_id,row['state'],row['question'],row['error_code'],
+                             con.execute('SELECT attempt_no FROM pilot_runs WHERE job_id=?',(job_id,)).fetchone()[0]]))
             if not digest:raise InputRejected('verified notification required')
             prior=con.execute('SELECT result_digest FROM parent_returns WHERE job_id=?',(job_id,)).fetchone()
             if prior is not None:
@@ -99,6 +104,16 @@ class ParentReturnController:
             if table:
                 lease=con.execute('SELECT parent_unloaded FROM model_leases WHERE job_id=?',(job_id,)).fetchone()
                 if lease and lease[0]:con.execute('UPDATE parent_returns SET restore_needed=1 WHERE job_id=?',(job_id,))
+
+    def archive_for_resume(self,con,job):
+        import json
+        row=con.execute('SELECT * FROM parent_returns WHERE job_id=?',(job,)).fetchone()
+        if row is None or row['state']!='DELIVERED':raise VersionConflict('question delivery not verified')
+        con.execute('INSERT INTO parent_return_history VALUES(?,?,?)',
+            (job,row['result_digest'],json.dumps(dict(row),sort_keys=True)))
+        if callable(getattr(self.driver,'archive_for_resume',None)):
+            self.driver.archive_for_resume(con,job)
+        con.execute('DELETE FROM parent_returns WHERE job_id=? AND result_digest=?',(job,row['result_digest']))
 
     def status(self, job_id):
         with self.owner._connection() as con:
@@ -116,11 +131,11 @@ class ParentReturnController:
             raise VersionConflict('original parent delivery/restore not yet verified')
         return result['restore_needed']
 
-    def _set(self, job, state, expected, *, restore_needed=None,error_code=None):
+    def _set(self, job, state, expected, *, restore_needed=None,error_code=None,digest=None):
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE')
-            changed=con.execute('UPDATE parent_returns SET state=?,last_error_code=? WHERE job_id=? AND state=?',
-                                (state,error_code,job,expected)).rowcount
+            changed=con.execute('UPDATE parent_returns SET state=?,last_error_code=? WHERE job_id=? AND state=? AND (? IS NULL OR result_digest=?)',
+                                (state,error_code,job,expected,digest,digest)).rowcount
             if changed and restore_needed is not None:
                 con.execute('UPDATE parent_returns SET restore_needed=? WHERE job_id=?',
                             (int(restore_needed),job))
@@ -131,15 +146,16 @@ class ParentReturnController:
         with self.owner._connection() as con:
             row=con.execute('SELECT r.*,b.principal,b.thread_id FROM parent_returns r JOIN parent_bindings b USING(job_id) WHERE job_id=?',(job,)).fetchone()
         if row is None or row['state'] not in ('IN_FLIGHT','NEEDS_RECONCILIATION'):return
+        update=lambda state,expected,**kw:self._set(job,state,expected,digest=row['result_digest'],**kw)
         operation='return-'+_digest([job,row['result_digest']])
         try:receipt=self.driver.reconcile(row['principal'],row['thread_id'],job,row['result_digest'],operation)
         except Exception:return
         if type(receipt) is ParentReceipt and receipt==ParentReceipt(job,row['thread_id'],row['result_digest'],operation):
-            self._set(job,'DELIVERED',row['state'])
+            update('DELIVERED',row['state'])
         elif receipt is None and callable(getattr(self.driver,'delivery_uncertain',None)):
             try:uncertain=self.driver.delivery_uncertain(job)
             except Exception:return
-            if not uncertain:self._set(job,'WAITING_PARENT',row['state'])
+            if not uncertain:update('WAITING_PARENT',row['state'])
 
     def tick(self):
         # No overlapping ticks, and never hold a SQLite write transaction
@@ -165,35 +181,36 @@ class ParentReturnController:
             for row in rows:
                 if self._stop.is_set():return
                 job=row['job_id']; old=row['state']
+                update=lambda state,expected,**kw:self._set(job,state,expected,digest=row['result_digest'],**kw)
                 with self.owner._connection() as con:
                     if con.execute("SELECT 1 FROM sqlite_master WHERE name='model_leases'").fetchone():
                         lease=con.execute('SELECT state FROM model_leases WHERE job_id=?',(job,)).fetchone()
                         if lease and lease[0]!='RELEASED':
-                            self._set(job,'WAITING_PARENT',old);continue
+                            update('WAITING_PARENT',old);continue
                 try: state=self.driver.state(row['principal'],row['thread_id'])
                 except Exception as exc:
-                    self._set(job,'WAITING_PARENT',old,error_code=safe_tool_fault(exc).code);continue
+                    update('WAITING_PARENT',old,error_code=safe_tool_fault(exc).code);continue
                 if not self._valid(state,row['principal'],row['thread_id'],row['model_id']) or state.busy:
-                    self._set(job,'WAITING_PARENT',old);continue
+                    update('WAITING_PARENT',old);continue
                 self.verified=True
                 if self._stop.is_set():return
                 if not state.resident:
                     if not state.can_restore:
-                        self._set(job,'RESTORE_FAILED',old);continue
-                    if not self._set(job,'RESTORING',old,restore_needed=True):continue
+                        update('RESTORE_FAILED',old);continue
+                    if not update('RESTORING',old,restore_needed=True):continue
                     try:
                         state=self.driver.restore(row['principal'],row['thread_id'],row['model_id'],
-                                                  'restore-'+_digest(job))
+                                                  'restore-'+_digest([job,row['result_digest']]))
                     except Exception as exc:
-                        self._set(job,'RESTORE_FAILED','RESTORING',error_code=safe_tool_fault(exc).code);continue
+                        update('RESTORE_FAILED','RESTORING',error_code=safe_tool_fault(exc).code);continue
                     if (not self._valid(state,row['principal'],row['thread_id'],row['model_id']) or
                             not state.resident):
-                        self._set(job,'RESTORE_FAILED','RESTORING');continue
-                    self._set(job,'WAITING_PARENT','RESTORING')
+                        update('RESTORE_FAILED','RESTORING');continue
+                    update('WAITING_PARENT','RESTORING')
                     old='WAITING_PARENT'
                     if state.busy:continue
                 if self._stop.is_set():return
-                if not self._set(job,'IN_FLIGHT',old):continue
+                if not update('IN_FLIGHT',old):continue
                 operation='return-'+_digest([job,row['result_digest']])
                 try:
                     receipt=self.driver.deliver(row['principal'],row['thread_id'],
@@ -206,8 +223,8 @@ class ParentReturnController:
                     if callable(getattr(self.driver,'delivery_uncertain',None)):
                         try:uncertain=self.driver.delivery_uncertain(job)
                         except Exception:pass
-                    self._set(job,'NEEDS_RECONCILIATION' if uncertain else 'WAITING_PARENT','IN_FLIGHT',error_code=safe_tool_fault(exc).code);continue
-                self._set(job,'DELIVERED','IN_FLIGHT')
+                    update('NEEDS_RECONCILIATION' if uncertain else 'WAITING_PARENT','IN_FLIGHT',error_code=safe_tool_fault(exc).code);continue
+                update('DELIVERED','IN_FLIGHT')
 
     def start(self):
         # Recover only delivery intent for already finished workers, never

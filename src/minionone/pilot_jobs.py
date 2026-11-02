@@ -109,6 +109,10 @@ class PilotJobs:
               operation_digest TEXT NOT NULL,request_hash TEXT NOT NULL,receipt TEXT NOT NULL,
               PRIMARY KEY(job_id,kind,operation_digest));
             ''')
+            from .question_resume import install as install_questions
+            install_questions(con)
+            from .cloud_egress import install as install_cloud
+            install_cloud(con)
             if 'worker_profile_sha256' not in {r[1] for r in con.execute('PRAGMA table_info(pilot_runs)')}:
                 con.execute('ALTER TABLE pilot_runs ADD COLUMN worker_profile_sha256 TEXT')
             con.executescript("""
@@ -128,10 +132,10 @@ class PilotJobs:
         count=0
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE')
-            for row in con.execute("SELECT j.* FROM jobs j JOIN pilot_runs p USING(job_id) WHERE (p.active=1 OR p.provider_inflight=1) AND j.state IN ('RESOURCE_CHECK','RUNNING','CANCEL_REQUESTED')").fetchall():
+            for row in con.execute("SELECT j.* FROM jobs j JOIN pilot_runs p USING(job_id) WHERE (p.active=1 OR p.provider_inflight=1) AND j.state IN ('RESOURCE_CHECK','RESUMING','RUNNING','CANCEL_REQUESTED')").fetchall():
                 uncertain_model=(self.model_lifecycle is not None and
                     self.model_lifecycle.status(row['job_id'])['state']=='NEEDS_RECONCILIATION')
-                target='FAILED' if row['state']=='RESOURCE_CHECK' and not uncertain_model else 'NEEDS_RECONCILIATION'
+                target='FAILED' if row['state'] in ('RESOURCE_CHECK','RESUMING') and not uncertain_model else 'NEEDS_RECONCILIATION'
                 code=('MODEL_LIFECYCLE_UNCERTAIN' if uncertain_model else
                       'PILOT_START_FAILED' if target=='FAILED' else 'PILOT_PROVIDER_UNCERTAIN')
                 con.execute('UPDATE pilot_runs SET active=0,capability=NULL,provider_inflight=1,error_code=? WHERE job_id=?',
@@ -152,15 +156,21 @@ class PilotJobs:
         if row['job_kind']=='TEXT':backend='bounded_text_no_worker_tools'
         elif row['job_kind']=='WORKSPACE':
             backend='native_win32_work_sqlite_output' if os.name=='nt' else 'native_posix_work_sqlite_output'
+        from .cloud_egress import status as cloud_status
+        checkpoint=con.execute('SELECT question_digest FROM pilot_question_checkpoints WHERE job_id=? AND attempt_no=?',(row['job_id'],p['attempt_no'])).fetchone()
         return {'backend':backend,
-                'attempt_epoch':p['epoch'],'worker_model':p['model_id'],
+                'attempt_epoch':p['attempt_no'],'worker_model':p['model_id'],
                 'model_turns':p['turns'],'tool_calls':p['tools'],'denials':p['denials'],
                 'tokens_used':p['tokens'],'progress_percent':p['percent'],
+                'cloud_budget':cloud_status(con,row['job_id']),
                 'provider_state_uncertain':bool(p['provider_inflight'] and not p['active']),
                 'result_available':row['state'] in ('RESULT_READY','COMPLETED'),
                 'result_digest':p['result_digest'],
                 **({'error':diagnostic(p['error_code']).to_dict()} if p['error_code'] else {}),
-                **({'question':p['question']} if row['state']=='WAITING_FOR_PARENT' else {})}
+                **({'question':p['question'],'question_digest':checkpoint[0] if checkpoint else None,
+                    'answer_available':(checkpoint is not None and p['attempt_no']<20 and p['turns']<50
+                        and p['tools']<60 and p['tokens']<150000 and p['denials']<3
+                        and p['active_ms']+1000<=p['wall_limit_ms'])} if row['state']=='WAITING_FOR_PARENT' else {})}
 
     def _receipt(self,con,job,kind,operation,request,store=None):
         key=_digest(operation);request_hash=_digest(request)
@@ -224,7 +234,8 @@ class PilotJobs:
                 raise VersionConflict('test job not queued at expected version')
             if con.execute('SELECT 1 FROM pilot_runs WHERE active=1 OR provider_inflight=1').fetchone():raise PilotError('PILOT_JOB_BUSY')
             if self.model_lifecycle is not None and self.model_lifecycle.blocked(con):raise PilotError('MODEL_LIFECYCLE_BLOCKED')
-            con.execute('UPDATE pilot_runs SET active=1,capability=? WHERE job_id=?',(sha256(cap.encode()).hexdigest(),job_id))
+            con.execute('UPDATE pilot_runs SET active=1,capability=?,wall_limit_ms=CASE WHEN wall_limit_ms=0 THEN ? ELSE wall_limit_ms END WHERE job_id=?',
+                        (sha256(cap.encode()).hexdigest(),self.config.wall_seconds*1000,job_id))
             row=self.owner._transition(con,row,'RESOURCE_CHECK',Evidence(),'pilot-start-'+_digest(operation_id))
             receipt=self.owner._snapshot(row)
             self._receipt(con,job_id,'START',operation_id,request,receipt)
@@ -287,9 +298,9 @@ class PilotJobs:
                 con.execute('BEGIN IMMEDIATE');row=con.execute('SELECT * FROM jobs WHERE job_id=?',(job,)).fetchone()
                 if row['state']=='CANCEL_REQUESTED':
                     raise PilotError('MODEL_LIFECYCLE_BLOCKED')
-                if row['state']!='RESOURCE_CHECK':raise PilotError('PILOT_STATE_INVALID')
+                if row['state'] not in ('RESOURCE_CHECK','RESUMING'):raise PilotError('PILOT_STATE_INVALID')
                 workspace_job=row['job_kind']=='WORKSPACE'
-                self.owner._transition(con,row,'RUNNING',Evidence(attempt_no=1,active_lease=True,worker_outcome='RUNNING'),'pilot-running-'+secrets.token_hex(8))
+                self.owner._transition(con,row,'RUNNING',Evidence(attempt_no=con.execute('SELECT attempt_no FROM pilot_runs WHERE job_id=?',(job,)).fetchone()[0],active_lease=True,worker_outcome='RUNNING'),'pilot-running-'+secrets.token_hex(8))
                 task=con.execute('SELECT task FROM pilot_runs WHERE job_id=?',(job,)).fetchone()[0]
                 names=[r[0] for r in con.execute("SELECT name FROM pilot_files WHERE job_id=? AND zone='input' ORDER BY name",(job,))]
                 sealed={r['name']:r['content'] for r in con.execute("SELECT name,content FROM pilot_files WHERE job_id=? AND zone='input'",(job,))}
@@ -321,28 +332,30 @@ class PilotJobs:
                     io_con.execute('BEGIN IMMEDIATE')
                     self._current(io_con,job,cap)
                     append_worker_io(io_con,job,kind,body,live_writer=live_logs)
+            cloud_guard=None
+            if profile is not None and profile.provider=='cloud':
+                from .cloud_egress import CloudEgressGuard
+                cloud_guard=CloudEgressGuard(self,job,cap,profile)
             provider=LMStudioAgentProvider(self.config.base_url,model_id=profile.model_id if profile else self.config.model_id,
                         approved_prompt=instructions,system_prompt=(WORKSPACE_SYSTEM_POLICY if workspace_job else SYSTEM_POLICY),
                         max_output_tokens=min(4096,profile.max_output_tokens) if profile else 2048,api_key=self.config.api_key,
                         io_sink=worker_io_sink if workspace_job else None,
-                         workspace_tools=workspace_job,**({'worker_profile':profile} if profile else {}))
+                         workspace_tools=workspace_job,**({'worker_profile':profile,**({'egress_guard':cloud_guard} if cloud_guard else {})} if profile else {}))
             if profile is None:
                 provider._provider._opener=DeadlineOpener(self.config.base_url,self.config.api_key)
             observed=ObservedProvider(self,job,cap,provider,live_logs=live_logs)
-            if workspace_job:
-                if os.name == 'nt':
-                    from .win32_native_work import WindowsWorkspaceBroker
-                    broker=WindowsWorkspaceBroker(self,job,cap,self.workspace_execution)
-                else:
-                    from .native_work import NativeWorkspaceBroker
-                    broker=NativeWorkspaceBroker(self,job,cap,self.workspace_execution)
-            else:
-                broker=DocumentBroker(self,job,cap)
+            broker=self.make_broker(job,cap,workspace_job)
+            from .question_resume import limits as remaining_limits,restore as restore_question,finished as finish_question
+            restore_question(self,job,provider,broker)
             grant=WorkerToolGrant.for_job_kind('WORKSPACE' if workspace_job else 'ISOLATED_TEST')
-            run=AgentLoop(AgentLimits(wall_seconds=self.config.wall_seconds,
-                    model_call_seconds=min(self.config.model_call_seconds,profile.timeout_seconds) if profile else self.config.model_call_seconds),
-                    allowed_tools=grant.allowed).run(observed,BoxedToolGateway(grant,broker),
+            limits=remaining_limits(self,job)
+            if profile is not None:
+                from dataclasses import replace
+                limits=replace(limits,model_call_seconds=min(self.config.model_call_seconds,profile.timeout_seconds))
+            started_loop=time.monotonic()
+            run=AgentLoop(limits,allowed_tools=grant.allowed).run(observed,BoxedToolGateway(grant,broker),
                     cancelled=lambda:self._cancelled(job))
+            checkpoint_log_digest=None
             if workspace_job:
                 # Each exact event has already been fsynced into output/;
                 # no end-of-run publication from SQLite is needed.
@@ -356,12 +369,16 @@ class PilotJobs:
                 except InputRejected as exc:
                     raise PilotError('PILOT_FILE_CHANGED') from exc
                 live_logs.job_event('JOB_OUTCOME',{'outcome':run.status})
+                if run.status=='WAITING_FOR_PARENT':
+                    checkpoint_log_digest=sha256(live_logs._read_bytes('job.log.jsonl',8*1024*1024)).hexdigest()
                 io_published=True
                 # On Windows, a terminal job state MUST NOT become visible
                 # while any live output file handle is still open. Otherwise
                 # a parent ACK/cleanup can race pinned NTFS handles.
                 live_logs.__exit__(None,None,None)
                 live_logs=None
+            if run.status!='CANCELLED' and not self._cancelled(job):
+                finish_question(self,job,cap,run,provider,broker,max(0,int((time.monotonic()-started_loop)*1000)),job_log_digest=checkpoint_log_digest)
             if run.status=='AWAITING_REVIEW':
                 if row['job_kind']=='WORKSPACE':
                     # Never declare RESULT_READY while a crash-left Work
@@ -438,6 +455,19 @@ class PilotJobs:
                         self.process_logs.failure('JOB_LOG_CLOSE_FAILED',log_error)
             with self._lock:self._threads.discard(threading.current_thread())
 
+    def make_broker(self,job,cap,workspace_job):
+        if workspace_job:
+            if os.name=='nt':
+                from .win32_native_work import WindowsWorkspaceBroker
+                return WindowsWorkspaceBroker(self,job,cap,self.workspace_execution)
+            from .native_work import NativeWorkspaceBroker
+            return NativeWorkspaceBroker(self,job,cap,self.workspace_execution)
+        return DocumentBroker(self,job,cap)
+
+    def answer_question(self,token,thread,job_id,expected_version,question_digest,answer,operation_id,*,kind='WORKSPACE'):
+        from .question_resume import answer as resume_answer
+        return resume_answer(self,token,thread,job_id,expected_version,question_digest,answer,operation_id,kind=kind)
+
     def _cancelled(self,job):
         with self.owner._connection() as con:
             row=con.execute('SELECT state FROM jobs WHERE job_id=?',(job,)).fetchone()
@@ -447,7 +477,7 @@ class PilotJobs:
         if self.model_lifecycle is not None:self.model_lifecycle.stop.set()
         with self.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE')
-            rows=con.execute("SELECT j.* FROM jobs j JOIN pilot_runs p USING(job_id) WHERE p.active=1 AND j.state IN ('RUNNING','RESOURCE_CHECK')").fetchall()
+            rows=con.execute("SELECT j.* FROM jobs j JOIN pilot_runs p USING(job_id) WHERE p.active=1 AND j.state IN ('RUNNING','RESOURCE_CHECK','RESUMING')").fetchall()
             for row in rows:
                 self.owner._transition(con,row,'CANCEL_REQUESTED',Evidence(),'pilot-stop-'+secrets.token_hex(8))
                 con.execute('UPDATE pilot_runs SET active=0,capability=NULL WHERE job_id=?',(row['job_id'],))
@@ -536,7 +566,7 @@ class PilotJobs:
             self.parent_return.enqueue(job)
 
     def _finish_in(self,con,row,state,code):
-        if row['state'] not in ('RESOURCE_CHECK','RUNNING','CANCEL_REQUESTED'):return
+        if row['state'] not in ('RESOURCE_CHECK','RESUMING','RUNNING','CANCEL_REQUESTED'):return
         if row['state']=='CANCEL_REQUESTED' and state!='NEEDS_RECONCILIATION':state='CANCELLED';code=None
         result_digest=None
         if state=='RESULT_READY':
@@ -601,7 +631,7 @@ class PilotJobs:
             con.execute('BEGIN IMMEDIATE');row=self.owner._owned_row(con,principal,thread,job_id)
             old=self._receipt(con,job_id,'CANCEL',operation_id,[expected_version])
             if old is not None:return old
-            if row['job_kind']!=kind or row['version']!=expected_version or row['state'] not in ('QUEUED','RESOURCE_CHECK','RUNNING','WAITING_FOR_PARENT'):
+            if row['job_kind']!=kind or row['version']!=expected_version or row['state'] not in ('QUEUED','RESOURCE_CHECK','RESUMING','RUNNING','WAITING_FOR_PARENT'):
                 raise VersionConflict('test job cannot be cancelled at expected version')
             previous=row['state']
             row=self.owner._transition(con,row,'CANCEL_REQUESTED',Evidence(),'pilot-cancel-'+_digest(operation_id),actor='AUTHENTICATED_PARENT')
@@ -672,24 +702,28 @@ class ObservedProvider:
     def __init__(self,manager,job,cap,provider,live_logs=None):
         self.m=manager;self.job=job;self.cap=cap;self.provider=provider;self.uncertain=False;self.error_code=None
         self.live_logs=live_logs
+        with manager.owner._connection() as con:self.attempt=con.execute('SELECT attempt_no FROM pilot_runs WHERE job_id=?',(job,)).fetchone()[0]
     def next_step(self,*,timeout_seconds):
         with self.m.owner._connection() as con:
             con.execute('BEGIN IMMEDIATE');self.m._current(con,self.job,self.cap)
             con.execute('UPDATE pilot_runs SET turns=turns+1,provider_inflight=1 WHERE job_id=?',(self.job,))
             turn=con.execute('SELECT turns FROM pilot_runs WHERE job_id=?',(self.job,)).fetchone()[0]
-            log_event(con,self.job,'DEBUG','MODEL_REQUEST_STARTED',{'turn':turn,'attempt':1})
+            log_event(con,self.job,'DEBUG','MODEL_REQUEST_STARTED',{'turn':turn,'attempt':self.attempt})
         if self.live_logs is not None:
-            self.live_logs.job_event('MODEL_REQUEST_STARTED',{'turn':turn,'attempt':1})
+            self.live_logs.job_event('MODEL_REQUEST_STARTED',{'turn':turn,'attempt':self.attempt})
         started=time.monotonic_ns()
         try:step=self.provider.next_step(timeout_seconds=timeout_seconds)
         except Exception as exc:
             self.error_code=safe_tool_fault(exc).code
-            self.uncertain=self.error_code not in ('PROVIDER_AUTH_FAILED','PROVIDER_CONNECTION_REFUSED','PROVIDER_ENDPOINT_NOT_FOUND','PROVIDER_REQUEST_REJECTED')
+            self.uncertain=self.error_code not in ('PROVIDER_AUTH_FAILED','PROVIDER_CONNECTION_REFUSED','PROVIDER_ENDPOINT_NOT_FOUND','PROVIDER_REQUEST_REJECTED',
+                'CLOUD_POLICY_REQUIRED','CLOUD_EGRESS_BLOCKED','CLOUD_INPUT_LIMIT','CLOUD_BUDGET_EXHAUSTED','CLOUD_REQUEST_ALREADY_RESERVED')
             elapsed=min(4_000_000_000,max(0,(time.monotonic_ns()-started)//1_000_000))
             with self.m.owner._connection() as con:
                 con.execute('BEGIN IMMEDIATE')
+                if self.error_code.startswith('CLOUD_') and not self.uncertain and self.live_logs is not None:
+                    append_worker_io(con,self.job,'REQUEST_BLOCKED',json.dumps({'error_code':self.error_code}),live_writer=self.live_logs)
                 log_event(con,self.job,'DEBUG','MODEL_REQUEST_FAILED',
-                          {'turn':turn,'duration_ms':elapsed,'error_code':self.error_code,'attempt':1})
+                          {'turn':turn,'duration_ms':elapsed,'error_code':self.error_code,'attempt':self.attempt})
             if self.live_logs is not None:
                 self.live_logs.job_event('MODEL_REQUEST_FAILED',
                     {'turn':turn,'duration_ms':elapsed,'error_code':self.error_code})
@@ -699,7 +733,7 @@ class ObservedProvider:
             con.execute('BEGIN IMMEDIATE')
             con.execute('UPDATE pilot_runs SET provider_inflight=0,tokens=tokens+? WHERE job_id=?',(step.total_tokens,self.job))
             log_event(con,self.job,'DEBUG','MODEL_REQUEST_FINISHED',
-                      {'turn':turn,'duration_ms':elapsed,'tokens':step.total_tokens,'attempt':1})
+                      {'turn':turn,'duration_ms':elapsed,'tokens':step.total_tokens,'attempt':self.attempt})
         if self.live_logs is not None:
             self.live_logs.job_event('MODEL_REQUEST_FINISHED',
                 {'turn':turn,'duration_ms':elapsed,'tokens':step.total_tokens})
@@ -711,7 +745,7 @@ class ObservedProvider:
             con.execute('BEGIN IMMEDIATE')
             con.execute('UPDATE pilot_runs SET tools=tools+1,denials=denials+? WHERE job_id=?',(int(reply.status=='DENIED'),self.job))
             log_event(con,self.job,'DEBUG','WORKER_TOOL_COMPLETED',
-                      {'tool':safe_name,'result_code':reply.result_code,'attempt':1})
+                      {'tool':safe_name,'result_code':reply.result_code,'attempt':self.attempt})
         if self.live_logs is not None:
             self.live_logs.job_event('WORKER_TOOL_COMPLETED',
                 {'tool':safe_name,'result_code':reply.result_code})

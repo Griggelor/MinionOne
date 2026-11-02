@@ -194,7 +194,7 @@ def _parent(api, root, parts, volume):
         yield parent, parts[-1]
 
 
-def _inventory(api, root, volume, prefix="", depth=0, budget=None):
+def _inventory(api, root, volume, prefix="", depth=0, budget=None, include_directories=False):
     if depth > 6:
         raise BrokerScopeDenied("Windows Work nesting quota exceeded")
     if budget is None:
@@ -217,13 +217,14 @@ def _inventory(api, root, volume, prefix="", depth=0, budget=None):
         if directory is not None:
             try:
                 api.validate(directory, directory=True, volume=volume)
+                if include_directories:files.append((prefix+name+"/",b""))
                 files.extend(_inventory(api, directory, volume,
-                                        prefix + name + "/", depth + 1, budget))
+                                        prefix + name + "/", depth + 1, budget,include_directories))
             finally:
                 api.close(directory)
         else:
             files.append((prefix + name, api.read_work(root, name, volume)))
-        if len(files) > _MAX_FILES or sum(len(data) for _, data in files) > _MAX_TOTAL:
+        if sum(not n.endswith("/") for n,_ in files) > _MAX_FILES or sum(len(data) for _, data in files) > _MAX_TOTAL:
             raise BrokerScopeDenied("Windows Work inventory quota exceeded")
     return files
 
@@ -275,6 +276,10 @@ class WindowsWorkspaceBroker(DocumentBroker):
         """Validate the pinned real Work tree before terminal publication."""
         with self._lock, self._zone('work') as (api, root, volume):
             return _inventory(api, root, volume)
+
+    def checkpoint_inventory(self):
+        with self._lock,self._zone('work') as (api,root,volume):
+            return _inventory(api,root,volume,include_directories=True)
 
     def _execute(self, name, args, *, timeout_seconds):
         if name in ("report_progress", "ask_question"):

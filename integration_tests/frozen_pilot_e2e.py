@@ -166,8 +166,8 @@ def run(executable,output):
         assert secret not in json.dumps(workspace_report)
         assert str(workspace_state) not in json.dumps(workspace_report)
         process.terminate();process.communicate(timeout=10);process=None
-        from native_fixture import NativeFixture,PARENT,WORKER,THREAD
-        native=NativeFixture().start();native.capacity=6000
+        from native_fixture import NativeFixture,PARENT,WORKER,THREAD,question_worker_reply
+        native=NativeFixture().start();native.capacity=6000;native.worker_reply=question_worker_reply
         try:
             native_state=Path(tmp)/'native lifecycle state';native_state.mkdir()
             native_profiles=Path(tmp)/'native worker profiles.json'
@@ -197,6 +197,22 @@ def run(executable,output):
             while time.monotonic()<deadline:
                 status=rpc('minionone_job_status',{'job_id':job['job_id']})
                 if status['state'] in ('FAILED','NEEDS_RECONCILIATION'):raise AssertionError(status)
+                if status['state']=='WAITING_FOR_PARENT' and status['parent_return']['state']=='DELIVERED':break
+                time.sleep(.2)
+            else:raise RuntimeError('native worker question deadline')
+            work_path=native_state/'synthetic-project'/'.minionone'/'jobs'/job['job_id']/'work'/'result.txt'
+            paused_work_digest=sha256(work_path.read_bytes()).hexdigest()
+            native.begin_parent_turn()
+            answer_args={'job_id':job['job_id'],'expected_version':status['version'],
+                'question_digest':status['workspace_job']['question_digest'],
+                'answer':'Publish the existing result.','operation_id':'frozen-native-answer-001'}
+            accepted=rpc('minionone_answer_question',answer_args)
+            assert rpc('minionone_answer_question',answer_args)==accepted
+            native.end_turn()
+            deadline=time.monotonic()+90
+            while time.monotonic()<deadline:
+                status=rpc('minionone_job_status',{'job_id':job['job_id']})
+                if status['state'] in ('FAILED','NEEDS_RECONCILIATION'):raise AssertionError(status)
                 if status['state']=='RESULT_READY' and status['parent_return']['state']=='DELIVERED':break
                 time.sleep(.2)
             else:raise RuntimeError('native automatic return deadline')
@@ -204,7 +220,9 @@ def run(executable,output):
             assert value['files'][0]['text']=='NATIVE LIFECYCLE RESULT'
             assert rpc('minionone_accept_workspace_result',{'job_id':job['job_id'],'expected_version':value['version'],
                 'result_digest':value['result_digest'],'operation_id':'frozen-native-ack-001'})['state']=='COMPLETED'
-            assert native.events.count('parent-run')==1 and len(native.requests)==3
+            assert native.events.count('parent-run')==2 and len(native.requests)==4
+            assert status['workspace_job']['attempt_epoch']==2 and status['workspace_job']['tokens_used']==48
+            assert sha256(work_path.read_bytes()).hexdigest()==paused_work_digest
             assert 'lm-load' in native.events and 'lm-unload' in native.events
             assert 'PRIVATE ORIGINAL FLASH HISTORY' not in json.dumps(native.requests)
             process.terminate();process.communicate(timeout=10);process=None
@@ -212,13 +230,52 @@ def run(executable,output):
             if process is not None:
                 process.terminate();process.communicate(timeout=10);process=None
             native.shutdown();native.server_close()
+        # Real frozen control-plane rejects before HTTPS: no real cloud is used.
+        cloud_state=Path(tmp)/'cloud gate state';cloud_state.mkdir()
+        cloud_profiles=Path(tmp)/'cloud gate profiles.json'
+        cloud_policy={'contract':'text_tokens_v1','data_class':'synthetic',
+            'input_token_ceiling':262144,'input_price_microusd_per_million':1000000,
+            'output_price_microusd_per_million':1000000,'max_total_cost_microusd':1000000}
+        cloud_profiles.write_text(json.dumps({'profiles':[{
+            'profile_id':name,'provider':'cloud','model_id':'synthetic-model',
+            'base_url':'https://synthetic.invalid/v1','secret_env':'MINIONONE_FROZEN_CLOUD_KEY',
+            'cloud_approved':True,'cloud_policy':dict(cloud_policy,max_job_cost_microusd=limit)
+        } for name,limit in (('private',1000000),('budget',1))]}))
+        command=[str(executable),'--state',str(cloud_state),'serve','--synthetic-workspace',
+            '--port',str(port),'--min-free-mb','1','--worker-profiles',str(cloud_profiles)]
+        process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,
+            env=dict(os.environ,MINIONONE_FROZEN_CLOUD_KEY='frozen-synthetic-cloud-key'))
+        deadline=time.monotonic()+40
+        while time.monotonic()<deadline:
+            if process.poll() is not None:raise RuntimeError('cloud gate frozen server exited')
+            if (cloud_state/'settings.json').exists():break
+            time.sleep(.2)
+        else:raise RuntimeError('cloud gate startup deadline')
+        connection=subprocess.run([str(executable),'--state',str(cloud_state),'connection','--show-token'],
+            capture_output=True,text=True,timeout=20,check=True)
+        workspace_secret=json.loads(connection.stdout)['header_value']
+        for name,task,code in (('private','Contact private@example.invalid.','CLOUD_EGRESS_BLOCKED'),
+                               ('budget','Review the synthetic material.','CLOUD_BUDGET_EXHAUSTED')):
+            job=rpc('minionone_delegate',{'project_id':'demo','profile_id':name,'allow_cloud':True,
+                'task':task,'operation_id':'frozen-cloud-'+name})
+            deadline=time.monotonic()+40
+            while time.monotonic()<deadline:
+                blocked=rpc('minionone_job_status',{'job_id':job['job_id']})
+                if blocked['state'] in ('FAILED','NEEDS_RECONCILIATION'):break
+                time.sleep(.2)
+            else:raise RuntimeError('cloud gate rejection deadline')
+            assert blocked['state']=='FAILED' and blocked['workspace_job']['error']['code']==code,blocked
+            assert blocked['workspace_job']['cloud_budget']['requests_reserved']==0
+        process.terminate();process.communicate(timeout=10);process=None
         output.parent.mkdir(parents=True,exist_ok=True)
         output.write_text(json.dumps({'passed':True,'scope':'frozen-executable + synthetic HTTP provider',
             'generation_requests':model.calls,'report':report,'export_verified':True,
             'credential_protection_verified':True,'duplicate_instance_rejected':True,
             'workspace_report':workspace_report,'native_work_verified':True,
             'profiled_handoffs_verified':True,'native_parent_return_verified':True,
-            'automatic_model_lifecycle_verified':True,'native_worker_requests':len(native.requests),
+            'automatic_model_lifecycle_verified':True,'question_resume_verified':True,
+            'cumulative_worker_budget_verified':True,'cloud_egress_gate_verified':True,'cloud_budget_gate_verified':True,
+            'cloud_scope':'deterministic pre-send rejection; no real cloud billing or model','native_worker_requests':len(native.requests),
             'native_parent_runs':native.events.count('parent-run'),'native_scope':'synthetic HTTP host contract, not real Studio/GPU'},indent=2)+'\n')
     finally:
         if process is not None:

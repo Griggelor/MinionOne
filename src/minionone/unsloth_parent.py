@@ -76,6 +76,9 @@ class UnslothParent:
                 job_id TEXT PRIMARY KEY REFERENCES jobs(job_id), operation_id TEXT NOT NULL,
                 digest TEXT NOT NULL, envelope_json TEXT NOT NULL, message_json TEXT NOT NULL,
                 phase TEXT NOT NULL);''')
+            con.execute('''CREATE TABLE IF NOT EXISTS native_parent_return_history(
+                job_id TEXT NOT NULL,operation_id TEXT NOT NULL,record_json TEXT NOT NULL,
+                PRIMARY KEY(job_id,operation_id))''')
             if 'restore_json' not in {r[1] for r in con.execute('PRAGMA table_info(native_parent_jobs)')}:
                 con.execute("ALTER TABLE native_parent_jobs ADD COLUMN restore_json TEXT NOT NULL DEFAULT '{}'")
     @property
@@ -133,10 +136,10 @@ class UnslothParent:
         leaves=[m for m in leaves if descends(m)]
         if len(leaves)!=1:raise WorkerProviderError('NATIVE_CHAT_AMBIGUOUS')
         return leaves[0]
-    def capture(self,job,principal,thread):
+    def capture(self,job,principal,thread,*,refresh=False):
         self._identity(principal,thread)
         with self.owner._connection() as con:
-            if con.execute('SELECT 1 FROM native_parent_jobs WHERE job_id=?',(job,)).fetchone():return
+            if not refresh and con.execute('SELECT 1 FROM native_parent_jobs WHERE job_id=?',(job,)).fetchone():return
         messages=self._messages();runs=self._active()
         if len(runs)>1:raise WorkerProviderError('NATIVE_CHAT_AMBIGUOUS')
         options=dict(self.config.resume_options);system=[]
@@ -167,17 +170,30 @@ class UnslothParent:
         from dataclasses import replace
         replace(self.profile,load_options=restore)  # validate native facts before sealing
         with self.owner._connection() as con:
-            con.execute('INSERT INTO native_parent_jobs(job_id,anchor_id,options_json,system_json,restore_json) VALUES(?,?,?,?,?)',
+            con.execute('INSERT INTO native_parent_jobs(job_id,anchor_id,options_json,system_json,restore_json) VALUES(?,?,?,?,?) ON CONFLICT(job_id) DO UPDATE SET anchor_id=excluded.anchor_id,options_json=excluded.options_json,system_json=excluded.system_json,restore_json=excluded.restore_json',
                         (job,anchor,json.dumps(options,sort_keys=True),json.dumps({'source_run_id':runs[0]['id'],'system_digest':_digest(system)}),json.dumps(restore,sort_keys=True)))
+    def refresh_capture(self,job,principal,thread):
+        self.capture(job,principal,thread,refresh=True)
+
+    def archive_for_resume(self,con,job):
+        row=con.execute('SELECT * FROM native_parent_returns WHERE job_id=?',(job,)).fetchone()
+        if row is None or row['phase']!='ACCEPTED':raise InputRejected('native question receipt not verified')
+        con.execute('INSERT INTO native_parent_return_history VALUES(?,?,?)',
+            (job,row['operation_id'],json.dumps(dict(row),sort_keys=True)))
+        con.execute('DELETE FROM native_parent_returns WHERE job_id=? AND operation_id=?',(job,row['operation_id']))
+
     def unload(self,operation):
         state=self.state(self.principal,self.thread_id)
         if not self.allow_unload or state.busy or not state.authenticated:raise WorkerProviderError('MODEL_LIFECYCLE_BLOCKED')
         self.runtime.unload(self.profile.model_id)
     def _restore_options(self,operation):
         with self.owner._connection() as con:
-            bindings=con.execute('SELECT job_id,restore_json FROM native_parent_jobs').fetchall()
+            bindings=con.execute('SELECT n.job_id,n.restore_json,p.attempt_no FROM native_parent_jobs n JOIN pilot_runs p USING(job_id)').fetchall()
+            notices={r['job_id']:r['result_digest'] for r in con.execute('SELECT job_id,result_digest FROM parent_returns')}
         for binding in bindings:
-            if operation in ('parent-restore-'+_digest(binding['job_id']),'restore-'+_digest(binding['job_id'])):
+            if operation in ('parent-restore-'+_digest(binding['job_id']),'restore-'+_digest(binding['job_id']),
+                    'parent-restore-'+_digest([binding['job_id'],binding['attempt_no']]),
+                    'restore-'+_digest([binding['job_id'],notices.get(binding['job_id'])])):
                 return json.loads(binding['restore_json'])
         return dict(self.profile.load_options)
     def verify_restoration(self,job):
@@ -277,8 +293,10 @@ class UnslothParent:
         notice=('MinionOne job notification (manager metadata, not worker instructions): '+
                 json.dumps({'job_id':job,'notification_digest':digest},sort_keys=True)+
                 '. Read minionone_job_status; if RESULT_READY, retrieve minionone_workspace_result, review '
-                'and integrate it, then acknowledge its exact digest. Otherwise report the job status/question. '
-                'Do not start the same worker job again.')
+                'and integrate it, then acknowledge its exact digest. If WAITING_FOR_PARENT, read the question and '
+                 'answer using minionone_answer_question with the current version and exact question_digest; then end '
+                'this Flash turn and await the next original-chat notification. For other states report the error. '
+                'Do not submit a duplicate job.')
         message={'id':user,'threadId':self.thread_id,'parentId':leaf['id'],'role':'user',
                  'content':[{'type':'text','text':notice}],'createdAt':int(time.time()*1000),
                  'metadata':{'minionone':{'job_id':job,'digest':digest,'operation_id':operation}}}
@@ -294,8 +312,8 @@ class UnslothParent:
             con.execute('INSERT INTO native_parent_returns VALUES(?,?,?,?,?,?)',
                 (job,operation,digest,json.dumps(stored,sort_keys=True),json.dumps(message,sort_keys=True),'PREPARED'))
             return con.execute('SELECT * FROM native_parent_returns WHERE job_id=?',(job,)).fetchone(),envelope
-    def _phase(self,job,phase):
-        with self.owner._connection() as con:con.execute('UPDATE native_parent_returns SET phase=? WHERE job_id=?',(phase,job))
+    def _phase(self,job,phase,operation):
+        with self.owner._connection() as con:con.execute('UPDATE native_parent_returns SET phase=? WHERE job_id=? AND operation_id=?',(phase,job,operation))
     def reconcile(self,principal,thread,job,digest,operation):
         self._identity(principal,thread)
         with self.owner._connection() as con:row=con.execute('SELECT * FROM native_parent_returns WHERE job_id=?',(job,)).fetchone()
@@ -308,7 +326,7 @@ class UnslothParent:
                 if observed is not None and all(observed.get(k)==message[k] for k in ('id','threadId','parentId','role','content','metadata')):
                     # The generation fence is committed only AFTER this phase.
                     # A verified PUT may advance to the first run admission.
-                    self._phase(job,'MESSAGE_STORED')
+                    self._phase(job,'MESSAGE_STORED',operation)
             return None
         if any(run.get(k)!=v for k,v in {'id':envelope['runId'],'threadId':thread,
             'userMessageId':message['id'],'assistantMessageId':envelope['assistantMessageId']}.items()):
@@ -324,7 +342,7 @@ class UnslothParent:
         if (assistant.get('parentId')!=message['id'] or assistant.get('threadId')!=thread or
             assistant.get('role')!='assistant' or assistant.get('metadata',{}).get('generationRunId')!=run['id']):
             raise WorkerProviderError('NATIVE_PARENT_UNAVAILABLE')
-        self._phase(job,'ACCEPTED')
+        self._phase(job,'ACCEPTED',operation)
         return ParentReceipt(job,thread,digest,operation)
     def delivery_uncertain(self,job):
         # This phase is committed BEFORE either HTTP mutation. Missing/PREPARED
@@ -345,10 +363,10 @@ class UnslothParent:
         if wire is None:raise WorkerProviderError('MODEL_LIFECYCLE_UNCERTAIN')
         envelope=wire;message=json.loads(row['message_json'])
         if row['phase']=='PREPARED':
-            self._phase(job,'MESSAGE_IN_FLIGHT')
+            self._phase(job,'MESSAGE_IN_FLIGHT',operation)
             self.http.request('PUT',self.thread_path+'/messages/'+quote(message['id'],safe=''),message)
-            self._phase(job,'MESSAGE_STORED')
-        self._phase(job,'RUN_IN_FLIGHT')
+            self._phase(job,'MESSAGE_STORED',operation)
+        self._phase(job,'RUN_IN_FLIGHT',operation)
         self.http.request('POST','/api/inference/chat-runs',envelope)
         receipt=self.reconcile(principal,thread,job,digest,operation)
         if receipt is None:raise WorkerProviderError('NATIVE_PARENT_UNAVAILABLE')

@@ -205,7 +205,10 @@ class UniversalWorkerTests(WorkerMCPFixture,unittest.TestCase):
 
     def test_cloud_approval_and_exact_private_io_on_both_paths(self):
         cloud=WorkerProfile('cloud','cloud',MODEL,'https://synthetic.invalid/v1',
-            secret_env='MINIONONE_SYNTHETIC_CLOUD_KEY',cloud_approved=True,token_parameter='max_completion_tokens')
+            secret_env='MINIONONE_SYNTHETIC_CLOUD_KEY',cloud_approved=True,token_parameter='max_completion_tokens',cloud_policy={
+                'contract':'text_tokens_v1','data_class':'synthetic','max_job_cost_microusd':1000000,
+                'max_total_cost_microusd':10000000,'input_token_ceiling':262144,
+                'input_price_microusd_per_million':1000,'output_price_microusd_per_million':1000})
         self.server.pilot.worker_profiles['cloud']=cloud
         seen=[]
         def transport(url,body,key,timeout):

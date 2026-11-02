@@ -1,5 +1,9 @@
 # Development status — 2026-11-01
 
+## v0.47 – question continuation and cloud controls
+
+Implemented the same-job answer path for both handoffs, immutable worker-only checkpoints, cumulative budgets, verified resumed log append, repeated native returns and pre-send cloud policy/cost gates. See docs/OWNER_REQUIREMENTS_V047.md. No automatic pseudonymizer, PII completeness, new SecretStore or live target/billing attestation is inferred.
+
 ## v0.46 – implemented model lifecycle and native Unsloth parent adapter
 
 Calibrated OS/NVML resource checks, actual LM Studio/Unsloth load/unload, turn-end gated optional Flash swap, release/restore, stable same-thread native chat-run receipts, read reconciliation and operator model recovery are implemented. Native UI recovery integration is version guarded. Worker handoffs remain direct or prepared files. Real host/UI/GPU acceptance is not claimed. See docs/OWNER_REQUIREMENTS_V046.md.

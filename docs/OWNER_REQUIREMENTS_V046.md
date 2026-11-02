@@ -1,3 +1,5 @@
+> Fortsetzung: [v0.47](OWNER_REQUIREMENTS_V047.md) implementiert Rückfrage-Resume und begrenzte Cloud-Egress-/Kostengates; die unten genannten offenen Punkte beschreiben den damaligen v0.46-Stand.
+
 # MinionOne v0.46 – realer Modell-Lebenszyklus und native Parent-Rückgabe
 
 Stand 02.11.2026. Ergänzt die [verbindlichen v0.45-Auftragswege](OWNER_REQUIREMENTS_V045.md)

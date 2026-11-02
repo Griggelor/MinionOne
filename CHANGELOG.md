@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.47.0.dev0 – question continuation and cloud controls
+
+Same-job question answers now restore immutable worker checkpoints, retained Work, append-verified logs and cumulative execution budgets with new capabilities and per-round native returns. Added full-payload cloud data/secret rules and durable conservative per-job/principal USD reservations. Rules do not constitute universal PII detection or automatic pseudonymization. Windows frozen coverage now includes question/answer/second return and pre-send cloud rejection. Target-host/model/billing acceptance remains separate.
+
 ## 0.46.0.dev0 – automatic models and native return
 
 Added real model runtime control, bounded resource probes, durable leases, original native parent binding/resumption and optional native UI recovery patch. Known outcomes restore resources before return; unknown effects remain fenced. Existing results can be recovered after independent operator restoration without repeating inference. Added native HTTP/MCP and frozen-EXE coverage. Real target host acceptance remains open.

@@ -24,7 +24,7 @@ def build(wheel,output,app=None,evidence=None):
     with tempfile.TemporaryDirectory(prefix='minionone-bundle-') as tmp:
         stage=Path(tmp)/('MinionOne_SystemTest_'+version);stage.mkdir()
         (stage/'packages').mkdir();shutil.copyfile(wheel,stage/'packages'/wheel.name)
-        for name in ('README_DE.md','README_LEGACY_DE.md','WORKER_BACKENDS_DE.md','NATIVE_RETURN_DE.md','bootstrap.py'):
+        for name in ('README_DE.md','README_LEGACY_DE.md','WORKER_BACKENDS_DE.md','NATIVE_RETURN_DE.md','JOB_CONTINUATION_CLOUD_DE.md','bootstrap.py'):
             shutil.copyfile(root/'system_test'/name,stage/name)
         for name in ('local','cloud'):
             shutil.copyfile(root/'examples'/('worker_profiles.'+name+'.json'),
@@ -38,6 +38,7 @@ def build(wheel,output,app=None,evidence=None):
                   'worker_file_backend':'native_win32_work_sqlite_output' if app else 'native_platform_work_sqlite_output',
                   'legacy_document_pilot_available':True,
                   'handoff_paths':['direct','prepared_workspace'],'profiled_handoffs_supported':True,'native_parent_return_driver_available':True,'automatic_model_lifecycle_available':True,'native_parent_api_contract':'unsloth-studio-f9cecc99',
+                  'question_resume_available':True,'cloud_egress_gate_available':True,'cloud_budget_reservations_available':True,
                   'host_filesystem_tools_enabled':False,
                   'boxed_execution_enabled':False,'product_release':'NO_GO'}
         (stage/'bundle.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')

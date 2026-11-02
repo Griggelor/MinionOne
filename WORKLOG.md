@@ -1,5 +1,9 @@
 # MinionOne WORKLOG — 2026-10-29
 
+## v0.47 implementation
+
+Continue the agreed remaining work: same-job question answers and cloud data/cost controls. Kept explicit-only worker context and the two existing handoffs. Added persistent checkpoint/answer records, new attempt capabilities, sealed cumulative runtime budget, per-round native delivery fencing and protected log append. Added operator-declared cloud policies, full-request checks and durable non-refundable upper-bound cost reservations. Tests exercise normal/negative/restart/concurrent-answer cases; final CI evidence is recorded in the PR.
+
 ## v0.46 implementation
 
 Implemented the two remaining core mechanisms against pinned native API contracts. No separate role route or implicit worker context. Actual resource/model operations and native same-thread creation are exercised with controlled HTTP services; parent histories remain on the parent path. Added early-ACK, lost-response, restore failure, operator recovery, wrong-credential and branch checks. Native UI source installer requires rebuilding the target frontend. No live UI/GPU attestation is inferred.

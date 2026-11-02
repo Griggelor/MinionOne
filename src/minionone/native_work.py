@@ -115,7 +115,7 @@ def _write_new(fd, name, content):
             os.close(handle)
 
 
-def _inventory(fd, prefix="", depth=0, budget=None):
+def _inventory(fd, prefix="", depth=0, budget=None, include_directories=False):
     if depth > 6:
         raise BrokerScopeDenied("work directory depth exceeded")
     if budget is None:
@@ -137,14 +137,15 @@ def _inventory(fd, prefix="", depth=0, budget=None):
         if stat.S_ISDIR(info.st_mode):
             child = os.open(name, _FLAGS, dir_fd=fd)
             try:
-                result.extend(_inventory(child, path + "/", depth + 1, budget))
+                if include_directories:result.append((path+"/",b""))
+                result.extend(_inventory(child, path + "/", depth + 1, budget,include_directories))
             finally:
                 os.close(child)
         elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
             result.append((path, _read(fd, name)))
         else:
             raise BrokerScopeDenied("work link or non-regular file denied")
-        if len(result) > _MAX_FILES or sum(len(x[1]) for x in result) > _MAX_TOTAL:
+        if sum(not n.endswith("/") for n,_ in result) > _MAX_FILES or sum(len(x[1]) for x in result) > _MAX_TOTAL:
             raise BrokerScopeDenied("work inventory quota exceeded")
     return result
 
@@ -176,6 +177,12 @@ class NativeWorkspaceBroker(DocumentBroker):
                 return _inventory(root)
             finally:
                 fcntl.flock(root, fcntl.LOCK_UN)
+
+    def checkpoint_inventory(self):
+        with self._zone('work') as root:
+            fcntl.flock(root,fcntl.LOCK_EX)
+            try:return _inventory(root,include_directories=True)
+            finally:fcntl.flock(root,fcntl.LOCK_UN)
 
     def _execute(self, name, args, *, timeout_seconds):
         if name in ("report_progress", "ask_question"):

@@ -10,7 +10,18 @@
       "cloud_approved": true,
       "timeout_seconds": 180,
       "max_input_bytes": 32768,
-      "max_output_tokens": 4096
+      "max_output_tokens": 4096,
+      "cloud_policy": {
+        "contract": "text_tokens_v1",
+        "data_class": "pseudonymized",
+        "input_token_ceiling": 0,
+        "input_price_microusd_per_million": 0,
+        "output_price_microusd_per_million": 0,
+        "max_job_cost_microusd": 0,
+        "max_total_cost_microusd": 0,
+        "sensitive_terms": [],
+        "public_terms": []
+      }
     }
   ]
 }

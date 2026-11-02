@@ -1,5 +1,7 @@
 # MinionOne 0.46 – Windows-Test mit echten Arbeitsdateien
 
+
+Rückfragen im selben Job fortsetzen und Cloud-Freigaben/Kostenlimits einrichten: [JOB_CONTINUATION_CLOUD_DE.md](JOB_CONTINUATION_CLOUD_DE.md).
 **PRE-ALPHA · nur synthetische Testdaten · Produktfreigabe NO-GO.**
 
 Das Windows-Paket benötigt kein installiertes Python. Die drei nummerierten
@@ -24,7 +26,7 @@ synthetischen Workspace-Tests bleiben ohne Parent-Konfiguration verfügbar.
    Modell-ID notieren. MinionOne lädt oder entlädt keine Modelle.
 4. Für den ersten Test keine echten Dokumente hinzufügen.
 
-Die Paketversion lautet `0.46.0.dev0`. `bundle.json` nennt die Version, den
+Die Paketversion lautet `0.47.0.dev0`. `bundle.json` nennt die Version, den
 Quell-Commit und den Standardtest. `SHA256SUMS.txt` enthält die Datei-Hashes.
 
 ## 2. Starten und testen

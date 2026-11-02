@@ -56,11 +56,15 @@ Nur jobbezogene Manager-Werkzeuge sind verfügbar; Modelltext wird nie ausgefüh
 Cloud benötigt zusätzlich eine bewusst konfigurierte Operatorfreigabe,
 `allow_cloud=true` beim Start und einen Key aus der benannten Umgebungsvariable.
 Die Freigabe umfasst den expliziten Auftrag samt Dateien und eigenem Worker-Dialog.
-Es gibt weiterhin kein fertiges PII-/Geldbudget-Gate und keinen Test mit echten
-Cloudmodellen. Die Beispiel-Cloudadresse ist absichtlich nicht erreichbar.
+Ab v0.47 ist zusätzlich eine geprüfte cloud_policy erforderlich: Datenklasse,
+Eingangsobergrenze, konservative Preise und Kostenlimits. Jeder Request wird
+lokal geprüft und vor dem Senden budgetiert. Regeln ersetzen keine vollständige
+PII-Erkennung oder automatische Pseudonymisierung. Einrichtung und Grenzen:
+[JOB_CONTINUATION_CLOUD_DE.md](JOB_CONTINUATION_CLOUD_DE.md). Echte Cloudmodelle
+oder Rechnungen sind damit nicht live abgenommen. Die Beispiel-Cloudadresse ist absichtlich nicht erreichbar.
 
 Automatische Rückgabe in den ursprünglichen Flash-Chat bleibt Pflicht. Der native Unsloth-Host-Driver und Modell-Lebenszyklus sind mit v0.46 implementiert; Einrichtung und Abnahme siehe NATIVE_RETURN_DE.md. `parent_return_backend=UNAVAILABLE` bedeutet weiterhin keinen automatischen
 Wakeup. Automatisches Laden/Entladen erfordert die ausdrücklich konfigurierten kalibrierten Profile.
 
 Verbindlicher Stand:
-https://github.com/Griggelor/MinionOne/blob/main/docs/OWNER_REQUIREMENTS_V046.md
+https://github.com/Griggelor/MinionOne/blob/main/docs/OWNER_REQUIREMENTS_V047.md

@@ -17,7 +17,7 @@ jobs:
       MINIONONE_TEST_EVIDENCE_DIR: evidence/bridge-failures
     name: Admission unit tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:

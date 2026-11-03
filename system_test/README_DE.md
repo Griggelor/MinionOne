@@ -64,6 +64,31 @@ Bei anderem lokalen API-Port `--provider-url http://127.0.0.1:PORT` ergänzen.
 Bei API-Key-Schutz `--ask-api-key` verwenden; der Key wird nicht gespeichert.
 Pro Modellaufruf gelten standardmäßig 120 Sekunden, höchstens 300 Sekunden.
 
+## Erweiterter Test beider universeller Übergabewege (v0.49)
+
+Nach dem Start des Managers mit `1_START.cmd` kann die gleiche synthetische
+Provider-/MCP-/Datei-/Digest-/ACK-Probe für **beide** Auftragswege ausgeführt werden:
+
+```powershell
+.\app\MinionOne.exe --state "$env:LOCALAPPDATA\MinionOne\WorkspaceSystemTest" workspace-self-test --handoff both
+```
+
+Bei einer Python-Installation entsprechend `python -m minionone.pilot_cli --state ... workspace-self-test --handoff both`.
+`--handoff staged` ist der bisherige Standard und entspricht `3_SYSTEMTEST.cmd`;
+`--handoff direct` ruft dagegen `minionone_delegate` mit exakt begrenzten
+synthetischen Daten auf. `both` führt zunächst `staged`, dann `direct` aus,
+jeweils mit eigener Job-ID. Der zweite Lauf erfolgt nur nach vollständigem
+Erfolg des ersten – keine Folgegenerierung nach einem unsicheren Zustand.
+
+Der gespeicherte JSON-Bericht enthält beide separaten Ergebnisse
+(`handoffs[]`), die tatsächlich geprüften Dateidigest-Schritte und
+`not_run`, falls ein weiterer Lauf unterbleibt. Der Test nutzt den echten
+konfigurierten Modellprovider auf dem ausführenden Rechner, prüft aber
+**keine** echte Unsloth-Original-Chat-Rückgabe, kein Parent-Model-Unload und
+keine vollständig attestierte NTFS-/GPU-Sicherheit. `release_gate=NO_GO`
+ist auch bei `passed=true` korrekt. Keine API-Tokens oder
+`worker-io.jsonl` weitergeben.
+
 ## 3. Aus Unsloth delegieren
 
 Nach einem erfolgreichen Workspace-Test `2_UNSLOTH.cmd` öffnen. URL und

@@ -225,7 +225,7 @@ def _create_synthetic_file(folder,name,blob):
         os.fsync(handle.fileno())
 
 
-def workspace_exercise(client, *, project_id, project_root, model, timeout=900):
+def workspace_exercise(client, *, project_id, project_root, model, timeout=900, handoff="staged"):
     """Synthetic parent-side end-to-end run with real sealed project folders.
 
     Does not certify native worker handle confinement or true Unsloth identity.
@@ -236,13 +236,15 @@ def workspace_exercise(client, *, project_id, project_root, model, timeout=900):
             'started_utc':datetime.now(timezone.utc).isoformat(),
             'passed':False,'release_gate':'NO_GO',
             'test':'synthetic_sealed_workspace',
+            'handoff':handoff,
             'provider_identity_verified':False,
             'target_parent_attested':False,
             'steps':[]}
     try:
         if (type(project_id) is not str or _PROJECT.fullmatch(project_id) is None or
                 type(model) is not str or not model or
-                type(timeout) is not int or not 1<=timeout<=1800):
+                type(timeout) is not int or not 1<=timeout<=1800 or
+                handoff not in ('staged', 'direct')):
             raise PilotError('CONFIGURATION_INVALID')
         # Check the trusted operator-selected directory BEFORE reserving a job.
         root=Path(project_root)
@@ -264,35 +266,58 @@ def workspace_exercise(client, *, project_id, project_root, model, timeout=900):
             raise PilotError('PILOT_TEST_MODE_DISABLED')
         report['steps'].append({'step':'opt_in_server_gate','passed':True})
         operation='ws-synthetic-'+secrets.token_hex(12)
-        prepared=client.tool('minionone_prepare_workspace',{
-            'project_id':project_id,'operation_id':operation+'-prepare'})
-        job=prepared.get('job_id')
-        folder=_synthetic_workspace_folder(root,job)
-        actual=Path(prepared.get('input_dir',''))
-        if (os.path.normcase(str(actual.absolute())) !=
-                os.path.normcase(str((folder/'input').absolute())) or
-                prepared.get('state')!='PREPARING' or prepared.get('version')!=0):
-            raise PilotError('PILOT_FILE_CHANGED')
-        report['job_id']=job
         task=(b'Read input/sample.txt and create output/result.txt with exactly '
               b'the uppercase version of the input text, no extra text. '
               b'Use create_work, publish_artifact, and finish.')
         sample=b'minionone workspace ok'
-        manifest=json.dumps({'files':{
-            'TASK.md':sha256(task).hexdigest(),
-            'sample.txt':sha256(sample).hexdigest()}},
-            sort_keys=True,separators=(',',':')).encode('utf-8')
-        for name,blob in (('TASK.md',task),('sample.txt',sample),
-                          ('manifest.json',manifest)):
-            _create_synthetic_file(folder/'input',name,blob)
-        sealed=client.tool('minionone_seal_workspace',{
-            'job_id':job,'expected_version':0,'operation_id':operation+'-seal'})
-        if sealed.get('job_id')!=job or sealed.get('state')!='ACCEPTED' or sealed.get('input_sealed') is not True:
-            raise PilotError('PILOT_STATE_INVALID')
-        report['steps'].append({'step':'real_manager_input_seal','passed':True})
-        client.tool('minionone_start_workspace_job',{
-            'job_id':job,'expected_version':sealed['version'],
-            'operation_id':operation+'-start','model_id':model})
+        if handoff=='staged':
+            prepared=client.tool('minionone_prepare_workspace',{
+                'project_id':project_id,'operation_id':operation+'-prepare'})
+            job=prepared.get('job_id')
+            folder=_synthetic_workspace_folder(root,job)
+            actual=Path(prepared.get('input_dir',''))
+            if (os.path.normcase(str(actual.absolute())) !=
+                    os.path.normcase(str((folder/'input').absolute())) or
+                    prepared.get('state')!='PREPARING' or prepared.get('version')!=0):
+                raise PilotError('PILOT_FILE_CHANGED')
+            report['job_id']=job
+            manifest=json.dumps({'files':{
+                'TASK.md':sha256(task).hexdigest(),
+                'sample.txt':sha256(sample).hexdigest()}},
+                sort_keys=True,separators=(',',':')).encode('utf-8')
+            for name,blob in (('TASK.md',task),('sample.txt',sample),
+                              ('manifest.json',manifest)):
+                _create_synthetic_file(folder/'input',name,blob)
+            sealed=client.tool('minionone_seal_workspace',{
+                'job_id':job,'expected_version':0,'operation_id':operation+'-seal'})
+            if sealed.get('job_id')!=job or sealed.get('state')!='ACCEPTED' or sealed.get('input_sealed') is not True:
+                raise PilotError('PILOT_STATE_INVALID')
+            report['steps'].append({'step':'real_manager_input_seal','passed':True})
+            client.tool('minionone_start_workspace_job',{
+                'job_id':job,'expected_version':sealed['version'],
+                'operation_id':operation+'-start','model_id':model})
+        else:
+            # Direct is not a synthetic bypass: it uses the SAME production
+            # WorkspaceJobs manager and its own seal/start transitions.
+            delegated=client.tool('minionone_delegate',{
+                'project_id':project_id,'task':task.decode('utf-8'),
+                'files':{'sample.txt':sample.decode('utf-8')},
+                'operation_id':operation+'-direct'})
+            job=delegated.get('job_id')
+            folder=_synthetic_workspace_folder(root,job)
+            if delegated.get('state') not in ('QUEUED','RESOURCE_CHECK','RUNNING','RESULT_READY'):
+                raise PilotError('PILOT_STATE_INVALID')
+            report['job_id']=job
+            # Verify durable manager staging; never accept just the model's
+            # claim that the direct handoff used the requested source bytes.
+            manifest_path=folder/'input'/'manifest.json'
+            if ((folder/'input'/'TASK.md').read_bytes()!=task or
+                    (folder/'input'/'sample.txt').read_bytes()!=sample or
+                    json.loads(manifest_path.read_text(encoding='utf-8')).get('files')!={
+                        'TASK.md':sha256(task).hexdigest(),
+                        'sample.txt':sha256(sample).hexdigest()}):
+                raise PilotError('PILOT_FILE_CHANGED')
+            report['steps'].append({'step':'direct_delegate_sealed_same_job','passed':True})
         deadline=time.monotonic()+timeout
         while time.monotonic()<deadline:
             snapshot=client.tool('minionone_job_status',{'job_id':job})
@@ -438,6 +463,7 @@ def main(argv=None):
     workspace_test.add_argument('--project-root',type=Path,
         help='Defaults to the configured root of the selected project')
     workspace_test.add_argument('--timeout',type=int,default=900)
+    workspace_test.add_argument('--handoff',choices=('staged','direct','both'),default='staged')
     export=sub.add_parser('export');export.add_argument('--job',required=True);export.add_argument('--out',type=Path,required=True)
     diag=sub.add_parser('diagnostics',help='Export durable redacted job trace as JSON (create-only)')
     diag.add_argument('--job',required=True);diag.add_argument('--out',type=Path,required=True)
@@ -576,9 +602,26 @@ def main(argv=None):
             project_root=args.project_root or projects.get(project_id)
             if not isinstance(project_root,(str,Path)):
                 raise PilotError('CONFIGURATION_INVALID')
-            report=workspace_exercise(client,project_id=project_id,
-                                      project_root=project_root,model=config['model'],
-                                      timeout=args.timeout)
+            def run(handoff):
+                return workspace_exercise(client,project_id=project_id,
+                                          project_root=project_root,model=config['model'],
+                                          timeout=args.timeout,handoff=handoff)
+            if args.handoff=='both':
+                # Stop after any non-successful run: an uncertain provider
+                # request must never be followed by another generation.
+                runs=[run('staged')]
+                if runs[0]['passed']:
+                    runs.append(run('direct'))
+                report={'schema_version':1,'test':'synthetic_dual_handoff_workspace',
+                        'started_utc':runs[0]['started_utc'],
+                        'finished_utc':runs[-1]['finished_utc'],
+                        'release_gate':'NO_GO','target_parent_attested':False,
+                        'passed':len(runs)==2 and all(r['passed'] for r in runs),
+                        'handoffs':runs,
+                        'not_run':[h for h in ('staged','direct') if h not in
+                                   {r['handoff'] for r in runs}]}
+            else:
+                report=run(args.handoff)
             folder=state/'reports';folder.mkdir(exist_ok=True)
             path=folder/('workspace-test-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')+'.json')
             path.write_text(json.dumps(report,indent=2),encoding='utf-8')

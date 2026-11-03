@@ -95,6 +95,73 @@ class WorkspaceExerciseTests(unittest.TestCase):
         self.assertEqual(status['state'],'COMPLETED')
         self.assertIn('workspace_job',status)
 
+    def test_direct_handoff_uses_real_mcp_seal_and_verified_native_files(self):
+        with patch('minionone.pilot_jobs.PilotJobs._readiness',return_value=None), \
+             patch('minionone.pilot_jobs.LMStudioAgentProvider',DeterministicFlintFixture):
+            report=workspace_exercise(self.client,project_id='demo',
+                         project_root=self.project,model='model-loaded',
+                         timeout=WORKER_COMPLETION_SECONDS,handoff='direct')
+        self.assertTrue(report['passed'],report)
+        self.assertEqual(report['handoff'],'direct')
+        self.assertEqual([r['step'] for r in report['steps']],[
+            'opt_in_server_gate','direct_delegate_sealed_same_job',
+            'bounded_worker_result_ready','real_native_work_file_and_digest_verified',
+            'published_file_and_digest_verified','exact_parent_ack'])
+        self.assertFalse(report['target_parent_attested'])
+        self.assertEqual(report['release_gate'],'NO_GO')
+        folder=self.project/'.minionone'/'jobs'/report['job_id']
+        self.assertEqual((folder/'input'/'sample.txt').read_bytes(),b'minionone workspace ok')
+        self.assertEqual((folder/'output'/'result.txt').read_bytes(),b'MINIONONE WORKSPACE OK')
+        self.assertEqual(self.client.tool('minionone_job_status',{
+            'job_id':report['job_id']})['state'],'COMPLETED')
+
+    def test_both_handoffs_cli_runs_distinct_jobs_with_verified_results(self):
+        config={'port':self.server.server_port,'model':'model-loaded',
+                'workspace_projects':{'demo':str(self.project)}}
+        stdout=StringIO()
+        with patch('minionone.pilot_cli._settings',return_value=config), \
+             patch('minionone.pilot_cli._token',return_value=TOKEN), \
+             patch('minionone.pilot_jobs.PilotJobs._readiness',return_value=None), \
+             patch('minionone.pilot_jobs.LMStudioAgentProvider',DeterministicFlintFixture), \
+             redirect_stdout(stdout):
+            rc=main(['--state',str(self.root),'workspace-self-test',
+                     '--handoff','both','--timeout',str(WORKER_COMPLETION_SECONDS)])
+        self.assertEqual(rc,0,stdout.getvalue())
+        report,_=json.JSONDecoder().raw_decode(stdout.getvalue())
+        self.assertTrue(report['passed'],report)
+        self.assertEqual(report['release_gate'],'NO_GO')
+        self.assertFalse(report['target_parent_attested'])
+        self.assertEqual([x['handoff'] for x in report['handoffs']],['staged','direct'])
+        jobs=[x['job_id'] for x in report['handoffs']]
+        self.assertEqual(len(set(jobs)),2)
+        self.assertEqual(report['not_run'],[])
+        for job in jobs:
+            folder=self.project/'.minionone'/'jobs'/job
+            self.assertEqual((folder/'output'/'result.txt').read_text(),
+                             'MINIONONE WORKSPACE OK')
+            self.assertEqual(self.client.tool('minionone_job_status',{'job_id':job})['state'],
+                             'COMPLETED')
+        self.assertNotIn(TOKEN,stdout.getvalue())
+
+    def test_both_stops_after_staged_failure_without_direct_call(self):
+        config={'port':self.server.server_port,'model':'model-loaded',
+                'workspace_projects':{'demo':str(self.project)}}
+        stdout=StringIO()
+        failure={'passed':False,'started_utc':'synthetic','finished_utc':'synthetic',
+                 'handoff':'staged','release_gate':'NO_GO'}
+        with patch('minionone.pilot_cli._settings',return_value=config), \
+             patch('minionone.pilot_cli._token',return_value=TOKEN), \
+             patch('minionone.pilot_cli.workspace_exercise',return_value=failure) as exercise, \
+             redirect_stdout(stdout):
+            rc=main(['--state',str(self.root),'workspace-self-test',
+                     '--handoff','both'])
+        self.assertEqual(rc,2)
+        self.assertEqual(exercise.call_count,1)
+        report,_=json.JSONDecoder().raw_decode(stdout.getvalue())
+        self.assertFalse(report['passed'])
+        self.assertEqual(report['not_run'],['direct'])
+        self.assertFalse((self.project/'.minionone').exists())
+
     def test_missing_native_work_file_blocks_parent_ack(self):
         # The Worker completed and the immutable output exists; after
         # RESULT_READY, simulate external removal of the physical Work source.

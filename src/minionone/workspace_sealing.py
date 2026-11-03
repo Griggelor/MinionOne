@@ -222,6 +222,10 @@ def seal(workspace,token,thread,job_id,expected_version,operation_id):
 
 def _commit_captured(workspace,token,thread,job_id,operation_id,principal,row,snapshot):
     data,digests,input_digest=snapshot
+    # Reject an input envelope the current bounded-text worker cannot encode.
+    # This must happen before canonical ACCEPTED admission and SQLite writes.
+    from .workspace_input_contract import bounded_worker_inputs
+    bounded_worker_inputs(data)
     with workspace.store._connection() as con:
         con.execute('BEGIN IMMEDIATE')
         fresh=con.execute('''SELECT * FROM workspace_reservations

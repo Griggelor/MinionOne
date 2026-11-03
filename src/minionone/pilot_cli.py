@@ -479,10 +479,17 @@ def main(argv=None):
     cloud_resolve.add_argument('--expected-version',type=int)
     cloud_resolve.add_argument('--confirm-provider-stopped',action='store_true',required=True)
     cloud_resolve.add_argument('--confirm-work-inspected',action='store_true',required=True)
+    resource_probe=sub.add_parser('resource-probe',
+        help='Read-only operator-declared OS-shared or NVIDIA NVML memory snapshot; never a model admission')
+    resource_probe.add_argument('--mode',choices=('os-shared','nvidia-nvml'),required=True)
+    resource_probe.add_argument('--gpu-index',type=int,default=0)
     sub.add_parser('facts')
     args=parser.parse_args(argv)
     try:
         if args.command=='facts':print(json.dumps(facts(),indent=2));return 0
+        if args.command=='resource-probe':
+            from .resource_probe import probe_resources
+            print(json.dumps(probe_resources(args.mode,args.gpu_index),sort_keys=True));return 0
         state=args.state or default_state()
         if args.command=='resolve-cloud':
             config=_settings(state);token=_token(state)

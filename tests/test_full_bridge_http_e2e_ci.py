@@ -23,6 +23,7 @@ MODEL="synthetic-loaded-flint"
 # Includes spawn startup and fsynced I/O, not just localhost HTTP latency.
 MODEL_CALL_SECONDS=6
 MODEL_TIMEOUT_DELAY=9
+JOB_OBSERVATION_SECONDS=60
 
 
 # v0.31.1 contract-only model scripts. They deliberately request newly
@@ -235,15 +236,23 @@ class CompleteBridgeE2E(unittest.TestCase):
             "operation_id":"e2e-start-00001","model_id":MODEL})
         return sealed
 
-    def outcome(self,job,seconds=15):
+    def outcome(self,job,seconds=JOB_OBSERVATION_SECONDS):
+        # A job can perform several individually bounded model calls and
+        # native file operations before publishing its result.
         until=time.monotonic()+seconds
+        status=None
         while time.monotonic()<until:
             status=self.rpc("minionone_job_status",{"job_id":job["job_id"]})
             if status["state"] in ("RESULT_READY","FAILED","WAITING_FOR_PARENT",
                                    "NEEDS_RECONCILIATION","CANCELLED","COMPLETED"):
                 return status
             time.sleep(.05)
-        self.fail("Real HTTP-to-HTTP CI job did not finish in its bounded deadline")
+        last_state=status["state"] if status is not None else "UNOBSERVED"
+        version=status["version"] if status is not None else None
+        self.fail(
+            f"HTTP-to-HTTP job exceeded the {seconds}s observation deadline "
+            f"(last state: {last_state}, version: {version})"
+        )
 
     def transcript(self,job):
         records=[];after=0

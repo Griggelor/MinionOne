@@ -215,7 +215,11 @@ class NativeLifecycleTests(unittest.TestCase):
         from minionone.admission import _digest
         from minionone.parent_return import ParentReturnController
         self.manager.parent_return.close();self.host.capacity=6000
-        job=self.submit('lmstudio');self.host.end_turn();self.await_state(job)
+        job=self.submit('lmstudio');self.host.end_turn()
+        status=self.await_state(job)
+        self.assertEqual(status['state'],'RESULT_READY',status)
+        # The result commits before the durable notification is enqueued.
+        self.await_return(job,target='PENDING')
         with self.manager.store._connection() as con:
             digest=con.execute('SELECT result_digest FROM parent_returns WHERE job_id=?',(job['job_id'],)).fetchone()[0]
         operation='return-'+_digest([job['job_id'],digest])

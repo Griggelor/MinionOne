@@ -18,6 +18,22 @@ Flash bestimmt sämtliche übergebenen Informationen; kein impliziter Kontexttra
 Für den neuen Ablauf siehe [NATIVE_RETURN_DE.md](NATIVE_RETURN_DE.md). Die bisherigen
 synthetischen Workspace-Tests bleiben ohne Parent-Konfiguration verfügbar.
 
+## Read-only Speicherprobe für G1c / F03
+
+Auf Geräten mit **nachweislich gemeinsam genutztem RAM (UMA)** kann man
+verfügbare physische RAM-Menge ohne eine separate VRAM-Summe abfragen:
+
+```powershell
+.\app\MinionOne.exe resource-probe --mode os-shared
+```
+
+Bei diskreten NVIDIA-GPUs mit funktionierender NVML-Telemetrie ist
+`--mode nvidia-nvml --gpu-index 0` möglich. Für AMD-dGPU ist damit
+**keine** GPU-Telemetrie freigeschaltet. Die Ressourcenzahlen beweisen weder
+die UMA-Architektur noch die Modellresidenz oder eine sichere Aufnahme eines
+Workerlaufs. `resource_admission_granted=false` und `release_gate=NO_GO`
+bleiben absichtlich immer erhalten. Die Probe startet/stoppt keine Modelle.
+
 ## 1. Vorbereiten
 
 1. ZIP vollständig in einen lokalen Ordner entpacken.

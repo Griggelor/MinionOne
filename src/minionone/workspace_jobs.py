@@ -14,6 +14,7 @@ from .worker_contract import delegation_task
 from .workspace_input_staging import stage_sealed_input
 from .admission import _digest
 from .workspace_sealing import _name as _seal_name
+from .workspace_input_contract import bounded_worker_inputs
 
 from .admission import InputRejected, VersionConflict, IdempotencyConflict, PermissionDenied, _field, _OP
 from .pilot_jobs import _name, _text, PilotError
@@ -180,27 +181,9 @@ class WorkspaceJobs:
             snapshot, files = self.reader._load(con,token,thread,job_id)
             if snapshot["input_digest"] != row["input_digest"]:
                 raise InputRejected("sealed workspace digest changed")
-            # Reuse the existing bounded document tool protocol. Binary files,
-            # large sources and ambiguous casefold names fail CLOSED.
-            try:
-                task = _text(files["TASK.md"].decode("utf-8"),4096)
-            except UnicodeError as exc:
-                raise InputRejected("workspace task must be UTF-8") from exc
-            others = {}
-            for name, blob in files.items():
-                if name in ("TASK.md","manifest.json"):
-                    continue
-                canonical = _name(name)
-                if canonical in others or canonical == "task.md":
-                    raise InputRejected("workspace document name collision")
-                try:
-                    others[canonical] = _text(blob.decode("utf-8"),4096)
-                except UnicodeError as exc:
-                    raise InputRejected("binary workspace input not supported") from exc
-            if not 0 <= len(others) <= 4:
-                raise InputRejected('workspace supports at most four UTF-8 documents')
-            if sum(len(x.encode("utf-8")) for x in others.values()) > 8192:
-                raise InputRejected("workspace document quota exhausted")
+            # Apply the exact same bounded-text capability on START.
+            # Existing pre-v0.49 accepted snapshots also fail closed.
+            task, others = bounded_worker_inputs(files)
             if profile is not None and len((task+''.join(others.values())).encode('utf-8'))>profile.max_input_bytes:
                 raise InputRejected('configured worker input budget exceeded')
             active = con.execute("SELECT 1 FROM pilot_runs WHERE active=1 OR provider_inflight=1").fetchone()

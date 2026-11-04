@@ -36,12 +36,12 @@ class WorkerProfile:
     auto_load: bool = False
     memory_ram_mb: int = 0
     memory_vram_mb: int = 0
-    memory_accounting: str = 'separate'  # explicit shared_uma uses one OS RAM pool
     inference_ram_mb: int | None = None
     inference_vram_mb: int | None = None
     load_timeout_seconds: int = 240
     load_options: dict = field(default_factory=dict)
     cloud_policy: dict | None = None
+    memory_accounting: str = 'separate'  # explicit shared_uma uses one OS RAM pool
 
     def __post_init__(self):
         if (type(self.profile_id) is not str or

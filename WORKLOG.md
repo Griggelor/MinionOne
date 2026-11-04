@@ -1,4 +1,16 @@
-# MinionOne WORKLOG — 2026-10-29
+# MinionOne WORKLOG — 2026-11-03
+
+## v0.49 development milestone
+
+Followed independent six-role core/QA review. F01: aligned seal-time and
+start-time worker-envelope validity and added real MCP regressions (PR #71).
+F02: extended physical workspace-systemtest to prepared and direct universal
+handoffs, with two jobs, hash/ACK checks and stop on first failure (PR #73).
+F03: designed conservative read-only memory provenance for OS-shared/UMA and
+explicit discrete NVIDIA NVML (PR #74), without changing live model lifecycle
+or silently counting UMA memory twice. Coordinated code, wheel, frozen-app,
+readme, Windows ZIP and CI labels under 0.49.0.dev0. This is still
+PRE-ALPHA and a PRODUCT NO-GO; actual host G1a/G1b/G1c/G3 remains BLOCKED.
 
 ## v0.47 implementation
 

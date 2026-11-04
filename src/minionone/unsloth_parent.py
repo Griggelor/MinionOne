@@ -27,13 +27,13 @@ class NativeParentConfig:
     secret_env:str
     memory_ram_mb:int
     memory_vram_mb:int=0
-    memory_accounting:str='separate'
     inference_ram_mb:int|None=None
     inference_vram_mb:int|None=None
     allow_parent_unload:bool=False
     load_options:dict=field(default_factory=dict)
     resume_options:dict=field(default_factory=dict)
     contract:str=CONTRACT
+    memory_accounting:str='separate'
     def __post_init__(self):
         if (type(self.thread_id) is not str or not 1<=len(self.thread_id)<=256 or
                 any(ord(c)<32 for c in self.thread_id) or self.contract!=CONTRACT or

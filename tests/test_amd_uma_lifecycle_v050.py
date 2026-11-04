@@ -18,7 +18,14 @@ from minionone.model_lifecycle import MemoryReading, ModelLifecycle, memory_budg
 from minionone.pilot_cli import PilotClient
 from minionone.unsloth_parent import NativeParentConfig, UnslothParent
 from minionone.worker_profiles import WorkerProfile, WorkerProviderError
-from native_fixture import NativeFixture, THREAD, PARENT, WORKER
+import importlib.util
+
+_fixture_path=Path(__file__).resolve().parents[1]/'integration_tests/native_fixture.py'
+_fixture_spec=importlib.util.spec_from_file_location('uma_native_fixture',_fixture_path)
+_fixture=importlib.util.module_from_spec(_fixture_spec)
+_fixture_spec.loader.exec_module(_fixture)
+NativeFixture,THREAD,PARENT,WORKER=(_fixture.NativeFixture,_fixture.THREAD,
+                                   _fixture.PARENT,_fixture.WORKER)
 
 URL = 'http://127.0.0.1:1234'
 

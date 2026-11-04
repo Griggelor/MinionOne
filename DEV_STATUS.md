@@ -1,4 +1,14 @@
-# Development status — 2026-11-02
+# Development status — 2026-11-03
+
+## v0.49 – review remediation, dual handoff evidence, resource provenance
+
+Review and prioritized owner-gates are under `docs/review/` and issue #72.
+F01 is merged into main through PR #71. F02 synthetic dual-handoff CLI
+passed its focused MCP/physical file tests and CI via PR #73; native target
+Unsloth/GPU/NTFS gates remain open. F03 provides read-only, explicit
+OS-shared-RAM versus NVIDIA NVML telemetry for calibration, not GPU
+or model-residency attestation (PR #74). Package/runtime/workflows move to
+0.49.0.dev0. **PRE-ALPHA / PRODUCT NO-GO**; no real cloud data approval.
 
 ## v0.48 – offline cloud operator recovery
 

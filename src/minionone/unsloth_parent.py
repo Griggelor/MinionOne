@@ -27,6 +27,7 @@ class NativeParentConfig:
     secret_env:str
     memory_ram_mb:int
     memory_vram_mb:int=0
+    memory_accounting:str='separate'
     inference_ram_mb:int|None=None
     inference_vram_mb:int|None=None
     allow_parent_unload:bool=False
@@ -44,7 +45,7 @@ class NativeParentConfig:
     def profile(self):
         return WorkerProfile('original-flash','unsloth',self.model_id,self.base_url,secret_env=self.secret_env,
             auto_load=True,memory_ram_mb=self.memory_ram_mb,memory_vram_mb=self.memory_vram_mb,
-            inference_ram_mb=self.inference_ram_mb,inference_vram_mb=self.inference_vram_mb,load_options=self.load_options)
+            memory_accounting=self.memory_accounting,inference_ram_mb=self.inference_ram_mb,inference_vram_mb=self.inference_vram_mb,load_options=self.load_options)
 
 
 def load_parent_config(path):
@@ -206,13 +207,12 @@ class UnslothParent:
             if target in options and status.get(source)!=options[target]:raise WorkerProviderError('NATIVE_PARENT_UNAVAILABLE')
 
     def _budget(self,*,loaded):
-        from .model_lifecycle import MemoryReading
-        s=self.measure(0,self.profile.memory_vram_mb>0)
-        ram=self.profile.inference_ram_mb if loaded else self.profile.memory_ram_mb
-        gpu=self.profile.inference_vram_mb if loaded else self.profile.memory_vram_mb
-        if (type(s) is not MemoryReading or time.monotonic()-s.measured>5 or s.measured>time.monotonic() or
-                type(s.ram_mb) is not int or s.ram_mb<ram+1024 or
-                (self.profile.memory_vram_mb and (type(s.vram_mb) is not int or s.vram_mb<gpu+512))):
+        from .model_lifecycle import memory_budget_fits
+        needs_separate_gpu=(self.profile.memory_accounting=='separate' and
+                            self.profile.memory_vram_mb>0)
+        reading=self.measure(0,needs_separate_gpu)
+        if not memory_budget_fits(self.profile,reading,already_loaded=loaded,
+                                  ram_headroom_mb=1024,vram_headroom_mb=512):
             raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
 
     def restore(self,principal,thread,model,operation):

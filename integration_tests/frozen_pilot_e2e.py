@@ -43,21 +43,6 @@ class Handler(BaseHTTPRequestHandler):
 
 def run(executable,output):
     executable=Path(executable).resolve();output=Path(output).resolve()
-    # Exercise the frozen subprocess-based memory sampler, not only its
-    # mocked Python CLI entry point. No model/provider is touched here.
-    read_only=subprocess.run(
-        [str(executable),'resource-probe','--mode','os-shared'],
-        capture_output=True,text=True,timeout=25,check=True)
-    memory=json.loads(read_only.stdout)
-    assert memory['probe']=='read_only_available_memory',memory
-    assert memory['memory_accounting']=='os-shared',memory
-    assert type(memory['ram_available_mb']) is int and memory['ram_available_mb']>0,memory
-    assert memory['separate_vram_available_mb'] is None,memory
-    assert memory['separate_vram_source'] is None,memory
-    assert memory['resource_admission_granted'] is False,memory
-    assert memory['memory_topology_attested'] is False,memory
-    assert memory['provider_model_residency_attested'] is False,memory
-    assert memory['release_gate']=='NO_GO',memory
     model=ThreadingHTTPServer(('127.0.0.1',0),Handler);model.daemon_threads=True;model.calls=0
     threading.Thread(target=model.serve_forever,daemon=True).start()
     process=None;cloud_wire=None

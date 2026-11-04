@@ -2,18 +2,7 @@
 
 **Independent MCP-based multi-agent job manager for Unsloth Studio.**
 
-> **Public PRE-ALPHA · 0.49.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
-
-**v0.49 bounded-input conformance and target probes:** the shared seal/start
-contract now rejects non-executable text envelopes before accepting a job
-([PR #71](https://github.com/Griggelor/MinionOne/pull/71)). Both universal
-handoffs can be exercised in the same real-file synthetic system test with
-`workspace-self-test --handoff both` ([PR #73](https://github.com/Griggelor/MinionOne/pull/73)).
-The opt-in, read-only `resource-probe` separately reports OS-shared RAM or
-NVIDIA NVML VRAM **without** authorizing resource admission or asserting the
-actual UMA topology ([F03 guide](docs/review/F03_MEMORY_PROBE_TARGET_GUIDE.md)).
-**No real target Unsloth/GPU/chat-return attestation. PRODUCT NO-GO.**
-
+> **Public PRE-ALPHA · 0.48.0.dev0 · NOT A BETA · NOT PRODUCTION-READY**
 
 **v0.48 offline cloud recovery:** [operator contract](docs/OWNER_REQUIREMENTS_V048.md).
 After independently stopping an uncertain cloud generation and inspecting Work,

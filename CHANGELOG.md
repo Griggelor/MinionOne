@@ -1,19 +1,5 @@
 # Changelog
 
-## 0.49.0.dev0 – review-driven conformance and target probes
-
-Independent six-role review and remediation tracking are documented under
-`docs/review/`. The bounded document envelope is now validated **before**
-sealing/ACCEPTED, and checked again at worker START (F01, PR #71). Real
-Workspace-CLI tests support prepared and direct Flash handoffs in two
-separate synthetic jobs with native Work/output checks and fail-closed ordering
-(F02, PR #73). Added a read-only, operator-declared RAM/UMA-versus-discrete
-NVIDIA NVML resource provenance probe (F03, PR #74) with negative tests,
-without model operations or pretending to attest GPU placement. Versioned
-Windows system-test ZIP, wheel, readme, runtime and CI artifact labels are
-now consistent. Real Unsloth-UI/original-chat, NTFS target, GPU residency and
-cloud-Echtdaten gates remain open: **PRE-ALPHA / PRODUCT NO-GO**.
-
 ## 0.48.0.dev0 – offline cloud operator recovery
 
 Added `resolve-cloud` for independently stopped uncertain cloud WORKSPACE generations. It verifies sealed input/profile, native Work, private/physical IO, logs and published files, records an immutable idempotent operator receipt and closes FAILED without retry or refund. Restart preserves global costs and returns the failure through the original native Flash binding. Windows frozen coverage includes loopback TLS disconnect, offline closure and restart budget fencing. Real provider/UI/GPU acceptance remains open.

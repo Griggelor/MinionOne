@@ -1,4 +1,4 @@
-# MinionOne 0.49 – Windows-Test mit echten Arbeitsdateien
+# MinionOne 0.48 – Windows-Test mit echten Arbeitsdateien
 
 
 Rückfragen im selben Job fortsetzen und Cloud-Freigaben/Kostenlimits einrichten: [JOB_CONTINUATION_CLOUD_DE.md](JOB_CONTINUATION_CLOUD_DE.md).
@@ -18,22 +18,6 @@ Flash bestimmt sämtliche übergebenen Informationen; kein impliziter Kontexttra
 Für den neuen Ablauf siehe [NATIVE_RETURN_DE.md](NATIVE_RETURN_DE.md). Die bisherigen
 synthetischen Workspace-Tests bleiben ohne Parent-Konfiguration verfügbar.
 
-## Read-only Speicherprobe für G1c / F03
-
-Auf Geräten mit **nachweislich gemeinsam genutztem RAM (UMA)** kann man
-verfügbare physische RAM-Menge ohne eine separate VRAM-Summe abfragen:
-
-```powershell
-.\app\MinionOne.exe resource-probe --mode os-shared
-```
-
-Bei diskreten NVIDIA-GPUs mit funktionierender NVML-Telemetrie ist
-`--mode nvidia-nvml --gpu-index 0` möglich. Für AMD-dGPU ist damit
-**keine** GPU-Telemetrie freigeschaltet. Die Ressourcenzahlen beweisen weder
-die UMA-Architektur noch die Modellresidenz oder eine sichere Aufnahme eines
-Workerlaufs. `resource_admission_granted=false` und `release_gate=NO_GO`
-bleiben absichtlich immer erhalten. Die Probe startet/stoppt keine Modelle.
-
 ## 1. Vorbereiten
 
 1. ZIP vollständig in einen lokalen Ordner entpacken.
@@ -42,7 +26,7 @@ bleiben absichtlich immer erhalten. Die Probe startet/stoppt keine Modelle.
    Modell-ID notieren. MinionOne lädt oder entlädt keine Modelle.
 4. Für den ersten Test keine echten Dokumente hinzufügen.
 
-Die Paketversion lautet `0.49.0.dev0`. `bundle.json` nennt die Version, den
+Die Paketversion lautet `0.48.0.dev0`. `bundle.json` nennt die Version, den
 Quell-Commit und den Standardtest. `SHA256SUMS.txt` enthält die Datei-Hashes.
 
 ## 2. Starten und testen

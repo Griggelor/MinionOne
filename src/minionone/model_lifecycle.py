@@ -71,6 +71,48 @@ def measure_memory(gpu_index=0,need_gpu=False):
             process.close()
 
 
+# Even when an operator chooses a smaller ordinary RAM reserve, UMA keeps a
+# separate minimum. This does NOT prove OS-visible memory covers an AMD
+# Variable Graphics Memory carve-out; such allocations may fail closed.
+UMA_MIN_HEADROOM_MB=4096
+
+
+def memory_budget_fits(profile,reading,*,already_loaded=False,
+                       ram_headroom_mb=1024,vram_headroom_mb=512,now=None):
+    """Conservative resource admission for one or two disjoint memory pools.
+
+    A shared_uma profile budgets total CPU/GPU incremental demand only as OS
+    available RAM. Never add a second VRAM pool, infer free graphics memory
+    from a configured VGM carve-out, or silently switch measurement sources.
+    """
+    if now is None:now=time.monotonic()
+    if (type(reading) is not MemoryReading or type(reading.ram_mb) is not int or
+            reading.ram_mb<0 or type(reading.measured) not in (float,int) or
+            type(now) not in (float,int) or not 0<=now-reading.measured<=5):
+        raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
+    if (type(ram_headroom_mb) is not int or ram_headroom_mb<1 or
+            type(vram_headroom_mb) is not int or vram_headroom_mb<1):
+        raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
+    ram=profile.inference_ram_mb if already_loaded else profile.memory_ram_mb
+    vram=profile.inference_vram_mb if already_loaded else profile.memory_vram_mb
+    if type(ram) is not int or type(vram) is not int or ram<0 or vram<0:
+        raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
+    if profile.memory_accounting=='shared_uma':
+        if (profile.memory_vram_mb!=0 or vram!=0 or reading.vram_mb is not None):
+            raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
+        return reading.ram_mb>=ram+max(ram_headroom_mb,UMA_MIN_HEADROOM_MB)
+    if profile.memory_accounting!='separate':
+        raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
+    if reading.ram_mb<ram+ram_headroom_mb:return False
+    if profile.memory_vram_mb>0:
+        if type(reading.vram_mb) is not int or reading.vram_mb<0:
+            return False
+        return reading.vram_mb>=vram+vram_headroom_mb
+    if reading.vram_mb is not None:
+        raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
+    return True
+
+
 class ModelLifecycle:
     def __init__(self,owner,*,parent=None,measure=measure_memory,runtime=ModelRuntime,
                  ram_headroom_mb=1024,vram_headroom_mb=512,gpu_index=0,idle_seconds=180):
@@ -104,15 +146,12 @@ class ModelLifecycle:
             attempt=con.execute('SELECT attempt_no FROM pilot_runs WHERE job_id=?',(job,)).fetchone()[0]
         return _digest([job,attempt])
     def fits(self,profile,*,already_loaded=False):
-        s=self.measure(self.gpu_index,profile.memory_vram_mb>0)
-        if (type(s) is not MemoryReading or type(s.ram_mb) is not int or s.ram_mb<0
-                or time.monotonic()-s.measured>5 or s.measured>time.monotonic()):
-            raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
-        ram=profile.inference_ram_mb if already_loaded else profile.memory_ram_mb
-        gpu=profile.inference_vram_mb if already_loaded else profile.memory_vram_mb
-        if ram is None or gpu is None:raise WorkerProviderError('PILOT_RESOURCE_UNVERIFIED')
-        return (s.ram_mb>=ram+self.ram_headroom and
-                (profile.memory_vram_mb==0 or (type(s.vram_mb) is int and s.vram_mb>=gpu+self.vram_headroom)))
+        needs_separate_gpu=(profile.memory_accounting=='separate' and
+                            profile.memory_vram_mb>0)
+        reading=self.measure(self.gpu_index,needs_separate_gpu)
+        return memory_budget_fits(profile,reading,already_loaded=already_loaded,
+                                  ram_headroom_mb=self.ram_headroom,
+                                  vram_headroom_mb=self.vram_headroom)
     def _idle(self,job,cancelled):
         if self.parent is None:return
         end=time.monotonic()+self.idle_seconds

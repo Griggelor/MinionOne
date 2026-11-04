@@ -41,6 +41,7 @@ class WorkerProfile:
     load_timeout_seconds: int = 240
     load_options: dict = field(default_factory=dict)
     cloud_policy: dict | None = None
+    memory_accounting: str = 'separate'  # explicit shared_uma uses one OS RAM pool
 
     def __post_init__(self):
         if (type(self.profile_id) is not str or
@@ -85,6 +86,15 @@ class WorkerProfile:
             raise InputRejected('invalid automatic model lifecycle')
         for value in (self.memory_ram_mb,self.memory_vram_mb):
             if type(value) is not int or not 0<=value<=1048576:raise InputRejected('invalid calibrated memory estimate')
+        if type(self.memory_accounting) is not str or self.memory_accounting not in ('separate','shared_uma'):
+            raise InputRejected('invalid memory accounting mode')
+        if self.memory_accounting=='shared_uma':
+            # The single memory_ram_mb estimate represents OS-visible CPU + GPU
+            # incremental demand. A second VRAM estimate would count it twice.
+            if self.provider=='cloud' or self.memory_vram_mb!=0 or self.inference_vram_mb not in (None,0):
+                raise InputRejected('shared UMA requires a single calibrated memory pool')
+            if self.auto_load and self.inference_vram_mb != 0:
+                raise InputRejected('shared UMA requires explicit zero independent VRAM budget')
         if self.auto_load and self.memory_ram_mb==0:raise InputRejected('automatic loading requires calibrated RAM estimate')
         for value,peak in ((self.inference_ram_mb,self.memory_ram_mb),(self.inference_vram_mb,self.memory_vram_mb)):
             if value is None:
@@ -122,6 +132,7 @@ class WorkerProfile:
                 'context_source': 'EXPLICIT_JOB_INPUT_ONLY', 'worker_tools': 'JOB_SCOPED_MANAGER_BROKER',
                 'handoff_paths': ['direct', 'prepared_workspace'],
                 'automatic_model_loading': self.auto_load,
+                'memory_accounting': self.memory_accounting,
                 **({'cloud_policy_required':self.cloud_policy is None,
                     'cloud_data_class':self.cloud_policy['data_class'] if self.cloud_policy else None}
                    if self.provider=='cloud' else {}),

@@ -40,6 +40,11 @@ def worker(**kw):
 
 
 class SharedUmaBudgetTests(unittest.TestCase):
+    def test_legacy_positional_profile_constructors_remain_compatible(self):
+        from dataclasses import fields
+        self.assertEqual(fields(WorkerProfile)[-1].name,'memory_accounting')
+        self.assertEqual(fields(NativeParentConfig)[-1].name,'memory_accounting')
+
     def test_worker_profile_roundtrip_catalog_and_legacy_default(self):
         p = worker()
         self.assertEqual(p.catalog()['memory_accounting'], 'shared_uma')
